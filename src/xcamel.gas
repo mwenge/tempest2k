@@ -1,8 +1,7 @@
 
 	Base equ $f00000
 
-		INCLUDE	"blit.inc"	; blitter defintions
-		INCLUDE	"jaguar.inc"	; Jaguar General definitions
+  INCLUDE	"jaguar.inc"	; Jaguar General definitions
 
 	gpu_mode EQU (G_RAM+$ffc)	; Number defines which routine the GPU will do
 	gpu_screen EQU (G_RAM+$ff8)	; The address of the screen the GPU will draw on
@@ -35,50 +34,50 @@
 	_finc EQU 8
 
 	MACRO sdiv	;Divide, keeping sign of that which is divided, uses r27
-	move @2,r31
-	abs @2
- 	div @1,@2
+	move \2,r31
+	abs \2
+ 	div \1,\2
 	btst #31,r31	;Get sign bit of original thang
-	jr z,sd@@
+	jr z,\~sdtt
 	nop
-	neg @2
-sd@@:	
+	neg \2
+\~sdtt:	
 	ENDM
 	MACRO waitblit	; Wait for the Blitter to stop
-wai@@:	load (blit),r31
+\~waitt:	load (blit),r31
 	btst #0,r31
-	jr z,wai@@
+	jr z,\~waitt
 	nop
 	ENDM
 
 	MACRO fmult	;multiply 2 thangs, uses r2-r4, returns in first reg.
-	moveta @2,r0	;(preserves second Thang)
+	moveta \2,r0	;(preserves second Thang)
  	moveq #0,r27
 	move r27,r28
-	abs @1
+	abs \1
 	addc r28,r27
-	abs @2
+	abs \2
 	addc r28,r27
-	move @2,r28
-	mult @1,r28
-	move @1,r29
+	move \2,r28
+	mult \1,r28
+	move \1,r29
 	shrq #16,r28
 	shrq #16,r29
-	mult @2,r29
-	shrq #16,@2
+	mult \2,r29
+	shrq #16,\2
 	add r29,r28
-	move @2,r29
-	mult @1,r29
-	shrq #16,@1
+	move \2,r29
+	mult \1,r29
+	shrq #16,\1
 	add r29,r28
-	mult @2,@1
-	shlq #16,@1
-	add r28,@1
+	mult \2,\1
+	shlq #16,\1
+	add r28,\1
 	btst #0,r27
-	jr z,fmp@@
-	movefa r0,@2
-	neg @1
-fmp@@:
+	jr z,\~fmptt
+	movefa r0,\2
+	neg \1
+\~fmptt:
 	ENDM
 
 	MACRO bank0
@@ -91,10 +90,10 @@ fmp@@:
 	nop
 	nop
 	nop
-bnk0@@:	movei #G_FLAGS,r0
+\~bnk0tt:	movei #G_FLAGS,r0
 	load (r0),r1
 	btst #14,r1
-	jr nz,bnk0@@
+	jr nz,\~bnk0tt
 	nop
 	ENDM
 
@@ -108,15 +107,15 @@ bnk0@@:	movei #G_FLAGS,r0
 	nop
 	nop
 	nop
-bnk1@@:	movei #G_FLAGS,r0
+\~bnk1tt:	movei #G_FLAGS,r0
 	load (r0),r1
 	btst #14,r1
-	jr z,bnk1@@
+	jr z,\~bnk1tt
 	nop
 	ENDM
 
 	MACRO pix2x2
-	movei #fxfx@@,r0
+	movei #\~fxfxtt,r0
 	cmpq #0,dstx
 	jump mi,(r0)
 	nop
@@ -140,11 +139,11 @@ bnk1@@:	movei #G_FLAGS,r0
 	storew dstc,(dstx)
 	addq #2,dstx
 	storew dstc,(dstx)
-fxfx@@: nop
+\~fxfxtt: nop
 	ENDM
 
 	MACRO pix
-	movei #fxex@@,r0
+	movei #\~fxextt,r0
 	cmpq #0,dstx
 	jump mi,(r0)
 	nop
@@ -162,7 +161,7 @@ fxfx@@: nop
 	add dsty,dstx	
 	add scrbase,dstx		;r6 now points to actual screen location
 	storew dstc,(dstx)		;store that pixel
-fxex@@: nop
+\~fxextt: nop
 	ENDM
 
 
@@ -248,9 +247,9 @@ waifer:	load (r0),r31
 	a1		REGEQU r14
 
 	MACRO swap
-	move @1,r31
-	move @2,@1
-	move r31,@2
+	move \1,r31
+	move \2,\1
+	move r31,\2
 	ENDM
 
 ;cls:	movei #A1_BASE,a1	;blitter Base
@@ -277,7 +276,7 @@ waifer:	load (r0),r31
 ;	movei #(UPDA1|PATDSEL),r0
 ;	store r0,(blit)
 ;	waitblit
-;	movei #stopgpu,r0
+;	movei #StopGPU,r0
 ;	jump (r0)
 ;	nop
 
@@ -374,7 +373,7 @@ nswap3:
 	movei #(PATDSEL|GOURD),cmd	;blitter Go command
 	movei #gpu_screen,r0
 	load (r0),r1
-	store r1,(a1+_base)	;screen destination base address set
+	store r1,(a1)	;screen destination base address set
 	movei #$f00180,r0
 	store r0,(a1+_clip)	;clip window dimensions
 ;	movei #(PITCH1|PIXEL16|WID384|XADDPHR),r0
@@ -1034,7 +1033,7 @@ tile16: movei #in_buf,r0
 	movei #A2_BASE,a2
 	load (r0),r1		;get source screen
 	addq #4,r0
-	store r1,(a2+_base)
+	store r1,(a2)
 	load (r0),r1		;get window mask
 	addq #4,r0
 	store r1,(a2+_mask)
@@ -1048,7 +1047,7 @@ tile16: movei #in_buf,r0
 	and r0,r1
 	bset #16,r1		;make into a step value
 	store r1,(a2+_step)
-	movei #(PITCH1|PIXEL16|WID384|A2MASK|XADDPHR),r0
+	movei #(PITCH1|PIXEL16|WID384|A2_MASK|XADDPHR),r0
 	store r0,(a2+_flags)
 
 	movei #A1_BASE,a1	;blitter Base
@@ -1057,7 +1056,7 @@ tile16: movei #in_buf,r0
 	store r0,(a1+_pixel)
 	movei #gpu_screen,r1
 	load (r1),r0
-	store r0,(a1+_base)
+	store r0,(a1)
 	movei #(PITCH1|PIXEL16|WID384|XADDPHR),r0
 	store r0,(a1+_flags)
 	movei #$0001fe80,r0		;1,-384
@@ -1068,7 +1067,7 @@ tile16: movei #in_buf,r0
 	movei #(SRCEN|UPDA1|UPDA2|LFU_A|LFU_AN),r0
 	store r0,(blit)
 	waitblit
-	movei #stopgpu,r0
+	movei #StopGPU,r0
 	jump (r0)
 	nop
 
@@ -1198,7 +1197,7 @@ shrnk:
 	jr mi,shrnk
 	nop
 	nop
-	movei #stopgpu,r28
+	movei #StopGPU,r28
 	move ssize,r27
 	shlq #16,r27
 	nop
@@ -1268,10 +1267,10 @@ pasthack:
 	store r1,(a1+_flags)
 	movei #$1180180,r1
 	store r1,(a1+_clip)
-	store r26,(a1+_base)	;a1 is now set up...
+	store r26,(a1)	;a1 is now set up...
 
 
-	store _bass,(a2+_base)
+	store _bass,(a2)
 	store spixel,(a2+_pixel)
 	move ssize,r0
 	and lomask,r0		;get width
@@ -1288,7 +1287,7 @@ pasthack:
 	movei #(SRCEN|CLIP_A1|UPDA1F|UPDA1|UPDA2|LFU_A|LFU_AN),r0
 	store r0,(blit)		;draw the sprite
 
-	movei #stopgpu,r0
+	movei #StopGPU,r0
 	jump (r0)
 	nop			;all done	
 
@@ -1543,7 +1542,7 @@ pring2:
 ;	xcentr 		REGEQU r24
 ;	ycentr		REGEQU r25
 
-;	movei #stopgpu,r0
+;	movei #StopGPU,r0
 ;	jump (r0)
 ;	nop
 
@@ -1644,6 +1643,5 @@ pixloop2: move phase,r0
 	nop
 	movei #StopGPU,r0
 	jump (r0)
-	nop			;terminate
 
 

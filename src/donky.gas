@@ -1,8 +1,7 @@
 
 	Base equ $f00000
 
-		INCLUDE	"blit.inc"	; blitter defintions
-		INCLUDE	"jaguar.inc"	; Jaguar General definitions
+  INCLUDE	"jaguar.inc"	; Jaguar General definitions
 
 	gpu_mode EQU (G_RAM+$ffc)	; Number defines which routine the GPU will do
 	gpu_screen EQU (G_RAM+$ff8)	; The address of the screen the GPU will draw on
@@ -34,50 +33,50 @@
 	_finc EQU 8
 
 	MACRO sdiv	;Divide, keeping sign of that which is divided, uses r27
-	move @2,r31
-	abs @2
- 	div @1,@2
+	move \2,r31
+	abs \2
+ 	div \1,\2
 	btst #31,r31	;Get sign bit of original thang
-	jr z,sd@@
+	jr z,\~sdtt
 	nop
-	neg @2
-sd@@:	
+	neg \2
+\~sdtt:	
 	ENDM
 	MACRO waitblit	; Wait for the Blitter to stop
-wai@@:	load (blit),r31
+\~waitt:	load (blit),r31
 	btst #0,r31
-	jr z,wai@@
+	jr z,\~waitt
 	nop
 	ENDM
 
 	MACRO fmult	;multiply 2 thangs, uses r2-r4, returns in first reg.
-	moveta @2,r31	;(preserves second Thang)
+	moveta \2,r31	;(preserves second Thang)
  	moveq #0,r27
 	move r27,r28
-	abs @1
+	abs \1
 	addc r28,r27
-	abs @2
+	abs \2
 	addc r28,r27
-	move @2,r28
-	mult @1,r28
-	move @1,r29
+	move \2,r28
+	mult \1,r28
+	move \1,r29
 	shrq #16,r28
 	shrq #16,r29
-	mult @2,r29
-	shrq #16,@2
+	mult \2,r29
+	shrq #16,\2
 	add r29,r28
-	move @2,r29
-	mult @1,r29
-	shrq #16,@1
+	move \2,r29
+	mult \1,r29
+	shrq #16,\1
 	add r29,r28
-	mult @2,@1
-	shlq #16,@1
-	add r28,@1
+	mult \2,\1
+	shlq #16,\1
+	add r28,\1
 	btst #0,r27
-	jr z,fmp@@
-	movefa r31,@2
-	neg @1
-fmp@@:
+	jr z,\~fmptt
+	movefa r31,\2
+	neg \1
+\~fmptt:
 	ENDM
 
 	MACRO bank0
@@ -90,10 +89,10 @@ fmp@@:
 	nop
 	nop
 	nop
-bnk0@@:	movei #G_FLAGS,r0
+\~bnk0tt:	movei #G_FLAGS,r0
 	load (r0),r31
 	btst #14,r31
-	jr nz,bnk0@@
+	jr nz,\~bnk0tt
 	nop
 	ENDM
 
@@ -107,22 +106,22 @@ bnk0@@:	movei #G_FLAGS,r0
 	nop
 	nop
 	nop
-bnk1@@:	movei #G_FLAGS,r0
+\~bnk1tt:	movei #G_FLAGS,r0
 	load (r0),r31
 	btst #14,r31
-	jr z,bnk1@@
+	jr z,\~bnk1tt
 	nop
 	ENDM
 
 	MACRO swap
-	move @1,r31
-	move @2,@1
-	move r31,@2
+	move \1,r31
+	move \2,\1
+	move r31,\2
 	ENDM
 
 	MACRO fjsr	;Fast single-level JSR
 	move PC,r30
-	jump (@1)
+	jump (\1)
 	addq #6,r30	; Determine Return Address
 	ENDM
 
@@ -173,7 +172,7 @@ bnk1@@:	movei #G_FLAGS,r0
 
 
 	blit		REGEQU r13
-	a1		REGEQU r14
+	n_a1		REGEQU r14
 
 ;*	Definitions for use in the alternate-register bank. Alternate r0 and ISTART are used in the polyrenderer.
 
@@ -203,16 +202,16 @@ bnk1@@:	movei #G_FLAGS,r0
 
 	bank0
 
-	movei #A1_BASE,a1	;blitter Base
+	movei #A1_BASE,n_a1	;blitter Base
 	movei #B_CMD,blit	;blitter flags/go
 	movei #(PATDSEL|CLIP_A1|GOURD),cmd	;blitter Go command
 	waitblit			;make sure it's stopped
 	movei #gpu_screen,r0
 	load (r0),r1
-	store r1,(a1+_base)	;screen destination base address set
+	store r1,(n_a1)	;screen destination base address set
 	movei #$1180180,r0
 	nop
-	store r0,(a1+_clip)	;clip window dimensions
+	store r0,(n_a1+_clip)	;clip window dimensions
 	nop
 
 
@@ -282,7 +281,7 @@ notcon:	movei #polyloop,poly_loop
 	add r0,zzz
 	jr pl,nozod
 	nop
-	movei #stopgpu,r0
+	movei #StopGPU,r0
 	jump (r0)
 	nop
 nozod:	sub r0,r29
@@ -727,11 +726,11 @@ i_setpix:	bset #16,r1		;this sets pixel mode, if xsize is <32
  	movei #B_I3,r0
  	store istart,(r0)
 	movei #i_pixmode,r0
-	store r1,(a1+_flags)	;flags to pixelmode
+	store r1,(n_a1+_flags)	;flags to pixelmode
 	jump (r0)
 	nop
 
-i_gophrase: store r1,(a1+_flags)	;flags to phrasemode
+i_gophrase: store r1,(n_a1+_flags)	;flags to phrasemode
 	moveta istart,r0		;\\\was istart
  	move xstart,r0
 	moveq #$03,r31
@@ -780,7 +779,7 @@ i_pixmode: movei #B_IINC,r0
 	movei #$ffff,r1
 	and r1,xstart
 	or y1,xstart		;form a pixel address
-	store xstart,(a1+_pixel)
+	store xstart,(n_a1+_pixel)
 
 
 	bset #16,xsize		;xsize can now be used to set the blitter's count
@@ -901,12 +900,12 @@ s3etpix: bset #16,r1		;this sets pixel mode, if xsize is <32
  	movei #B_I3,r0
  	store istart,(r0)
 	movei #p3ixmode,r0
-	store r1,(a1+_flags)	;flags to pixelmode
+	store r1,(n_a1+_flags)	;flags to pixelmode
 ;	move isize,r1
 	jump (r0)
 	nop
 
-g3ophrase: store r1,(a1+_flags)	;flags to phrasemode
+g3ophrase: store r1,(n_a1+_flags)	;flags to phrasemode
 	moveta istart,r0		;\\\was istart
  	move xstart,r0
 	movei #$03,r31
@@ -957,7 +956,7 @@ p3ixmode:
 	movei #$ffff,r1
 	and r1,xstart
 	or y1,xstart		;form a pixel address
-	store xstart,(a1+_pixel)
+	store xstart,(n_a1+_pixel)
 
 
 	bset #16,xsize		;xsize can now be used to set the blitter's count
@@ -1012,11 +1011,11 @@ starplane:
 	ymask		REGEQU r22
 
 	MACRO ran			;Sequence generator out of Graphics Gems	
-	btst #0,@1
-	jr z,noxor@@
- 	shrq #1,@1		;branch optimisation - the SHRQ is always done
-	xor @2,@1
-noxor@@: nop
+	btst #0,\1
+	jr z,\~noxortt
+ 	shrq #1,\1		;branch optimisation - the SHRQ is always done
+	xor \2,\1
+\~noxortt: nop
 	ENDM
 
 	movei #in_buf,r0
@@ -1065,7 +1064,7 @@ star_loop: ran xseed,xmask
 no_pixl: subq #1,nstars
 	jump ne,(starloop)	;loop until nstars is 0
 	nop
-	movei #stopgpu,r0
+	movei #StopGPU,r0
 	jump (r0)
 	nop
 

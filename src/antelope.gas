@@ -2,7 +2,6 @@
 
 	Base equ $f00000
 
-		INCLUDE	"blit.inc"	; blitter defintions
 		INCLUDE	"jaguar.inc"	; Jaguar General definitions
 
 	gpu_mode EQU (G_RAM+$ffc)	; Number defines which routine the GPU will do
@@ -24,44 +23,44 @@
 	diag EQU $4000
 
 	MACRO fmult	;multiply 2 thangs, uses r2-r4, returns in first reg.
-	moveta @2,r0	;(preserves second Thang)
+	moveta \2,r0	;(preserves second Thang)
  	moveq #0,r27
 	move r27,r28
-	abs @1
+	abs \1
 	addc r28,r27
-	abs @2
+	abs \2
 	addc r28,r27
-	move @2,r28
-	mult @1,r28
-	move @1,r29
+	move \2,r28
+	mult \1,r28
+	move \1,r29
 	shrq #16,r28
 	shrq #16,r29
-	mult @2,r29
-	shrq #16,@2
+	mult \2,r29
+	shrq #16,\2
 	add r29,r28
-	move @2,r29
-	mult @1,r29
-	shrq #16,@1
+	move \2,r29
+	mult \1,r29
+	shrq #16,\1
 	add r29,r28
-	mult @2,@1
-	shlq #16,@1
-	add r28,@1
+	mult \2,\1
+	shlq #16,\1
+	add r28,\1
 	btst #0,r27
-	jr z,fmp@@
-	movefa r0,@2
-	neg @1
-fmp@@:
+	jr z,\~fmptt
+	movefa r0,\2
+	neg \1
+\~fmptt:
 	ENDM
 
 	MACRO sdiv	;Divide, keeping sign of that which is divided, uses r27
-	move @2,r27
-	abs @2
- 	div @1,@2
+	move \2,r27
+	abs \2
+ 	div \1,\2
 	btst #31,r27	;Get sign bit of original thang
-	jr z,sd@@
+	jr z,\~sdtt
 	nop
-	neg @2
-sd@@:	
+	neg \2
+\~sdtt:	
 	ENDM
 
 	movei #gpu_mode,r0		;Get mode
@@ -249,7 +248,7 @@ stoploop: jr stoploop
 
 	MACRO fjsr	;Fast single-level JSR
 	move PC,freturn
-	jump (@1)
+	jump (\1)
 	addq #6,freturn	; Determine Return Address
 	ENDM
 
@@ -259,9 +258,9 @@ stoploop: jr stoploop
 	ENDM
 
 	MACRO waitblit	; Wait for the Blitter to stop
-wai@@:	load (blit),r0
+\~waitt:	load (blit),r0
 	btst #0,r0
-	jr z,wai@@
+	jr z,\~waitt
 	nop
 	ENDM
 
@@ -477,7 +476,7 @@ rippleloop: move lphase,r0
 
 ;	subq #1,source3
 
-	movei #stopgpu,r0
+	movei #StopGPU,r0
 	jump (r0)
 	nop			;done it	
 
@@ -565,7 +564,7 @@ v_rippleloop: move lphase,r0
 	jump pl,(r29)		;loop for all scan lines
 	subq #1,source3
 
-	movei #stopgpu,r0
+	movei #StopGPU,r0
 	jump (r0)
 	nop			;done it	
 
@@ -808,7 +807,7 @@ axa:	store r0,(r1)
 
 	store _cmd,(blit)		;do it to it
 
-	movei #stopgpu,r0
+	movei #StopGPU,r0
 	jump (r0)
 	nop				;stop GPU
 
@@ -1040,7 +1039,7 @@ ploop:	move v_height,r0		;Hover height as a 16:16 frac
 	moveta pixoff,pixoff		;save updated pixoff
 	
 
-	movei #stopgpu,r0
+	movei #StopGPU,r0
 	jump (r0)
 	nop				;stop GPU
 
@@ -1093,7 +1092,6 @@ ploop:	move v_height,r0		;Hover height as a 16:16 frac
 ;	v_x 	REGEQU r22		;centre of rotation
 ;	v_y	REGEQU r23		;on the surface
 	yloop_count REGEQU r24		;count of vertical scanlines drawn
-	loop_add REGEQU r25		;address of loop point
 
 	temp3 REGEQU r27		
 	prevline REGEQU r31		;Holds the height of the pixels behind the current row
@@ -1112,7 +1110,7 @@ voxel: movei #B_CMD,blit		;Init blitter regs
 	store r0,(r1)
 	movei #gpu_screen,r1
 	load (r1),r0
-	store r0,(a1+_base)
+	store r0,(a1)
 	movei #(PITCH1|PIXEL8|WID384|XADDPHR),r0
 	store r0,(a1+_flags)
 	movei #$0001fe80,r0		;1,-384
@@ -1443,7 +1441,7 @@ notvis:	movefa temp1,r0
 ;	cmpq #0,r0
 ;	jump ne,(loop_add)
 ;	nop
-	movei #stopgpu,r0
+	movei #StopGPU,r0
 	jump (r0)
 	nop				;stop GPU
 
@@ -1524,6 +1522,6 @@ x_looop: move xphase,r20			;Copy for mungeing
 	subq #1,ycount
 	jump ne,(ylooop)
 	add ystep,yphase		;shift the y Phase
-	movei #stopgpu,r0
+	movei #StopGPU,r0
 	jump (r0)
 	nop				;stop

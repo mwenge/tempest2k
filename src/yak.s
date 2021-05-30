@@ -1,8 +1,4 @@
-  	.include	'jaguar.inc'
-	.include	'blit.inc'
-	.include 	'joypad.inc'
-	.include	'allsynt.def'
-;	.include 	'blit.inc'
+  .include	'jaguar.inc'
 	.extern	VideoIni
 
 ;	.extern GPUSTART	;From the ALLSYNT object code
@@ -6768,11 +6764,11 @@ dntclr:	lea webcols,a0
 	move 0(a0,d0.w),d0
 	move d0,flipcol
 	lea s_flipper,a0
-	bsr sfc
+	bsr sfc_routine
 	lea s_flip1,a0
-	bsr sfc
+	bsr sfc_routine
 	lea s_flip2,a0
-	bsr sfc
+	bsr sfc_routine
 
  	lea _web,a0
 	move.l (a0),a1
@@ -6858,7 +6854,7 @@ palme:	tst pal
 	add.l d7,d3
 	rts
 
-sfc:	move d0,4(a0)
+sfc_routine:	move d0,4(a0)
 	move d0,52(a0)
 	add #4,d0
 	move d0,20(a0)
@@ -7340,7 +7336,7 @@ make_bits: move.l #$00,d0			;parameters for object - XYZ scale...
 	bsr make_vo3d
 	movem.l (a7)+,d0-d7
 	move.l a0,_ev
- 	lea la,a1
+ 	lea la_routine,a1
 	movem.l d0-d7,-(a7)
 	bsr make_vo3d
 	movem.l (a7)+,d0-d7
@@ -17175,7 +17171,7 @@ ev: dc.b 3,1,1,2,0
 	dc.b 14,5,1,25,0
 	dc.b 16,5,1,0,0
 
-la: dc.b 1,1,1,2,0
+la_routine: dc.b 1,1,1,2,0
 	dc.b 1,5,1,3,0
 	dc.b 3,5,1,0
 
@@ -18256,7 +18252,7 @@ ObTypes:
 	dc.w $60,48,4,0		;48-pixel high bit of cry screen
 
 
-	.include "digits.s"	;actually now only the ship gfx
+	include "digits.dat"	;actually now only the ship gfx
 sines:
 	.include "sines.dat"
 ;p_sines: dcb.b 256,0
@@ -18278,6 +18274,7 @@ romstart:
 	.include "afont.dat"
 	.include "bfont.dat"
 	.include "cfont.dat"
+
  dc.l $a00000,0,$1000,$800,$1400000,0,$20000
  dc.l $80000,0,$8000,$2000,$1400000,-$1400000,$80000
  dc.l 0,0,$1000,$100,0,0,$40000
@@ -18430,14 +18427,16 @@ romend: dc.l 0
 .data
 
 copstart:	dc.l 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+       .include "moomoo.dat"
 
-	.include "moomoo.dat"
 
-
-	.include "obj2d.s"
+       .include "obj2d.s"
 	.include "afont.s"
 	.include "bfont.s"
 	.include "cfont.s"
+
+
+
 
 ;	***** END OF LONGALIGNED AREA
 

@@ -2,9 +2,7 @@
 
 	Base equ $f00000
 
-		INCLUDE	"blitdef.inc"	; blitter defintions
-		INCLUDE	"gpudef.inc"	; GPU definitions
-		INCLUDE	"jagdef.inc"	; Jaguar General definitions
+  INCLUDE	"jaguar.inc"	; Jaguar General definitions
 
 	gpu_mode EQU (GPU_RAM+$ffc)	; Number defines which routine the GPU will do
 	gpu_screen EQU (GPU_RAM+$ff8)	; The address of the screen the GPU will draw on
@@ -44,64 +42,64 @@ L_INC 		REGEQU	R5
 L_PIX		REGEQU	R6
 L_COUNT		REGEQU	R7
 L_INCF		REGEQU	R8
-X1		REGEQU	R9		;thangs
-Y1		REGEQU	R10
-X2		REGEQU 	R11
-Y2		REGEQU  R12
-CMD		REGEQU	R20
-BUFFER		REGEQU	R14
-COUNT		REGEQU	R21
-COL		REGEQU	R19
-INTENS_0	REGEQU 	R13
-INTENS_1	REGEQU  R18
+x1		REGEQU	R9		;thangs
+y1		REGEQU	R10
+x2		REGEQU 	R11
+y2		REGEQU  R12
+cmd		REGEQU	R20
+buffer		REGEQU	R14
+count		REGEQU	R21
+col		REGEQU	R19
+intens_0	REGEQU 	R13
+intens_1	REGEQU  R18
 A1PIXEL		REGEQU	R22
 UNDRAW		REGEQU	R25
-SINEBASE	REGEQU	R26
+sinebase	REGEQU	R26
 RMODE		REGEQU	R29		;Rotation mode. 0=XY rotate only.
 
 	MACRO fmult	;multiply 2 thangs, uses r2-r4, returns in first reg.
  	moveq #0,r2
 	move r2,r3
-	abs @1
+	abs \1
 	addc r3,r2
-	abs @2
+	abs \2
 	addc r3,r2
-	move @2,r3
-	mult @1,r3
-	move @1,r4
+	move \2,r3
+	mult \1,r3
+	move \1,r4
 	shrq #16,r3
 	shrq #16,r4
-	mult @2,r4
-	shrq #16,@2
+	mult \2,r4
+	shrq #16,\2
 	add r4,r3
-	move @2,r4
-	mult @1,r4
-	shrq #16,@1
+	move \2,r4
+	mult \1,r4
+	shrq #16,\1
 	add r4,r3
-	mult @2,@1
-	shlq #16,@1
-	add r3,@1
+	mult \2,\1
+	shlq #16,\1
+	add r3,\1
 	btst #0,r2
-	jr z,fmp@@
+	jr z,\~fmptt
 	nop
-	neg @1
-fmp@@:
+	neg \1
+\~fmptt:
 	ENDM
 
 	MACRO sdiv	;Divide, keeping sign of that which is divided, uses r2-r3
-	move @2,r2
-	abs @2
- 	div @1,@2
+	move \2,r2
+	abs \2
+ 	div \1,\2
 	btst #31,r2	;Get sign bit of original thang
-	jr z,sd@@
+	jr z,\~sdtt
 	nop
-	neg @2
-sd@@:	
+	neg \2
+\~sdtt:	
 	ENDM
 
 	MACRO fjsr	;Fast single-level JSR
 	move PC,r30
-	jump (@1)
+	jump (\1)
 	addq #6,r30	; Determine Return Address
 	ENDM
 
@@ -112,7 +110,7 @@ sd@@:
 
 	MACRO gjsr	;Fast single-level JSR
 	move PC,r31
-	jump (@1)
+	jump (\1)
 	addq #6,r31	; Determine Return Address
 	ENDM
 
@@ -122,9 +120,9 @@ sd@@:
 	ENDM
 
 	movei #(GPU_RAM+$f00),r27	;To use as a stack pointer
-	movei #BLIT_CMD,CMD		;Init register stuff
+	movei #BLIT_CMD,cmd		;Init register stuff
 	movei #BLIT_A1PIXEL,A1PIXEL
-	movei #BLIT_COUNT,COUNT
+	movei #BLIT_COUNT,count
 	movei #p_sines,sinebase
 
  	movei #(PITCH1|PIXEL16|WIDTH384|XADDINC),r0		;usual blittr settings
@@ -282,7 +280,7 @@ view_otm:
 	sharq #7,r5
 	store r5,(r14+8)	;Now all 3 matrices are combined. Whoopee.
 
-	movei #stopgpu,r0
+	movei #StopGPU,r0
 	jump (r0)
 	nop
 
@@ -313,7 +311,7 @@ undraw:	movei #BLIT_A1BASE,a1	;blitter Base
 	store r0,(r1)
 	movei #gpu_screen,r1
 	load (r1),r0
-	store r0,(a1+_base)
+	store r0,(a1)
 	movei #(PITCH1|PIXEL16|WIDTH384|XADDPHR),r0
 	store r0,(a1+_flags)
 	movei #$0001fe80,r0		;1,-384
@@ -327,7 +325,7 @@ wb:	load (cmd),r0
 	btst #0,r0
 	jr z,wb
 	nop
-	movei #stopgpu,r0
+	movei #StopGPU,r0
 	jump (r0)
 	nop
 
@@ -352,9 +350,9 @@ vect3d:
 	moveta r1,RMODE		;RMODE std bank is rotate mode, alt bank is horiz scale value
 
 	movei #(in_buf+64),r3
-	load (r3),COL		;get initial vector colour
+	load (r3),col		;get initial vector colour
  
-	movei #in_buf+4,BUFFER
+	movei #in_buf+4,buffer
 	load (buffer),r15
 	addq #4,buffer
 	load (buffer),r16
@@ -734,7 +732,7 @@ nxtconn: loadw (r24),r0		;get connected-vertex number
 	and r28,r4		;this will be non zero for a colour change
 	jr z,nocolch
 	nop
-	move r4,COL		;change colour
+	move r4,col		;change colour
 nocolch: cmpq #0,r0
 	jr ne,gcv1		;if non0 is really a vertex
 	nop
@@ -1038,10 +1036,10 @@ starfield1:
 	load (r25),r26			;r26 has the total number of stars.
 	addq #4,r25			;r25 now points to the first star.
 
-	movei #GPU_SCREEN,r28
+	movei #gpu_screen,r28
 	load (r28),r24			;r24 points to the base of screen RAM.
-	movei #WIDTH,r18
-	movei #HEIGHT,r19		;Keep these in register for fast pixel address generation and clipping.
+	movei #width,r18
+	movei #height,r19		;Keep these in register for fast pixel address generation and clipping.
 	move r18,r14
 	move r19,r15
 	shrq #1,r14
@@ -1114,7 +1112,7 @@ nxtpix:	movefa r0,r0
 	jump ne,(r28)		;loop back for all stars
 	nop
 
-	movei #stopgpu,r28	;all done
+	movei #StopGPU,r28	;all done
 	jump (r28)
 	nop
 
@@ -1345,7 +1343,7 @@ nneg1: div r1,r0
 	neg r0
 nneg11:	move intens_0,r1	;get start intensity
 
-bstop: load (CMD),r28		;check for blitter stop
+bstop: load (cmd),r28		;check for blitter stop
 	btst #0,r28
 	jr z,bstop
 	nop
@@ -1378,12 +1376,12 @@ bstop: load (CMD),r28		;check for blitter stop
 	store L_PIX,(A1PIXEL)
 	move L_COUNT,r0
 	move r0,r1
-	store r1,(COUNT)
+	store r1,(count)
 	moveq #0,r0
 	movei #BLIT_A1PIXELF,r1
 	store r0,(r1)
 	movei #(PATDSEL|GOURD),r0	;pattern data + Gourard stuff
-	store r0,(CMD)			;start it up
+	store r0,(cmd)			;start it up
 
 farts:	frts
 z2return: moveq #0,L_COUNT
@@ -1401,9 +1399,9 @@ line:
 	movei #lineparams,r28
 	gjsr r28
 
-	move COL,r0
+	move col,r0
 	shlq #16,r0
-	or COL,r0
+	or col,r0
 	movei #z2return,r3
 	move L_COUNT,r28	
 	bclr #16,r28
@@ -1411,7 +1409,7 @@ line:
 	jump eq,(r3)
 	nop
 
-lbstop: load (CMD),r28		;check for blitter stop
+lbstop: load (cmd),r28		;check for blitter stop
 	btst #0,r28
 	jr z,lbstop
 	nop
@@ -1433,9 +1431,9 @@ lbstop: load (CMD),r28		;check for blitter stop
 	movei #$1ff,r2
 	and r2,r1
 	bset #16,r1
-	store r1,(COUNT)
+	store r1,(count)
 	movei #(PATDSEL),r0		;pattern data + Gourard stuff
-	store r0,(CMD)			;start it up
+	store r0,(cmd)			;start it up
 
 	frts
 
@@ -1550,7 +1548,6 @@ StopGPU:
 	store r0,(r1)		;stop the GPU
 stoploop:
  	jr stoploop
-	nop
 
 
 

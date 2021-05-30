@@ -1,8 +1,7 @@
 
 	Base equ $f00000
 
-		INCLUDE	"blit.inc"	; blitter defintions
-		INCLUDE	"jaguar.inc"	; Jaguar General definitions
+  INCLUDE	"jaguar.inc"	; Jaguar General definitions
 
 	gpu_mode EQU (G_RAM+$ffc)	; Number defines which routine the GPU will do
 	gpu_screen EQU (G_RAM+$ff8)	; The address of the screen the GPU will draw on
@@ -37,63 +36,63 @@
 	_finc EQU 8
 
 	MACRO sdiv	;Divide, keeping sign of that which is divided, uses r27
-	move @2,r31
-	abs @2
- 	div @1,@2
+	move \2,r31
+	abs \2
+ 	div \1,\2
 	btst #31,r31	;Get sign bit of original thang
-	jr z,sd@@
+	jr z,\~sdtt
 	nop
-	neg @2
-sd@@:	
+	neg \2
+\~sdtt:	
 	ENDM
 
 	MACRO sdiv0	;Divide, keeping sign of that which is divided, uses r2-r3
-	move @2,r0
-	abs @2
- 	div @1,@2
+	move \2,r0
+	abs \2
+ 	div \1,\2
 	btst #31,r0	;Get sign bit of original thang
-	jr z,sd0@@
+	jr z,\~sd0tt
 	nop
-	neg @2
-sd0@@:	
+	neg \2
+\~sd0tt:	
 	ENDM
 
 
 	MACRO waitblit	; Wait for the Blitter to stop
-wai@@:	load (blit),r31
+\~waitt:	load (blit),r31
 	btst #0,r31
-	jr z,wai@@
+	jr z,\~waitt
 	nop
 	ENDM
 
 	MACRO fmult	;multiply 2 thangs, uses r2-r4, returns in first reg.
-	moveta @2,r31	;(preserves second Thang)
+	moveta \2,r31	;(preserves second Thang)
  	moveq #0,r27
 	move r27,r28
-	abs @1
+	abs \1
 	addc r28,r27
-	abs @2
+	abs \2
 	addc r28,r27
-	move @2,r28
-	mult @1,r28
-	move @1,r29
+	move \2,r28
+	mult \1,r28
+	move \1,r29
 	shrq #16,r28
 	shrq #16,r29
-	mult @2,r29
-	shrq #16,@2
+	mult \2,r29
+	shrq #16,\2
 	add r29,r28
-	move @2,r29
-	mult @1,r29
-	shrq #16,@1
+	move \2,r29
+	mult \1,r29
+	shrq #16,\1
 	add r29,r28
-	mult @2,@1
-	shlq #16,@1
-	add r28,@1
+	mult \2,\1
+	shlq #16,\1
+	add r28,\1
 	btst #0,r27
-	jr z,fmp@@
-	movefa r31,@2
-	neg @1
-fmp@@:
+	jr z,\~fmptt
+	movefa r31,\2
+	neg \1
+\~fmptt:
 	ENDM
 
 	MACRO bank0
@@ -106,10 +105,10 @@ fmp@@:
 	nop
 	nop
 	nop
-bnk0@@:	movei #G_FLAGS,r0
+\~bnk0tt:	movei #G_FLAGS,r0
 	load (r0),r1
 	btst #14,r1
-	jr nz,bnk0@@
+	jr nz,\~bnk0tt
 	nop
 	ENDM
 
@@ -123,17 +122,17 @@ bnk0@@:	movei #G_FLAGS,r0
 	nop
 	nop
 	nop
-bnk1@@:	movei #G_FLAGS,r0
+\~bnk1tt:	movei #G_FLAGS,r0
 	load (r0),r1
 	btst #14,r1
-	jr z,bnk1@@
+	jr z,\~bnk1tt
 	nop
 	ENDM
 
 	MACRO swap
-	move @1,r31
-	move @2,@1
-	move r31,@2
+	move \1,r31
+	move \2,\1
+	move r31,\2
 	ENDM
 
 	movei #B_CMD,r0
@@ -225,7 +224,7 @@ polyo2d:
 	waitblit			;make sure it's stopped
 	movei #gpu_screen,r0
 	load (r0),r1
-	store r1,(a1+_base)	;screen destination base address set
+	store r1,(a1)	;screen destination base address set
 	movei #$1180180,r0
 	nop
 	store r0,(a1+_clip)	;clip window dimensions
@@ -467,7 +466,7 @@ i_nswap2: cmp y2,y3
 	swap i2,i3		;The points are now in top-to-bottom order,
 i_nswap3:
 
-;	movei #stopgpu,r0	;Rough clipping kludge
+;	movei #StopGPU,r0	;Rough clipping kludge
 ;	movei #239,r1
 ;	cmp r1,y3		;Rough clip of bottom
 ;	jump pl,(r0)
@@ -931,7 +930,7 @@ pring2:
 	ycentr		REGEQU r25
 
 	MACRO pix
-	movei #fxex@@,r0
+	movei #fxextt,r0
 	cmpq #0,dstx
 	jump mi,(r0)
 	nop
@@ -949,7 +948,7 @@ pring2:
 	add dsty,dstx	
 	add scrbase,dstx		;r6 now points to actual screen location
 	storew dstc,(dstx)		;store that pixel
-fxex@@: nop
+fxextt: nop
 	ENDM
 
 
@@ -1222,8 +1221,7 @@ spskip: add xystep,xyphase		;next phase pos.
 	subq #1,yzcount
 	jump ne,(s_outer)
 	nop
-	movei #stopgpu,r0
+	movei #StopGPU,r0
 	jump (r0)
-	nop				;done
 
 

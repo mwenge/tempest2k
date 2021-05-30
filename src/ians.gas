@@ -1,7 +1,6 @@
 
 	Base equ $f00000
 
-		INCLUDE	"blit.inc"	; blitter defintions
 		INCLUDE	"jaguar.inc"	; Jaguar General definitions
 
 	in_buf	EQU (D_ENDRAM-128)	;Room tp pass params to DSP 
@@ -35,11 +34,12 @@ starplane:
 	ymask		REGEQU r22
 
 	MACRO ran			;Sequence generator out of Graphics Gems	
-	btst #0,@1
-	jr z,noxor@@
- 	shrq #1,@1		;branch optimisation - the SHRQ is always done
-	xor @2,@1
-noxor@@: nop
+	btst #0,\1
+	jr z,\~noxortt
+ 	shrq #1,\1		;branch optimisation - the SHRQ is always done
+	xor \2,\1
+\~noxortt:
+  nop
 	ENDM
 
 	movei #in_buf,r0
@@ -67,7 +67,8 @@ noxor@@: nop
 	movei #$1ff,andlim
 
 		
-star_loop: ran xseed,xmask
+star_loop: 
+  ran xseed,xmask
 	move xseed,px
 	ran yseed,ymask
 	move yseed,py		;"random" XY star position

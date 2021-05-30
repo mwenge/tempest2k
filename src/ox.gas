@@ -1,8 +1,7 @@
 
 	Base equ $f00000
 
-		INCLUDE	"blit.inc"	; blitter defintions
-		INCLUDE	"jaguar.inc"	; Jaguar General definitions
+  INCLUDE	"jaguar.inc"	; Jaguar General definitions
 
 	gpu_mode EQU (G_RAM+$ffc)	; Number defines which routine the GPU will do
 	gpu_screen EQU (G_RAM+$ff8)	; The address of the screen the GPU will draw on
@@ -44,61 +43,61 @@
 
 
 	MACRO fmult	;multiply 2 thangs, uses r2-r4, returns in first reg.
-	moveta @2,r0	;(preserves second Thang)
+	moveta \2,r0	;(preserves second Thang)
  	moveq #0,r27
 	move r27,r28
-	abs @1
+	abs \1
 	addc r28,r27
-	abs @2
+	abs \2
 	addc r28,r27
-	move @2,r28
-	mult @1,r28
-	move @1,r29
+	move \2,r28
+	mult \1,r28
+	move \1,r29
 	shrq #16,r28
 	shrq #16,r29
-	mult @2,r29
-	shrq #16,@2
+	mult \2,r29
+	shrq #16,\2
 	add r29,r28
-	move @2,r29
-	mult @1,r29
-	shrq #16,@1
+	move \2,r29
+	mult \1,r29
+	shrq #16,\1
 	add r29,r28
-	mult @2,@1
-	shlq #16,@1
-	add r28,@1
+	mult \2,\1
+	shlq #16,\1
+	add r28,\1
 	btst #0,r27
-	jr z,fmp@@
-	movefa r0,@2
-	neg @1
-fmp@@:
+	jr z,\~fmptt
+	movefa r0,\2
+	neg \1
+\~fmptt:
 	ENDM
 
 
 	MACRO sdiv	;Divide, keeping sign of that which is divided, uses r2-r3
-	move @2,r27
-	abs @2
- 	div @1,@2
+	move \2,r27
+	abs \2
+ 	div \1,\2
 	btst #31,r27	;Get sign bit of original thang
-	jr z,sd@@
+	jr z,\~sdtt
 	nop
-	neg @2
-sd@@:	
+	neg \2
+\~sdtt:	
 	ENDM
 
 	MACRO sdiv0	;Divide, keeping sign of that which is divided, uses r2-r3
-	move @2,r0
-	abs @2
- 	div @1,@2
+	move \2,r0
+	abs \2
+ 	div \1,\2
 	btst #31,r0	;Get sign bit of original thang
-	jr z,sd0@@
+	jr z,\~sd0tt
 	nop
-	neg @2
-sd0@@:	
+	neg \2
+\~sd0tt:	
 	ENDM
 
 	MACRO fjsr	;Fast single-level JSR
 	move PC,r30
-	jump (@1)
+	jump (\1)
 	addq #6,r30	; Determine Return Address
 	ENDM
 
@@ -109,7 +108,7 @@ sd0@@:
 
 	MACRO gjsr	;Fast single-level JSR
 	move PC,r31
-	jump (@1)
+	jump (\1)
 	addq #6,r31	; Determine Return Address
 	ENDM
 
@@ -120,20 +119,20 @@ sd0@@:
 
 	MACRO rannum
 	btst #0,rseed	;check bottom bit
-	jr nz,done@@	;one, go discard btm bit and do mask
+	jr nz,\~donett	;one, go discard btm bit and do mask
 	nop
 	shrq #1,rseed	;discard 0-bit
-	jr xrnd@@
+	jr \~xrndtt
 	nop
-done@@:	shrq #1,rseed
+\~donett:	shrq #1,rseed
 	xor rmask,rseed
-xrnd@@:	nop
+\~xrndtt:	nop
 	ENDM
 
 	MACRO waitblit	; Wait for the Blitter to stop
-wai@@:	load (blit),r28
+\~waitt:	load (blit),r28
 	btst #0,r28
-	jr z,wai@@
+	jr z,\~waitt
 	nop
 	ENDM
 
@@ -160,7 +159,7 @@ wai@@:	load (blit),r28
 
 fline:
 
-; draw a 3D line with points on the line offset by a function (ie line+noise=lightning)
+; draw a 3D line with points on the line _offset by a function (ie line+noise=lightning)
 
 	pointer REGEQU r0
 	x1	REGEQU r15
@@ -189,9 +188,9 @@ fline:
 	L_PIX	REGEQU r15
 	L_INCF	REGEQU r16
 	L_INC	REGEQU r17
-	CMD	REGEQU r5
+	cmd	REGEQU r5
 
-	movei #B_CMD,CMD
+	movei #B_CMD,cmd
 	movei #in_buf,pointer
 
 	load (pointer),x1
@@ -497,7 +496,7 @@ nneg1: div r1,r0
 	neg r0
 nneg11:	move intens_0,r1	;get start intensity
 
-bstop: load (CMD),r28		;check for blitter stop
+bstop: load (cmd),r28		;check for blitter stop
 	btst #0,r28
 	jr z,bstop
 	nop
@@ -538,7 +537,7 @@ bstop: load (CMD),r28		;check for blitter stop
 	movei #A1_FLAGS,r1
 	store r0,(r1)
 	movei #(PATDSEL|GOURD),r0	;pattern data + Gourard stuff
-	store r0,(CMD)			;start it up
+	store r0,(cmd)			;start it up
 ldend:
 
 ;***** End linedraw code
@@ -570,13 +569,13 @@ stoploop: jr stoploop
 	blit	REGEQU r13		;address of Blitter go
 	a1	REGEQU r14
 	a2	REGEQU r15		;Blitter base addresses
-;	CMD	REGEQU r5		;to hold the Blitter Go command
+;	cmd	REGEQU r5		;to hold the Blitter Go command
 	source	REGEQU r3		;srce screen
 	z_max	REGEQU r4
-	offset	REGEQU r26
+	_offset	REGEQU r26
 	yfront	REGEQU r6
 	yback	REGEQU r7
-	wrapval	REGEQU r8		;value to loop offset
+	wrapval	REGEQU r8		;value to loop _offset
 	scanline REGEQU r9		;current scanline value
 	himask	REGEQU r10
 	lomask	REGEQU r11		;useful constants
@@ -629,7 +628,7 @@ notpal2:
 	addq #4,r0
 	load (r0),z_max
 	addq #4,r0
-	load (r0),offset
+	load (r0),_offset
 	addq #4,r0
 	load (r0),yfront
 	addq #4,r0
@@ -639,7 +638,7 @@ notpal2:
 	addq #4,r0
 	load (r0),sc
 
-	moveta offset,offset
+	moveta _offset,_offset
 	moveta sc,sc
 
 	movei #nline,xc
@@ -661,8 +660,8 @@ knink:	sharq #16,sline		;make sline integer
 
 	waitblit
 
-	store source,(a1+_base)
-	store r1,(a2+_base)		;set screen bases
+	store source,(a1)
+	store r1,(a2)		;set screen bases
 	
 	movei #$1000140,r27
 	store r27,(a1+_clip)
@@ -737,14 +736,14 @@ scan_loop:
 ;	neg intensi
 	and r1,intensi
 
-	movei #$ff000,offset		;offset into piccy...
-	fmult offset,r0
+	movei #$ff000,_offset		;_offset into piccy...
+	fmult _offset,r0
 	movei #($c0000*4),xscale
 	fmult xscale,r0
 	move xcentr,r2
 	sub xscale,r2
-	movefa offset,r1
-	add offset,r1
+	movefa _offset,r1
+	add _offset,r1
 
 	movei #$ffffff,r0
 	and r0,r1
@@ -811,7 +810,7 @@ nline:	add slstep,sline		;move to next scanline
 	moveq #0,r1
 	store r1,(r0)			;divide unit to normal
 
-	movei #stopgpu,r0		;all done
+	movei #StopGPU,r0		;all done
 	jump (r0)
 	nop
 
@@ -938,7 +937,7 @@ nxtseg: loadb (r2),segphase
 	addq #1,r2
 	loadb (r2),segcol
 	addq #1,r2			;get parameters of this pixel arc
-	loadb (r2),r31			;possible track-offset
+	loadb (r2),r31			;possible track-_offset
 	addq #1,r2
 	addq #1,segamp			;prevent /0 errors on segamp (ranged 0-255)
 	and bytemask,segphase		;limit phase to sine range
@@ -994,8 +993,8 @@ nxtseg2: move segphase,r0
 	shlq #1,sinx			;make pointer to word address
 	move xmax,r0			;copy width in pixels
 	shlq #1,r0			;make it width in words
-	mult r0,cosx			;cosx is offset to scanline
-	add sinx,cosx			;cosx is an offset to the pixel position
+	mult r0,cosx			;cosx is _offset to scanline
+	add sinx,cosx			;cosx is an _offset to the pixel position
 	add sbase,cosx			;cosx points at the pixel now
 	storew segcol,(cosx)		;write that pixel doody
 
@@ -1012,7 +1011,7 @@ nopixel: add r1,segphase		;rotate to next pixel
 	subq #1,rcount			;count total # of rings
 	jump ne,(rloop)			;do total # of rings
 	nop
-	movei #stopgpu,r0
+	movei #StopGPU,r0
 	jump (r0)
 	nop				;done it doody
 
@@ -1025,7 +1024,7 @@ voo:
 	opointer	REGEQU r3
 	x		REGEQU r4
 	y		REGEQU r5
-	z		REGEQU r6
+	zval		REGEQU r6
 	_xscale		REGEQU r7
 	yscale		REGEQU r8
 	zscale		REGEQU r9
@@ -1079,7 +1078,7 @@ notpal5:
 	addq #4,r0
 	load (r0),y
 	addq #4,r0
-	load (r0),z
+	load (r0),zval
 	addq #4,r0
 	load (r0),_xscale
 	addq #4,r0
@@ -1101,7 +1100,7 @@ notpal5:
 	move angxy,r0			;r0 will be used to get cos
 	add sinebase,angxy		;points to sine
 	movei #$40,r1
-	add r1,r0			;offset $40 to get cos
+	add r1,r0			;_offset $40 to get cos
 	loadb (angxy),sin		;got raw sine
 	and bytemask,r0
 	add sinebase,r0			;points at cos
@@ -1148,7 +1147,7 @@ v_loop:	loadw (opointer),_x1		;get the un-transformed point
 
 	add x,_x1
 	add y,_y1
-	add z,_z1			;translate to final position in t-space
+	add zval,_z1			;translate to final position in t-space
 	jump mi,(zneg)			;-ve z, so bugger orff
 	nop
 	shrq #14,_z1
@@ -1168,7 +1167,7 @@ v_loop:	loadw (opointer),_x1		;get the un-transformed point
 	shlq #1,_x1			;translate XY coordinates into screen address Thang
 	mult llength,_y1
 	shrq #2,_z1			;Rude and hairy way to simulate a proper i-calculation
-	add _x1,_y1			;_y1 is offset to screen pixel
+	add _x1,_y1			;_y1 is _offset to screen pixel
 	and bytemask,_z1			;Hairy and rude, I tell you
 	add sbase,_y1			;_y1 now points directly at an expectantly quivering pixel
 	move bytemask,r0		;No good will come of it, it's cheating
@@ -1187,7 +1186,7 @@ v_loop:	loadw (opointer),_x1		;get the un-transformed point
 z_neg:	subq #1,vertices		;Loop de loop for all vertices..
 	jump ne,(vloop)
 	nop
-	movei #stopgpu,r0		;Another excellent GPU routine draws gracefully to a halt.
+	movei #StopGPU,r0		;Another excellent GPU routine draws gracefully to a halt.
 	jump (r0)
 	nop
 
@@ -1338,7 +1337,7 @@ sphout: move xyphase,r0
 	shlq #1,r27			;translate XY coordinates into screen address Thang
 	mult l_length,r28
 	shrq #4,r29			;Rude and hairy way to simulate a proper i-calculation
-	add r27,r28			;r28 is offset to screen pixel
+	add r27,r28			;r28 is _offset to screen pixel
 	and bytemask,r29			;Hairy and rude, I tell you
 	add s_base,r28			;r28 now points directly at an expectantly quivering pixel
 	move bytemask,r0		;No good will come of it, it's cheating
@@ -1358,7 +1357,7 @@ spskip: add xystep,xyphase		;next phase pos.
 	subq #1,yzcount
 	jump ne,(s_outer)
 	nop
-	movei #stopgpu,r0
+	movei #StopGPU,r0
 	jump (r0)
 	nop				;done
 	

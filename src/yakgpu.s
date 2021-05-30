@@ -1,7 +1,5 @@
 
 	include "jaguar.inc"
-	include "blit.inc"
-	include "gpu.inc"
 
 ;
 ;	PUBLIC SYMBOLS
@@ -169,23 +167,32 @@ gpuwait: movem.l	a0/d0,-(sp)
 ;	CONSTANT DATA (GPU PROGRAMS)
 ;
 fastvector:
-	.include	"llama.dat"
+  DC.L $00f03000 , $00000a82
+	.incbin	"llama.o"
 xvector:
-	.include 	"goat.dat"
+DC.L $00f03000 , $00000c46
+	.incbin 	"goat.o"
 demons:
-	.include	"antelope.dat"
+DC.L $00f03000 , $00000e48
+	.incbin	"antelope.o"
 parrot:
-	.include	"camel.dat"
+DC.L $00f03000 , $0000068a
+	.incbin	"camel.o"
 xparrot:
-	.include	"xcamel.dat"
+DC.L $00f03000 , $00000d32
+	.incbin	"xcamel.o"
 texter:
-	.include 	"stoat.dat"
+DC.L $00f03000 , $000002f6
+	.incbin 	"stoat.o"
 bovine:
-	.include	"ox.dat"
+DC.L $00f03000 , $00000a3c
+	.incbin	"ox.o"
 equine:
-	.include 	"horse.dat"
+DC.L $00f03000 , $00000b4a
+	.incbin 	"horse.o"
 equine2:
-	.include 	"donky.dat"
+DC.L $00f03000 , $000009e0
+	.incbin 	"donky.o"
 
 .data
 

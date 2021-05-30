@@ -1,7 +1,6 @@
 
 	Base equ $f00000
 
-		INCLUDE	"blit.inc"	; blitter defintions
 		INCLUDE	"jaguar.inc"	; Jaguar General definitions
 
 	gpu_mode EQU (G_RAM+$ffc)	; Number defines which routine the GPU will do
@@ -34,50 +33,51 @@
 	_finc EQU 8
 
 	MACRO sdiv	;Divide, keeping sign of that which is divided, uses r27
-	move @2,r31
-	abs @2
- 	div @1,@2
+	move \2,r31
+	abs \2
+ 	div \1,\2
 	btst #31,r31	;Get sign bit of original thang
-	jr z,sd@@
+	jr z,\~sdtt
 	nop
-	neg @2
-sd@@:	
+	neg \2
+\~sdtt:	
 	ENDM
+
 	MACRO waitblit	; Wait for the Blitter to stop
-wai@@:	load (blit),r31
+\~waitt:	load (blit),r31
 	btst #0,r31
-	jr z,wai@@
+	jr z,\~waitt
 	nop
 	ENDM
 
 	MACRO fmult	;multiply 2 thangs, uses r2-r4, returns in first reg.
-	moveta @2,r31	;(preserves second Thang)
+	moveta \2,r31	;(preserves second Thang)
  	moveq #0,r27
 	move r27,r28
-	abs @1
+	abs \1
 	addc r28,r27
-	abs @2
+	abs \2
 	addc r28,r27
-	move @2,r28
-	mult @1,r28
-	move @1,r29
+	move \2,r28
+	mult \1,r28
+	move \1,r29
 	shrq #16,r28
 	shrq #16,r29
-	mult @2,r29
-	shrq #16,@2
+	mult \2,r29
+	shrq #16,\2
 	add r29,r28
-	move @2,r29
-	mult @1,r29
-	shrq #16,@1
+	move \2,r29
+	mult \1,r29
+	shrq #16,\1
 	add r29,r28
-	mult @2,@1
-	shlq #16,@1
-	add r28,@1
+	mult \2,\1
+	shlq #16,\1
+	add r28,\1
 	btst #0,r27
-	jr z,fmp@@
-	movefa r31,@2
-	neg @1
-fmp@@:
+	jr z,\~fmptt
+	movefa r31,\2
+	neg \1
+\~fmptt:
 	ENDM
 
 	MACRO bank0
@@ -90,10 +90,10 @@ fmp@@:
 	nop
 	nop
 	nop
-bnk0@@:	movei #G_FLAGS,r0
+\~bnk0tt:	movei #G_FLAGS,r0
 	load (r0),r1
 	btst #14,r1
-	jr nz,bnk0@@
+	jr nz,\~bnk0tt
 	nop
 	ENDM
 
@@ -107,10 +107,10 @@ bnk0@@:	movei #G_FLAGS,r0
 	nop
 	nop
 	nop
-bnk1@@:	movei #G_FLAGS,r0
+\~bnk1tt:	movei #G_FLAGS,r0
 	load (r0),r1
 	btst #14,r1
-	jr z,bnk1@@
+	jr z,\~bnk1tt
 	nop
 	ENDM
 
@@ -121,7 +121,7 @@ bnk1@@:	movei #G_FLAGS,r0
 	movei #pretty_poly,r3
 	movei #crex,r4
 	movei #rex,r5
-	movei #polyo2d,r6
+	movei #polyo2d+2,r6
 	cmpq #1,r1
 	jump eq,(r2)		;mode 1 is do poly
 	nop
@@ -182,18 +182,18 @@ bnk1@@:	movei #G_FLAGS,r0
 
 
 	blit		REGEQU r13
-	a1		REGEQU r14
+	a1_n		REGEQU r14
 
 	MACRO swap
-	move @1,r31
-	move @2,@1
-	move r31,@2
+	move \1,r31
+	move \2,\1
+	move r31,\2
 	ENDM
 
-;cls:	movei #A1_BASE,a1	;blitter Base
+;cls:	movei #A1_BASE,a1_n	;blitter Base
 ;	movei #B_CMD,blit	;blitter flags/go
 ;	xor r0,r0			;Blit the screen clear  (hard coded for 384x240, 16bit)
-;	store r0,(a1+_pixel)
+;	store r0,(a1_n+_pixel)
 ;	movei #backg,r1
 ;	load (r1),r0
 ;	movei #B_PATD,r1
@@ -203,18 +203,18 @@ bnk1@@:	movei #G_FLAGS,r0
 ;	movei #gpu_screen,r1
 ;	load (r1),r0
 ;	movei #dest_flags,r1
-;	store r0,(a1+_base)
+;	store r0,(a1_n+_base)
 ;	load (r1),r0
-;	store r0,(a1+_flags)
+;	store r0,(a1_n+_flags)
 ;	movei #$0001fe80,r0		;1,-384
-;	store r0,(a1+_step)
+;	store r0,(a1_n+_step)
 ;	movei #B_COUNT,r0
 ;	movei #$f00180,r1
 ;	store r1,(r0)
 ;	movei #(UPDA1|PATDSEL),r0
 ;	store r0,(blit)
 ;	waitblit
-;	movei #stopgpu,r0
+;	movei #StopGPU,r0
 ;	jump (r0)
 ;	nop
 
@@ -629,14 +629,14 @@ p2_loop3: move sum5,r0
 ;*
 ;* TILE16: Tile Fill of 16-bit screen
 ;*
-;* Inputs: +4=a2 Window Mask (tile size)
-;* 	  +8=a2 Pixel Offset (to scroll the tile)
+;* Inputs: +4=a2_n Window Mask (tile size)
+;* 	  +8=a2_n Pixel Offset (to scroll the tile)
 ;*	  +0=source screen
 ;*****
 
 ;	blit		REGEQU r13
-;	a1		REGEQU r14
-	a2		REGEQU r15
+;	a1_n		REGEQU r14
+	a2_n		REGEQU r15
 	
 
 
@@ -644,7 +644,7 @@ p2_loop3: move sum5,r0
 ;*****
 ;*
 ;* REX: Robotron explosion generator. Takes an image from the source screen and expands it in X and Y, then
-;*	uses a1 to draw the resultant matrix of single pixels.
+;*	uses a1_n to draw the resultant matrix of single pixels.
 ;*
 ;*	Provide: dest screen in gpu_screen, in_buf: 0=source image address
 ;*	4=source image start pixel address, 8=x and y size of source, 12=X scale (16:16), 16=Y scale (16:16), 20=X shear (16:16), 24=Y shear,
@@ -654,8 +654,8 @@ p2_loop3: move sum5,r0
 
 
 ;	blit		REGEQU r13
-;	a1		REGEQU r14
-;	a2		REGEQU r15
+;	a1_n		REGEQU r14
+;	a2_n		REGEQU r15
 
 	_bass		REGEQU r2	;Source base address
 	spixel		REGEQU r3	;Source pixel start
@@ -704,8 +704,8 @@ rex:	movei #$c00000,r27
 	nop
 	movei #$8c0000,r28	
 
-orex:	movei #A1_BASE,a1
-	movei #A2_BASE,a2		;initialise the usual stuff
+orex:	movei #A1_BASE,a1_n
+	movei #A2_BASE,a2_n		;initialise the usual stuff
 	movei #B_CMD,blit
 ;	movei #$ffffffff,r0
 	xor r0,r0
@@ -792,7 +792,7 @@ orex:	movei #A1_BASE,a1
 
 
 
-;*** HACK to prevent a1 clipping bug.	Brute force but who gives a shit.
+;*** HACK to prevent a1_n clipping bug.	Brute force but who gives a shit.
 
 	movei #pasthack,r30
 	cmpq #0,r0		;check for bug condition (LH sprite edge off the screen)
@@ -811,7 +811,7 @@ shrnk:
 	jr mi,shrnk
 	nop
 	nop
-	movei #stopgpu,r28
+	movei #StopGPU,r28
 	move ssize,r27
 	shlq #16,r27
 	nop
@@ -866,31 +866,31 @@ pasthack: move r0,xx
 	waitblit
 ;	movei #$18007f,xx
 
-	store xx,(a1+_pixel)
-	store yy,(a1+_fpixel)
-	store r0,(a1+_step)
-	store r1,(a1+_fstep)
-	store xinc,(a1+_inc)
-	store yinc,(a1+_finc)
+	store xx,(a1_n+_pixel)
+	store yy,(a1_n+_fpixel)
+	store r0,(a1_n+_step)
+	store r1,(a1_n+_fstep)
+	store xinc,(a1_n+_inc)
+	store yinc,(a1_n+_finc)
 	movei #gpu_screen,r0
 	movei #(PITCH1|PIXEL16|WID384|XADDINC),r1
 	load (r0),r26
-	store r1,(a1+_flags)
+	store r1,(a1_n+_flags)
 	movei #$1180180,r1
-	store r26,(a1+_base)	;a1 is now set up...
-	store r1,(a1+_clip)
+	store r26,(a1_n)	;a1_n is now set up...
+	store r1,(a1_n+_clip)
 
 
-	store _bass,(a2+_base)
-	store spixel,(a2+_pixel)
+	store _bass,(a2_n)
+	store spixel,(a2_n+_pixel)
 	move ssize,r0
 	and lomask,r0		;get width
 	neg r0
 	and lomask,r0
 	bset #16,r0		;step is (-xsize,1)
 	movei #(PITCH1|PIXEL16|WID320|XADDPIX),r1
-	store r0,(a2+_step)
-	store r1,(a2+_flags)
+	store r0,(a2_n+_step)
+	store r1,(a2_n+_flags)
 
 	movei #B_COUNT,r0
 	store ssize,(r0)	;count is destination size
@@ -899,9 +899,8 @@ pasthack: move r0,xx
 ;	movei #(PATDSEL|CLIP_A1|UPDA1F|UPDA1),r0
 	store r0,(blit)		;draw the sprite
 
-	movei #stopgpu,r0
+	movei #StopGPU,r0
 	jump (r0)
-	nop			;all done	
 
 
 ;*****
@@ -945,7 +944,7 @@ pasthack: move r0,xx
 
 
 ;	blit		REGEQU r13
-;	a1		REGEQU r14
+;	a1_n		REGEQU r14
 
 ;*	Definitions for use in the alternate-register bank. Alternate r0 and ISTART are used in the polyrenderer.
 
