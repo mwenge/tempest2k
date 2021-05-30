@@ -1,0 +1,22 @@
+Here is the Imagitec Jaguar music player with all 13 Tempest tunes and the sound effects.
+
+The tunes and sound effects load into ROM.  The player code and data loads into RAM.
+
+In rdbjag, type :
+
+load l.db
+loadmods
+load l1.db
+loadsams
+load a.db
+y
+
+This will make the first 12 tunes accessible via the keypad and the first 12 sound FX
+also accessible via keypad. OPTION toggles music<->SFX selection.
+
+Replacing l1 with l2 in the above sequence will make the remaining SFX available.
+You will have to edit l.db to replace another tune with tune13.mod if you want to hear it.
+
+As always, call if you have problems.
+
+Trevor Raynsford.

@@ -1,0 +1,5 @@
+FROM c:\lc\lib\c.o+mk.o
+LIB c:\lc\lib\lc.lib
+TO mk.ttp
+NODEBUG
+BATCH

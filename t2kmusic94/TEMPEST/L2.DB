@@ -1,0 +1,49 @@
+global sp
+global sstart
+global sssize
+
+set sp 80a030
+set sstart 80a230
+set sssize @40
+
+procedure supd loop
+#set actual sample start
+sl `sp+@24 `rwstart
+#offset repeat start
+sl `sp+@32 (lpeek(`sp+@32) + `rwstart)
+set sp `sp+`sssize
+
+set sstart (`sstart+`rwsize)
+sl `sstart 0
+set sstart (`sstart+4)
+.
+
+procedure nulsupd
+sl `sp+@24 0
+set sp `sp+sssize
+.
+
+procedure loadsams
+read smp\smp2.bin `sp
+read smp\13 `sstart
+supd
+read smp\14 `sstart
+supd
+read smp\15 `sstart
+supd
+read smp\16 `sstart
+supd
+read smp\17 `sstart
+supd
+read smp\18 `sstart
+supd
+read smp\19 `sstart
+supd
+read smp\20 `sstart
+supd
+read smp\21 `sstart
+supd
+nulsupd
+nulsupd
+nulsupd
+.

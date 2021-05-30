@@ -1,0 +1,47 @@
+global mp
+global mstart
+
+procedure upd
+sl `mp `rwstart
+set mp `mp+4
+set mstart (`mstart+`rwsize)
+sl `mstart 0
+set mstart (`mstart+4)
+.
+
+procedure nulupd
+sl `mp 0
+set mp `mp+4
+.
+
+
+procedure loadmods
+
+set mp 80a000
+set mstart 830000
+
+read mod\tune1.mod `mstart
+upd
+read mod\tune2.mod `mstart
+upd
+read mod\tune3.mod `mstart
+upd
+read mod\tune4.mod `mstart
+upd
+read mod\tune5.mod `mstart
+upd
+read mod\tune6.mod `mstart
+upd
+read mod\tune7.mod `mstart
+upd
+read mod\tune8.mod `mstart
+upd
+read mod\tune9.mod `mstart
+upd
+read mod\tune10.mod `mstart
+upd
+read mod\tune11.mod `mstart
+upd
+read mod\tune12.mod `mstart
+upd
+.

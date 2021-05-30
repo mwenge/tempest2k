@@ -1,0 +1,1301 @@
+; Thang
+
+	Base equ $f00000
+
+		INCLUDE	"blitdef.inc"	; blitter defintions
+		INCLUDE	"gpudef.inc"	; GPU definitions
+		INCLUDE	"jagdef.inc"	; Jaguar General definitions
+
+	gpu_mode EQU (GPU_RAM+$ffc)	; Number defines which routine the GPU will do
+	gpu_screen EQU (GPU_RAM+$ff8)	; The address of the screen the GPU will draw on
+	gpu_sem EQU $30100		; Flag in external RAM for GPU completion
+	p_sines EQU $30000		; 256-byte sine table of unsigned bytes
+	in_buf	EQU (GPU_RAM+$f60)	; General space for passing stuff to GPU
+	vertex_buffer EQU (GPU_RAM+$b40)	; Used to stash already-calculated XY transforms and intensity values
+	ORG $f03000
+	width EQU 384
+	height EQU 240
+	sin1 EQU (GPU_RAM+$fe0)		; Roll, pitch and yaw sine and cosine values
+	cos1 EQU (GPU_RAM+$fe4)		; (calculated before the vertex list is traversed)
+	sin2 EQU (GPU_RAM+$fe8)
+	cos2 EQU (GPU_RAM+$fec)
+	sin3 EQU (GPU_RAM+$ff0)
+	cos3 EQU (GPU_RAM+$ff4)
+	z_max EQU (GPU_RAM+$fd8)	; Distance along Z-axis at which depth cue intensity is zero
+	z_top EQU (GPU_RAM+$fdc)	; Intensity value at z=1
+	scaler EQU (GPU_RAM+$fd4)	; Scale of XY 2-D point
+	_sysflags EQU (GPU_RAM+$fd0)	;Thick vector flags etc
+	vxlo EQU 0			; Screen extents for the Cohen-Sutherland clipping algorithm
+	vxhi EQU ((384*1)-2)
+	vylo EQU 0
+	vyhi EQU ((280*1)-1)
+	shift1 EQU 12
+	shift2 EQU 5
+
+L_INC 		REGEQU	R5
+L_PIX		REGEQU	R6
+L_COUNT		REGEQU	R7
+L_INCF		REGEQU	R8
+X1		REGEQU	R9		;thangs
+Y1		REGEQU	R10
+X2		REGEQU 	R11
+Y2		REGEQU  R12
+CMD		REGEQU	R20
+BUFFER		REGEQU	R14
+COUNT		REGEQU	R21
+COL		REGEQU	R19
+INTENS_0	REGEQU 	R13
+INTENS_1	REGEQU  R18
+A1PIXEL		REGEQU	R22
+UNDRAW		REGEQU	R25
+SINEBASE	REGEQU	R26
+RMODE		REGEQU	R29		;Rotation mode. 0=XY rotate only.
+
+	MACRO fmult	;multiply 2 thangs, uses r2-r4, returns in first reg.
+ 	moveq #0,r2
+	move r2,r3
+	abs @1
+	addc r3,r2
+	abs @2
+	addc r3,r2
+	move @2,r3
+	mult @1,r3
+	move @1,r4
+	shrq #16,r3
+	shrq #16,r4
+	mult @2,r4
+	shrq #16,@2
+	add r4,r3
+	move @2,r4
+	mult @1,r4
+	shrq #16,@1
+	add r4,r3
+	mult @2,@1
+	shlq #16,@1
+	add r3,@1
+	btst #0,r2
+	jr z,fmp@@
+	nop
+	neg @1
+fmp@@:
+	ENDM
+
+	MACRO sdiv	;Divide, keeping sign of that which is divided, uses r2-r3
+	move @2,r2
+	abs @2
+ 	div @1,@2
+	btst #31,r2	;Get sign bit of original thang
+	jr z,sd@@
+	nop
+	neg @2
+sd@@:	
+	ENDM
+
+	MACRO fjsr	;Fast single-level JSR
+	move PC,r30
+	jump (@1)
+	addq #6,r30	; Determine Return Address
+	ENDM
+
+	MACRO frts
+	jump (r30)
+	nop
+	ENDM
+
+	MACRO gjsr	;Fast single-level JSR
+	move PC,r31
+	jump (@1)
+	addq #6,r31	; Determine Return Address
+	ENDM
+
+	MACRO grts
+	jump (r31)
+	nop
+	ENDM
+
+	movei #(GPU_RAM+$f60),r27	;To use as a stack pointer
+	movei #BLIT_CMD,CMD		;Init register stuff
+	movei #BLIT_A1PIXEL,A1PIXEL
+	movei #BLIT_COUNT,COUNT
+	movei #p_sines,sinebase
+
+ 	movei #(PITCH1|PIXEL16|WIDTH384|XADDINC),r0		;usual blittr settings
+	movei #BLIT_A1FLAGS,r1
+	store r0,(r1)
+	movei #gpu_screen,r1
+	load (r1),r0		;Dest screen passed from foreground
+	movei #BLIT_A1BASE,r1
+	store r0,(r1)
+
+	movei #gpu_mode,r0
+	load (r0),r1			;get GPU mode that was set
+	movei #undraw,r0
+	cmpq #0,r1
+	jump eq,(r0)			;Undraw lines
+	nop
+	movei #starfield1,r0
+	cmpq #3,r1
+	jump eq,(r0)			;go draw a starfield
+	nop
+	movei #vect3d,r0
+	jump (r0)
+	nop				;go draw 3d vectors
+
+
+
+undraw:
+
+a1	REGEQU r15
+	_base EQU 0
+	_flags EQU 1
+	_clip EQU 2
+	_mask EQU 2
+	_pixel EQU 3 
+	_step EQU 4
+	_fstep EQU 5
+	_fpixel EQU 6
+	_inc EQU 7
+	_finc EQU 8
+
+
+	movei #BLIT_A1BASE,a1	;blitter Base
+	movei #BLIT_CMD,cmd	;blitter flags/go
+	xor r0,r0			;Blit the screen clear  (hard coded for 384x240, 16bit)
+	store r0,(a1+_pixel)
+	moveq #0,r0
+	movei #BLIT_PATD,r1
+	store r0,(r1)
+	addq #4,r1
+	store r0,(r1)
+	movei #gpu_screen,r1
+	load (r1),r0
+	store r0,(a1+_base)
+	movei #(PITCH1|PIXEL16|WIDTH384|XADDPHR),r0
+	store r0,(a1+_flags)
+	movei #$0001fe80,r0		;1,-384
+	store r0,(a1+_step)
+	movei #BLIT_COUNT,r0
+	movei #$f00180,r1
+	movei #_sysflags,r2
+	load (r2),r3
+	btst #5,r3
+	jr z,notpal
+	nop
+	movei #$1180180,r1
+notpal:	store r1,(r0)
+	movei #(UPDA1|PATDSEL),r0
+	store r0,(cmd)
+wb:	load (cmd),r0
+	btst #0,r0
+	jr z,wb
+	nop
+	movei #stopgpu,r0
+	jump (r0)
+	nop
+
+
+
+
+
+
+vend:	movei #StopGPU,r0		;go shut off gpu
+	jump (r0)
+	nop
+
+vect3d:	movei #_sysflags,r0
+	load (r0),r1
+	moveta r1,r1			;stash sysflags
+
+	movei #(in_buf+16),r0
+	load (r0),RMODE
+	addq #4,r0
+	load (r0),r1
+	moveta r1,RMODE		;RMODE std bank is rotate mode, alt bank is horiz scale value
+
+	movei #(in_buf+60),r3
+	movei #-1,r2
+	movei #(vertex_buffer+8),r1
+ 	load (r3),r0
+clvb:	store r2,(r1)
+	addq #24,r1
+	subq #1,r0
+	jr ne,clvb		;clear the vertex buffer
+	nop
+	addq #4,r3
+	load (r3),COL
+ 
+	movei #in_buf,BUFFER
+
+	addq #4,buffer
+	load (buffer),r15
+	addq #4,buffer
+	load (buffer),r16
+	addq #4,buffer
+	load (buffer),r17	;get final X, Y and Z xform co-ordinates
+	moveta r16,r16
+
+	movei #(in_buf+40),r8	;address of angle x-y in list	---- getting sines and coses for this object
+	movei #$ff,r1
+	movei #$80,r2		;used in getting sine
+	movei #sin1,r28
+	load (r8),r0		;get angle
+	move r0,r3		;save for getting cos
+	and r1,r0		;limit 0-255	
+	add sinebase,r0		;point into sine table
+	loadb (r0),r8		;get sine x
+	sub r2,r8		;make signed
+	store r8,(r28)
+	movei #$40,r0		;get angle
+	add r3,r0		;add $40
+	and r1,r0		;limit 0-255
+	add sinebase,r0
+	loadb (r0),r16		;get cos x
+	addq #4,r28
+	sub r2,r16		;make signed
+	store r16,(r28)
+	addq #4,r28
+
+	movei #zibble,r0
+	cmpq #0,RMODE
+	jump eq,(r0)
+	nop
+
+	movei #(in_buf+44),r8	;address of angle x-z in list
+	load (r8),r0		;get angle
+	move r0,r3		;save for getting cos
+	and r1,r0		;limit 0-255	
+	add sinebase,r0		;point into sine table
+	loadb (r0),r8		;get sine x
+	sub r2,r8		;make signed
+	store r8,(r28)
+	movei #$40,r0		;get angle
+	add r3,r0		;add $40
+	and r1,r0		;limit 0-255
+	add sinebase,r0
+	loadb (r0),r16		;get cos x
+	addq #4,r28
+	sub r2,r16		;make signed
+	store r16,(r28)
+	addq #4,r28
+	movei #(in_buf+48),r8	;address of angle x-z in list
+	load (r8),r0		;get angle
+	move r0,r3		;save for getting cos
+	and r1,r0		;limit 0-255	
+	add sinebase,r0		;point into sine table
+	loadb (r0),r8		;get sine x
+	sub r2,r8		;make signed
+	store r8,(r28)
+	movei #$40,r0		;get angle
+	add r3,r0		;add $40
+	and r1,r0		;limit 0-255
+	add sinebase,r0
+	loadb (r0),r16		;get cos x
+	addq #4,r28
+	sub r2,r16		;make signed
+	store r16,(r28)
+	addq #4,r28
+
+
+zibble:	movei #(in_buf+52),r0	;points to vertlist base
+	load (r0),r23
+	addq #4,r0
+	load (r0),r24		;get vertex list base and conn base
+	subq #12,r23		;compensate for vertex #'s starting at 1
+
+	moveta r15,r15
+	moveta r17,r17
+	moveta r23,r23
+	moveta r24,r24		;stash these in their alternates
+
+
+nxtvertex: loadw (r24),r0	;get vertex number
+	addq #2,r24
+ 	cmpq #0,r0
+	jr ne,gv1		;if non0 is really a vertex
+	nop
+	movei #vend,r0
+	jump (r0)		;leave routine if vertex # is 0
+	nop
+gv1:	moveq #12,r4
+	mult r0,r4		;r4 hass offset into vertex table
+	add r23,r4		;add vertex list base
+	load (r4),r5		;get X
+	addq #4,r4
+	load (r4),r6
+	addq #4,r4
+	load (r4),r7		;get X, Y and Z of first vertex
+
+	movei #transform_3d,r28
+	fjsr r28
+
+	moveta r5,r20
+	moveta r6,r21
+	moveta r7,r22		;save transformed xyz co-ordinates	(may be needed by the z-clipper)
+
+ 	move x1,x2
+	move y1,y2		;copy to x2.y2 (unchanging point)
+	move intens_0,intens_1
+	moveta x2,x2
+	moveta y2,y2		;so original value can be got back
+	moveta intens_1,intens_1
+
+nxtconn: loadw (r24),r0		;get connected-vertex number
+	addq #2,r24
+	movei #$ff,r28
+	move r0,r4
+	and r28,r0
+	shrq #8,r4
+	and r28,r4		;this will be non zero for a colour change
+	jr z,nocolch
+	nop
+	move r4,COL		;change colour
+nocolch: cmpq #0,r0
+	jr ne,gcv1		;if non0 is really a vertex
+	nop
+	movei #nxtvertex,r0
+	jump (r0)		;leave routine if vertex # is 0
+	nop
+gcv1:	moveq #12,r4
+	mult r0,r4		;r4 hass offset into vertex table
+	add r23,r4		;add vertex list base
+	load (r4),r5		;get X
+	addq #4,r4
+	load (r4),r6
+	addq #4,r4
+	load (r4),r7
+
+	movei #transform_3d,r28
+	fjsr r28
+
+
+	cmpq #0,intens_0
+	jr mi,zfail		;one of the z's is out of range!
+	nop
+	movei #zlegal,r28
+	cmpq #0,intens_1
+	jump pl,(r28)		;z is legal so go
+	nop
+zfail:	movei #znext,r28	;skip a line
+	cmp intens_0,intens_1	;if they are equal, they are both off the screen, so no line
+	jump eq,(r28)		;was jump eq
+	nop	
+	movei #fixedillegal,r28	;two different cases for if legal or illegal fixed point
+	cmpq #0,intens_1	;was the fixed point out of range?
+	jump mi,(r28)		;-ve, it was, and its co-ords are in x2 and y2
+	nop
+	movefa r20,r0
+	movefa r21,r1
+	sharq #shift1,r0		;(int)
+	movefa r22,r2		;get legal transformed 3D point
+	sharq #shift1,r1
+	move r2,r3
+	sub r7,r3		;r3 is the total length of the z component and will be used to divide the others.
+	abs r3
+	move r5,r4		;r4 is combined x and y of the naughty point
+	sharq #shift1,r4
+	sub r0,r4		;now it is the length of the x difference between the two points
+	imult r2,r4		;multiply by legal z size
+	move r4,r5		;save the sign
+	cmpq #0,r5
+	jr pl,_nz1
+	nop
+	neg r5
+_nz1:	div r3,r5		;make the new unsigned x vector size
+	move r6,x1
+	sharq #shift1,x1		;int an' sign extend y
+	sub r1,x1		;signed y size
+	imult r2,x1
+	cmpq #0,r4
+	jr pl,_nz2
+	nop
+	neg r5			;set right sign for x component
+_nz2:	move x1,r6		;save sign
+	cmpq #0,r6
+	jr pl,_nz3
+	nop
+	neg r6
+_nz3:	div r3,r6
+	cmpq #0,x1
+	jr pl,_nz4
+	nop
+	neg r6
+_nz4:	add r0,r5		;make transformed xy
+	add r1,r6
+	shlq #shift2,r5		;simplifies because effectively z=1
+	shlq #shift2,r6
+	movei #z_top,r28
+	load (r28),intens_0
+	shlq #8,intens_0
+	movei #192,x1
+	movei #120,y1
+	add r5,x1
+	add r6,y1		;set parameters for the line
+	movei #zlegal,r0
+	jump (r0)
+	nop
+
+
+fixedillegal: move r5,r0		;x and y pair
+	move r6,r1
+	sharq #shift1,r0
+	sharq #shift1,r1
+	move r7,r2		;legal point expanded
+	move r2,r3
+	movefa r22,y2
+	sub y2,r3		;r3 is the total length of the z component and will be used to divide the others.
+	movei #$ffff0000,r28
+	movefa r20,r4		;r4 is combined x and y of the naughty point
+	sharq #shift1,r4
+	sub r0,r4		;now it is the length of the x difference between the two points
+	imult r2,r4		;multiply by legal z size
+	move r4,r5		;save the sign
+	cmpq #0,r5
+	jr pl,_nz5
+	nop
+	neg r5
+_nz5:	div r3,r5		;make the new unsigned x vector size
+	movefa r21,x2		;signed y as 16:16
+	sharq #shift1,x2
+	sub r1,x2		;signed y size
+	imult r2,x2
+	cmpq #0,r4
+	jr pl,_nz6
+	nop
+	neg r5			;set right sign for x component
+_nz6:	move x2,r6		;save sign
+	cmpq #0,r6
+	jr pl,_nz7
+	nop
+	neg r6
+_nz7:	div r3,r6
+	cmpq #0,x2
+	jr pl,_nz8
+	nop
+	neg r6
+_nz8:	add r0,r5		;make transformed xy
+	add r1,r6
+	shlq #shift2,r5		;simplifies because effectively z=1
+	shlq #shift2,r6
+	movei #z_top,r28
+	load (r28),intens_1
+	shlq #8,intens_1
+	movei #192,x2
+	movei #120,y2
+	add r5,x2
+	add r6,y2		;set parameters for the line
+		
+
+zlegal:
+
+	movei #clip_gouline,r28
+	fjsr r28
+
+
+		
+znext:	movefa x2,x2
+	movefa y2,y2
+	movefa intens_1,intens_1
+	movefa r23,r23
+	movefa r15,r15
+
+	movei #nxtconn,r0
+	jump (r0)		;go and do next connected vertex
+	nop
+
+endconn: movei #nxtvertex,r0
+	jump (r0)		;go and do next vertex
+
+transform_3d:
+ 	moveq #24,r1	;enters here with r0=vertex number
+	movei #(vertex_buffer-16),r2
+	mult r1,r0
+	add r2,r0		;r0 points to vertex cache intensity data
+	load (r0),r1		;get the i-data
+	movei #cachemiss,r28
+	cmpq #0,r1		;is it -ve
+	jump mi,(r28)		;yup, gotta do the maths
+	nop
+
+rzc:	subq #8,r0		;cache hit - point to x-data
+	move r1,intens_0	;set the intensity stored
+	load (r0),x1
+	addq #4,r0
+	load (r0),y1		;get transformed x and y
+	addq #8,r0
+	load (r0),r5		;get 3d point in case zclip needs it
+	addq #4,r0
+	load (r0),r6
+	addq #4,r0
+	load (r0),r7
+	frts
+ 
+cachemiss: neg r1		;the negative i-data that provoked the miss;
+	cmpq #1,r1
+	jr eq,rzc0		;return packed XYZ as x1:y1
+	nop
+	neg r1
+	movei #rzc,r28
+	jump (r28)
+	nop
+rzc0: 	subq #8,r0		;point to start of vertex-cache slot
+	moveta r0,r0		;save it for afters
+ 	movei #(in_buf+(12+16)),r0	;address of xyz centre
+	load (r0),r1
+	sub r1,r5
+	addq #4,r0
+	load (r0),r1
+	sub r1,r6
+	addq #4,r0
+	load (r0),r1
+	sub r1,r7	;translate to local centre
+
+	movefa RMODE,r28
+	imult r28,r5		;X-Scale
+
+	movei #sin1,r28	;point to sin1
+
+	shlq #8,r5
+	shlq #8,r6
+	shlq #8,r7
+
+	moveta r5,r5
+	moveta r6,r6
+	moveta r7,r7		;save unrotated stuff
+
+	load (r28),r8
+	addq #4,r28
+	load (r28),r16		;get the sin and cos
+	addq #4,r28
+;
+; now rotate about the origin
+
+
+	move r16,r17		;cos (a)
+	imult r5,r17
+	sharq #7,r17		;divide result by 128 and make back to 16:16
+	move r8,r0		;sin (a)
+	imult r6,r0
+	sharq #7,r0		;divide result by 128 and make back to 16:16
+	sub r0,r17		;r17 has rotated x
+	move r17,r5		;put it back
+	move r8,r17		;sin (a)
+	movefa r5,r1		;use untransformed x
+	imult r1,r17
+	sharq #7,r17		;divide result by 128 and make back to 16:16
+	move r16,r0		;cos (a)
+	imult r6,r0
+	sharq #7,r0		;divide result by 128 and make back to 16:16
+	add r0,r17
+	move r17,r6		;transformed y
+
+	movei #noyz,r0
+	cmpq #0,RMODE
+	jump eq,(r0)
+	nop
+
+
+noxy:	load (r28),r8
+	addq #4,r28
+	load (r28),r16		;get the sin and cos
+	addq #4,r28
+
+;
+; now rotate about the origin
+
+	moveta r5,r5
+	move r16,r17		;cos (a)
+	imult r5,r17
+	sharq #7,r17		;divide result by 128 and make back to 16:16
+	move r8,r0		;sin (a)
+	imult r7,r0
+	sharq #7,r0	
+	sub r0,r17		;r17 has rotated x
+	move r17,r5		;combine with other rotation
+	move r8,r17		;sin (a)
+	movefa r5,r1		;use untransformed x
+	imult r1,r17
+	sharq #7,r17		;divide result by 128 and make back to 16:16
+	move r16,r0		;cos (a)
+	imult r7,r0
+	sharq #7,r0	
+	add r0,r17
+	move r17,r7		;transformed z
+
+noxz:	load (r28),r8
+	addq #4,r28
+	load (r28),r16		;get the sin and cos
+	addq #4,r28
+
+;
+; now rotate about the origin
+
+	moveta r7,r7
+	moveta r6,r6
+	move r16,r17		;cos (a)
+	imult r6,r17
+	sharq #7,r17	
+	move r8,r0		;sin (a)
+	imult r7,r0
+	sharq #7,r0	
+	sub r0,r17		;r17 has rotated x
+	move r17,r6		;combine with other rotation
+	move r8,r17		;sin (a)
+	movefa r6,r1		;use untransformed x
+	imult r1,r17
+	sharq #7,r17	
+	move r16,r0		;cos (a)
+	imult r7,r0
+	sharq #7,r0	
+	add r0,r17
+	move r17,r7		;transformed z
+
+noyz:	movefa r16,r16
+	movefa r17,r17
+
+	movei #scaler,r28
+	load (r28),r0
+	subq #8,r0
+	sha r0,r5
+	sha r0,r6
+	sha r0,r7
+	add r15,r5
+	add r16,r6
+	movei #zsafe,r28
+	add r17,r7		;translate to designated position
+	sharq #14,r7
+	jr eq,zbogus
+	nop
+	jump pl,(r28)		;if >0 its legal
+	nop			;if point is in positive 'z', it is Ok
+zbogus:	movei #$ffff0000,r1	;mask to keep int of x
+	movefa r0,r0		;get back vertex cache address
+
+	addq #12,r0
+	store r5,(r0)
+	addq #4,r0
+	store r6,(r0)
+	addq #4,r0
+	store r7,(r0)	
+
+	move r5,r28
+	and r1,r28		;x --> int in high word
+	move r6,r0
+	shrq #16,r0
+	or r0,r28
+	movefa r0,r0
+	
+	store r28,(r0)		;store packed x and y
+	addq #4,r0
+	store r7,(r0)		;store z
+	movei #-2,intens_0	;-ve2 intensity means 'this is a point that needs z cliipping'
+	addq #4,r0
+	store intens_0,(r0)
+	move r28,x1
+	move r7,y1		;return packed 3D stuff as XY co-ords
+
+	frts
+
+
+zsafe:	movei #z_max,r28	;maximum z for depth q
+	load (r28),intens_0
+	addq #4,r28
+	move intens_0,r1	;copy of z_max
+	load (r28),r0		;get max intens value
+	sub r7,intens_0		;make range (max---0)
+	jr pl,satu1
+	nop
+	moveq #0,intens_0
+	jr gotme
+	nop
+satu1:	mult r0,intens_0
+	div r1,intens_0		;should leave intens_0 with intensity
+	shlq #8,intens_0
+gotme:
+	move r5,r1
+	sdiv r7,r1
+	sharq #7,r1
+	movei #192,x1
+	add r1,x1		;final x1
+			
+	move r6,r1
+	sdiv r7,r1
+	sharq #7,r1
+	movei #120,y1
+	movei #_sysflags,r0
+	load (r0),r28
+	btst #5,r28
+	jr z,notpal2
+	nop
+	movei #140,y1	
+notpal2:	add r1,y1		;final y1
+
+	movefa r0,r0		;get back vertex cache address
+	store x1,(r0)
+	addq #4,r0
+	store y1,(r0)
+	addq #4,r0
+	store intens_0,(r0)	;put calculated stuff in the cache
+	addq #4,r0
+	store r5,(r0)
+	addq #4,r0
+	store r6,(r0)
+	addq #4,r0
+	store r7,(r0)
+
+	frts
+
+
+starfield1:
+;
+; display straightforward 3d starfield, wraps Z-plane automatically
+;
+; IN_BUF = PS undraw buffer
+; +4 = VP_X
+; +8 = VP_Y
+; +12 = VP_Z all as 16:16
+; +16 = Address of a starfield data structure
+
+
+	movei #in_buf,r28
+	addq #4,r28
+	load (r28),r20
+	addq #4,r28
+	load (r28),r21
+	addq #4,r28
+	load (r28),r22			;get X, Y and Z viewpoint
+	addq #4,r28
+	load (r28),r25			;r25 points to start of star data structure in 68K RAM (or ROM...)
+	addq #4,r28
+	load (r28),r0			;this is the warp counter
+	addq #4,r28
+	load (r28),r1			;and this is the warp separation
+
+	load (r25),r26			;r26 has the total number of stars.
+	addq #4,r25			;r25 now points to the first star.
+
+	movei #GPU_SCREEN,r28
+	load (r28),r24			;r24 points to the base of screen RAM.
+	movei #WIDTH,r18
+	movei #HEIGHT,r19		;Keep these in register for fast pixel address generation and clipping.
+
+	movei #_sysflags,r2
+	load (r2),r28
+	btst #5,r28
+	jr z,notpal3
+	nop
+	movei #280,r19	
+notpal3:
+
+	move r18,r14
+	move r19,r15
+	shrq #1,r14
+	shrq #1,r15			;make X and Y centre
+	movei #nxtpix,r13		;to go to if clipping fails
+	movei #$1ffffff,r11		;to make z wrap
+	moveta r0,r0
+	moveta r1,r1
+starloop: move r0,r2			;set z-streak iterations
+	moveta r2,r2
+ 	load (r25),r5
+	addq #4,r25
+	load (r25),r6
+	addq #4,r25
+	load (r25),r7			;get X, Y, Z of this star
+	addq #4,r25
+	sub r20,r5
+	sub r21,r6
+	sub r22,r7			;translate to current VP
+streakloop: and r11,r7			;wrap the z
+
+	moveta r7,r7			;save untransformed z
+	moveta r6,r6
+	moveta r5,r5
+	move r7,r0			;copy the Z
+	movei #255,r8
+	shrq #16,r0
+	shrq #1,r0			;z to 0-255 range
+	sub r0,r8			;r8 now has intensity-byte
+	sharq #14,r7			;make z OK....
+
+	addq #1,r7		;ensure no div-by-0
+	sdiv r7,r5
+	sharq #7,r5
+	add r14,r5
+	jump mi,(r13)
+	sdiv r7,r6		;*** BRANCH OPT ***
+	sharq #7,r6
+	add r15,r6
+	jump mi,(r13)
+	cmp r18,r5		;*** BO ***
+	jump pl,(r13)
+	shlq #1,r5		;x times 2 to point at words...	 *** BRANCH OPT ***
+	cmp r19,r6
+	jump pl,(r13)		;do clip to screen
+	mult r18,r6		;Y*linewidth			*** BRANCH OPT ***
+	shlq #1,r6		;*2 because its words
+	add r5,r6		;r6 is offset into screen-RAM
+	loadw (r25),r0		;get star colour
+	add r24,r6		;r6 now points to actual screen location
+	or r8,r0		;combine colour and i-value
+	storew r0,(r6)		;store that pixel
+
+nxtpix:	movefa r0,r0
+	movefa r1,r1		;get z-streak stuff
+	movefa r2,r2
+	movefa r6,r6
+	movefa r5,r5
+	movefa r7,r7		;get back z co-ord
+	add r1,r7		;displace z
+	movei #streakloop,r3
+	subq #1,r2
+	moveta r2,r2
+	jump pl,(r3)		;loop for streak back
+	nop
+
+	addq #20,r25		;go to next star
+	movei #starloop,r28
+	subq #1,r26		;dec #stars counter
+	jump ne,(r28)		;loop back for all stars
+	nop
+
+	movei #stopgpu,r28	;all done
+	jump (r28)
+	nop
+
+
+
+clip_gouline:
+;
+; clip the line (x1,y1)-(x2,y2) to the vector viewport
+
+; calculate the cohen-sutherland outcodes
+
+	movei #xxxit,r0
+	cmpq #1,COL
+	jump eq,(r0)		;colour #01 lines are not drawn
+	nop
+
+ 	moveq #0,r15	;swapped points phlag
+doit:	moveq #0,r0		;r0 to build outcode for (x1,y1)
+	movei #vyhi,r28
+	sub y1,r28
+	jr pl,clip_1
+	nop
+	bset #3,r0		;sign bit of (ymax-y)
+clip_1:	movei #vylo,r2
+	move y1,r28
+	sub r2,r28
+	jr pl,clip_2
+	nop
+	bset #2,r0		;not sign bit of (ymin-y)
+clip_2:	movei #vxhi,r28
+	sub x1,r28
+	jr pl,clip_3
+	nop
+	bset #1,r0		;sign bit of (ymax-y)
+clip_3:	movei #vxlo,r2
+	move x1,r28
+	sub r2,r28
+	jr pl,clip_4
+	nop
+	bset #0,r0		;not sine bit of (ymin-y)
+clip_4:	moveq #0,r1		;r1 to build outcode for (x2,y2)
+	movei #vyhi,r28
+	sub y2,r28
+	jr pl,clip_5
+	nop
+	bset #3,r1		;sign bit of (ymax-y)
+clip_5:	movei #vylo,r2
+	move y2,r28
+	sub r2,r28
+	jr pl,clip_6
+	nop
+	bset #2,r1		;not sign bit of (ymin-y)
+clip_6:	movei #vxhi,r28
+	sub x2,r28
+	jr pl,clip_7
+	nop
+	bset #1,r1		;sign bit of (ymax-y)
+clip_7:	movei #vxlo,r2
+	move x2,r28
+	sub r2,r28
+	jr pl,clip_8
+	nop
+	bset #0,r1		;not sine bit of (ymin-y)
+clip_8: move r0,r28
+	add r1,r28
+	jr nz,clip_9		;check both outcodes =0 (line in clip window)
+	nop
+clip_ok: movei #gouline,r0	;bog off
+	cmpq #0,r15		;points swapped?
+	jump eq,(r0)		;no
+	nop
+	move x1,r28
+	move y1,r2
+	move x2,x1
+	move y2,y1
+	move r28,x2
+	move r2,y2		;swop points
+	jump (r0)
+	nop
+
+clip_9: move r0,r28
+	and r1,r28
+	jr z,clip_iterate	;if this is zero got to do some clipping dude
+	nop
+clipfail: frts
+; movei #return,r0	;no line here thank you so much
+;	jump (r0)
+;	nop
+clip_iterate: cmpq #0,r0	;check first endpoint is on the screen
+	jr ne, right_order
+	nop
+	move r0,r28		;if it is, exchange endpoints and outcodes
+	move r1,r0
+	move r28,r1		;swop outcodes
+
+	move x1,r28
+	move y1,r2
+	move x2,x1
+	move y2,y1
+	move r28,x2
+	move r2,y2		;swop points
+	moveq #1,r2
+	xor r2,r15		;flippyflag points are swapped
+
+
+right_order:
+ 	move x2,r5
+	move y2,r6
+	sub x1,r5		;get vector sizes
+	sub y1,r6		;in (r5,r6)
+	move r0,r7		;save outcode 1
+
+	movei #do_out1,r4
+	btst #3,r7		;check for bit 0 of outcode 1
+	jump z,(r4)
+	nop
+	movei #vyhi,r1
+	sub y1,r1
+	imult r5,r1
+	move r6,r0
+	abs r0
+	sdiv r0,r1
+	sub r1,x1		;new X pos from that calculation
+	movei #vyhi,y1		;new Y if top of screen
+	movei #doit,r0
+	jump (r0)
+	nop
+
+do_out1: movei #do_out2,r4
+	btst #2,r7		;check for bit 0 of outcode 1
+	jump z,(r4)
+	nop
+	movei #vylo,r1
+	sub y1,r1
+	imult r5,r1
+	move r6,r0
+	abs r0
+	sdiv r0,r1
+	add r1,x1		;new X pos from that calculation
+	movei #vylo,y1		;new Y if top of screen
+	movei #doit,r0
+	jump (r0)
+	nop
+
+do_out2: movei #do_out3,r4
+	btst #1,r7
+	jump z,(r4)
+	nop
+
+	movei #vxhi,r1
+	sub x1,r1
+	imult r6,r1
+	move r5,r0
+	abs r0
+	sdiv r0,r1
+	sub r1,y1		;new X pos from that calculation
+	movei #vxhi,x1		;new Y if top of screen
+	movei #doit,r0
+	jump (r0)
+	nop
+
+do_out3:
+	movei #clipfail,r4
+	btst #0,r7
+	jump z,(r4)
+	nop
+
+	movei #vxlo,r1
+	sub x1,r1
+	imult r6,r1
+	move r5,r0
+	abs r0
+	sdiv r0,r1
+	add r1,y1		;new X pos from that calculation
+	movei #vxlo,x1		;new Y if top of screen
+	movei #doit,r0
+	jump (r0)
+	nop
+
+
+
+
+
+gouline:
+;
+; line draw with colour graduation. x2 and y2 are mashed
+
+
+
+
+	movei #lineparams,r28
+	gjsr r28
+
+	
+	moveta r30,r30		;this is doublewidth line stuff- save the proper frts value...
+	movei #glin,r28
+	fjsr r28
+	movefa r30,r30
+	movefa r1,r1		;get sysflags
+	btst #1,r1
+	jr eq,thick
+	nop
+	movei #farts,r0
+	jump (r0)
+	nop
+thick:	addq #1,L_PIX		;another line 1 pixel over.. fall thru to 'real' frts	
+
+glin:	move intens_1,r0
+	move L_COUNT,r1		;blitter count is abs line length
+	sub intens_0,r0		;get signed intensity gradient
+	bclr #16,r1		;(without the outer loop bit)
+ 	movei #z2return,r28
+	cmpq #0,r1
+	jump eq,(r28)		;check for 0-length and go if true
+	nop
+	moveq #0,r3		;do a signed divide as usual
+	cmp r3,r0
+	jr pl,nneg1
+	nop
+	bset #0,r3
+	abs r0
+nneg1: div r1,r0
+	movei #$ff,r4		;for getting the integer parts
+	and r4,col
+	move col,r23		;get a copy of the colour
+	shlq #16,r23		;going to build pattern here  ----moved up for pipeline
+	or col,r23
+	shlq #8,r23		;two colour bytes woth holes for the intensity
+
+
+	btst #0,r3
+	jr z,nneg11
+	nop
+	neg r0
+nneg11:	move intens_0,r1	;get start intensity
+
+bstop: load (CMD),r28		;check for blitter stop
+	btst #0,r28
+	jr z,bstop
+	nop
+
+	movei #BLIT_PATD,r28
+	store r23,(r28)
+	addq #4,r28
+	store r23,(r28)		;colour is set..
+
+	movei #$ffffff,r28
+	and r28,r0
+	movei #B_I3,r28
+	store r1,(r28)
+
+	movei #BLIT_IINC,r28
+	store r0,(r28)		;set it
+	movei #BLIT_A1INCF,r1
+	store L_INCF,(r1)		;set up blitter
+	movei #BLIT_A1INC,r1
+	store L_INC,(r1)
+	store L_PIX,(A1PIXEL)
+	move L_COUNT,r0
+	move r0,r1
+	store r1,(COUNT)
+	moveq #0,r0
+	movei #BLIT_A1PIXELF,r1
+	store r0,(r1)
+	movei #(PATDSEL|GOURD),r0	;pattern data + Gourard stuff
+	store r0,(CMD)			;start it up
+
+
+
+farts:	frts
+z2return: moveq #0,L_COUNT
+	frts
+
+return:	load (r27),r0		;get return address on the stack
+	addq #4,r27		;update SP
+	jump (r0)		;jump to return address
+	nop 
+
+
+
+line:
+
+	movei #lineparams,r28
+	gjsr r28
+
+	move COL,r0
+	shlq #16,r0
+	or COL,r0
+	movei #z2return,r3
+	move L_COUNT,r28	
+	bclr #16,r28
+	cmpq #0,r28
+	jump eq,(r3)
+	nop
+
+lbstop: load (CMD),r28		;check for blitter stop
+	btst #0,r28
+	jr z,lbstop
+	nop
+
+	movei #BLIT_PATD,r1
+	store r0,(r1)
+	addq #4,r1
+	store r0,(r1)
+	movei #BLIT_A1INCF,r1
+	store L_INCF,(r1)		;set up blitter
+	movei #BLIT_A1INC,r1
+	store L_INC,(r1)
+	store L_PIX,(A1PIXEL)
+	moveq #0,r0
+	movei #BLIT_A1PIXELF,r1
+	store r0,(r1)
+	move L_COUNT,r0
+	move r0,r1
+	movei #$1ff,r2
+	and r2,r1
+	bset #16,r1
+	store r1,(COUNT)
+	movei #(PATDSEL),r0		;pattern data + Gourard stuff
+	store r0,(CMD)			;start it up
+
+xxxit:	frts
+
+
+
+
+lineparams:
+;
+; Get parameters for linedraw (or anything that uses gradients)
+
+
+	sub x1,x2
+	sub y1,y2			;get differences
+	move y1,L_PIX
+	shlq #16,L_PIX
+	or x1,L_PIX			;set pixel origin
+	move x2,r0
+	move y2,r1
+	abs r0
+	abs r1				;get abs size
+	cmp r0,r1
+	jr mi,x_greater			;see which is biggest
+	nop
+	movei #y_greater,r0
+	jump (r0)
+	nop
+
+x_greater: movei #zreturn,r28
+	cmpq #0,r0
+	jump eq,(r28)			;check for 0-length and go if true
+	nop
+ 	shlq #16,y2			;y difference to 16:16
+	moveq #0,r3
+	cmp r3,y2			;stuff to do signed divide
+	jr pl,pos2
+	nop
+	bset #0,r3
+	abs y2
+pos2:	div r0,y2			;divide by x
+	move r0,L_COUNT
+	addq #1,L_COUNT
+	bset #16,L_COUNT		;set count to X
+	btst #0,r3
+	nop
+	jr z,pos22
+	nop
+	neg y2
+pos22:
+;	move r0,L_COUNT
+;	bset #16,L_COUNT		;set count to X
+	move y2,L_INCF
+	shlq #16,L_INCF			;Frac of Y, zero X
+	movei #$ffff0000,r3
+	move y2,L_INC
+	and r3,L_INC
+	moveq #1,r0
+	cmpq #0,x2			;check sign of x
+	jr pl,sgnpos
+	nop
+	movei #$ffff,r0			;-1
+sgnpos:	or r0,L_INC
+	grts
+
+y_greater: movei #zreturn,r28
+	cmpq #0,r1
+	jump eq,(r28)			;check for 0-length and go if true
+	nop
+ 	shlq #16,x2			;x difference to 16:16
+	moveq #0,r3
+	cmp r3,x2			;stuff to do signed divide
+	jr pl,pos1
+	nop
+	bset #0,r3
+	abs x2
+pos1:	div r1,x2			;divide by Y
+	move r1,L_COUNT
+	addq #1,L_COUNT
+	bset #16,L_COUNT		;set count to Y
+	btst #0,r3
+	nop
+	jr z,pos12
+	nop
+	neg x2
+pos12:
+;	move r1,L_COUNT
+;	bset #16,L_COUNT		;set count to Y
+	move x2,L_INCF
+	movei #$ffff,r3
+	and r3,L_INCF			;Frac of X, zero Y
+	move x2,L_INC
+	shrq #16,L_INC
+	movei #$10000,r0
+	cmpq #0,y2			;check sign of y
+	nop
+	jr pl,sgnpos1
+	nop
+	movei #$FFFF0000,r0		;-1
+sgnpos1: or r0,L_INC
+	grts
+
+zreturn: moveq #0,L_COUNT
+	grts
+
+StopGPU:
+ 	movei #GPUCTRL,r1	;point at GPU flags
+	movei #gpu_sem,r2	;Finish semaphore
+	moveq #0,r0	
+	store r0,(r2)		;Flag GPU completion
+	load (r1),r0
+	bclr #0,r0
+
+	store r0,(r1)		;stop the GPU
+stoploop:
+ 	jr stoploop
+	nop
+
+
+
+
+

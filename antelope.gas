@@ -1,0 +1,1529 @@
+; Thang
+
+	Base equ $f00000
+
+		INCLUDE	"blit.inc"	; blitter defintions
+		INCLUDE	"jaguar.inc"	; Jaguar General definitions
+
+	gpu_mode EQU (G_RAM+$ffc)	; Number defines which routine the GPU will do
+	gpu_screen EQU (G_RAM+$ff8)	; The address of the screen the GPU will draw on
+	source_flags	EQU (G_RAM+$ff4)
+	dest_flags EQU (G_RAM+$ff0)	; Blitter flags 4 source+dest
+	_sysflags EQU (G_RAM+$fd0)	;Thick vector flags etc
+
+	p_sines EQU $30000		; 256-byte sine table of unsigned bytes
+	in_buf	EQU (G_RAM+$f60)	; General space for passing stuff to GPU
+	ORG $f03000
+	width EQU 384
+	height EQU 280
+	vxlo EQU 0			; Screen extents for the Cohen-Sutherland clipping algorithm
+	vxhi EQU ((384*1)-1)
+	vylo EQU 0
+	vyhi EQU ((280*1)-1)
+
+	diag EQU $4000
+
+	MACRO fmult	;multiply 2 thangs, uses r2-r4, returns in first reg.
+	moveta @2,r0	;(preserves second Thang)
+ 	moveq #0,r27
+	move r27,r28
+	abs @1
+	addc r28,r27
+	abs @2
+	addc r28,r27
+	move @2,r28
+	mult @1,r28
+	move @1,r29
+	shrq #16,r28
+	shrq #16,r29
+	mult @2,r29
+	shrq #16,@2
+	add r29,r28
+	move @2,r29
+	mult @1,r29
+	shrq #16,@1
+	add r29,r28
+	mult @2,@1
+	shlq #16,@1
+	add r28,@1
+	btst #0,r27
+	jr z,fmp@@
+	movefa r0,@2
+	neg @1
+fmp@@:
+	ENDM
+
+	MACRO sdiv	;Divide, keeping sign of that which is divided, uses r27
+	move @2,r27
+	abs @2
+ 	div @1,@2
+	btst #31,r27	;Get sign bit of original thang
+	jr z,sd@@
+	nop
+	neg @2
+sd@@:	
+	ENDM
+
+	movei #gpu_mode,r0		;Get mode
+	load (r0),r1
+	movei #mandel,r2
+	movei #ripplewarp,r3		;choices
+	movei #scar,r4
+	movei #scarper,r5
+	movei #voxel,r6
+	movei #v_rwarp,r7
+	cmpq #0,r1
+	jump eq,(r2)			;go and Mandel
+	nop
+	cmpq #1,r1
+	jump eq,(r3)
+	nop
+	cmpq #2,r1
+	jump eq,(r4)
+	nop
+	cmpq #3,r1
+	jump eq,(r5)
+	nop
+	cmpq #4,r1
+	jump eq,(r6)
+	nop
+	cmpq #6,r1
+	jump eq,(r7)
+	nop
+
+	movei #sinethang,r3		;sinewave pattern generator
+	jump (r3)			;go
+	nop
+
+
+
+;****
+;
+; LEONARD'S MANDY:  Very simple fixed point Mandy generator, using Leonard's inner loop.
+;
+; Input: gpu_screen points to start of dest screen.
+;
+; 	 in_buf has, in order: cx,cy,ix,iy,xstep,ystep.
+;
+;****
+
+	xi		REGEQU		r1	;Reg equates for Leonard's old Mandy routine
+	yi		REGEQU		r2
+	cx		REGEQU		r3
+	cy		REGEQU		r4
+	sx		REGEQU		r5
+	sy		REGEQU		r6
+	temp		REGEQU		r7
+	count		REGEQU		r8
+	maxcnt		REGEQU		r9
+	four		REGEQU		r10
+	inloop		REGEQU		r11
+	inbuf		REGEQU		r13
+
+	dest		REGEQU	r14		;New stuff - destination screen base...
+	px		REGEQU 	r15		;pixel X counter
+	py		REGEQU	r16		;puxel Y counter
+	xinc		REGEQU	r17		;x-increment
+	yinc		REGEQU	r18		;y-increment
+	xloop		REGEQU r19
+	yloop		REGEQU r20		;loop jump back points
+
+
+mandel:
+;
+; draw the Mandelbrot set
+
+
+	movei	#(4<<13),four
+	movei	#254,maxcnt
+	movei	#in_buf,inbuf
+	load	(inbuf),cx	;get initial x/y
+	addq	#4,inbuf
+	load	(inbuf),cy
+	addq	#4,inbuf
+	load	(inbuf),xi	;get x and y initial offset (zero for m-set)
+	addq	#4,inbuf
+	load	(inbuf),yi
+	addq	#4,inbuf
+	load	(inbuf),xinc
+	addq	#4,inbuf
+	load	(inbuf),yinc	;get x/y step
+	addq	#4,inbuf
+	movei #gpu_screen,r0
+	load (r0),dest		;where the graphics shall go
+	moveta xi,xi
+	moveta yi,yi		;save initial values of these
+	movei #x_loop,xloop	;load various constants
+	movei #y_loop,yloop
+	movei	#loop,inloop	;this is Leonard's Mandy inner loop
+	movei #width,px
+	movei #height,py
+	moveta px,px		;px needs to be reset at each line-start
+	moveta cx,cx		;and so does cx
+
+y_loop:	movefa cx,cx
+	movefa px,px		;restore Thangs
+x_loop:	xor	count,count	;count zero
+	movefa xi,xi
+	movefa yi,yi		;restor initial stuff
+
+loop:	move	xi,temp
+	imult	yi,temp		; temp=xi*yi
+	imult	xi,xi		; xi=xi*xi
+	imult	yi,yi		; yi=yi*yi
+	sharq	#13,xi		; normalize all mult results
+	sharq	#13,temp
+	sharq	#13,yi
+	add	temp,temp	; temp=temp+temp
+	move	yi,sy		; sy=yi*yi
+	add	cy,temp		; temp=temp+temp+cy
+	move	xi,sx		; sx=xi*xi
+	move	temp,yi		; yi=temp+temp+cy
+	sub	sy,xi		; xi=sx-sy
+	add	cx,xi		; xi=sx-sy+cx
+	addq	#1,count
+	cmp	count,maxcnt
+	jr	MI,noloop	; MI is branch count<maxcnt
+	nop
+	add	sx,sy
+	cmp	sy,four
+	jump	PL,(inloop)
+	nop
+noloop: storeb count,(dest)
+	addq #1,dest		;accessing the pixels linearly
+	add xinc,cx
+	subq #1,px
+	jump ne,(xloop)
+	nop
+	add yinc,cy
+	subq #1,py
+	jump ne,(yloop)		;do all pixels
+	nop
+
+
+StopGPU: movei #G_CTRL,r1	;point at GPU flags
+	load (r1),r0
+	bclr #0,r0
+	store r0,(r1)		;stop the GPU
+stoploop: jr stoploop
+	nop
+
+
+
+
+;***** REGISTER EQUATES for FX stuff:
+
+	source1 REGEQU r1
+	source2 REGEQU r2
+	dest1 	REGEQU r3
+	dest2 	REGEQU r4
+	cmd 	REGEQU r6
+	source3 REGEQU r7
+	source4 REGEQU r8
+	dest3 	REGEQU r9
+	dest4 	REGEQU r10
+
+	temp1	REGEQU r11
+	temp2	REGEQU r12
+
+	blit	REGEQU r13		;address of Blitter go
+	a1	REGEQU r14
+	a2	REGEQU r15		;Blitter base addresses
+
+	freturn REGEQU r30		;Fast return vector
+
+;***** EQUATES for Blitter offsets
+
+	_base EQU 0
+	_flags EQU 1
+	_clip EQU 2
+	_mask EQU 2
+	_pixel EQU 3 
+	_step EQU 4
+	_fstep EQU 5
+	_fpixel EQU 6
+	_inc EQU 7
+	_finc EQU 8
+
+;***** MACROS for FX
+
+	MACRO fjsr	;Fast single-level JSR
+	move PC,freturn
+	jump (@1)
+	addq #6,freturn	; Determine Return Address
+	ENDM
+
+	MACRO frts
+	jump (freturn)
+	nop
+	ENDM
+
+	MACRO waitblit	; Wait for the Blitter to stop
+wai@@:	load (blit),r0
+	btst #0,r0
+	jr z,wai@@
+	nop
+	ENDM
+
+
+;*****
+;*
+;* StretchLine:  Stretch a line of the source bitmap and copy to the ENTIRE destination scanline.
+;*
+;* Input: r1 = Source start pixel  (source1)  16:16
+;*	 r2 = Source end pixel	  (source2)  16:16
+;* 	 r3 = Dest scan line.	  (dest1)
+;*	 r4 = Dest scan width.	  (dest2)
+;*	 r5 = Blitter command word.    (cmd)
+;*	 r6 = Source scanline (source3) 
+;*	 
+;*	 TEMP2 is used to hold the Count register address.
+;*	 Expects Blitter base stuff set outside of loop.
+;*	 Expects Blitter base registers to contain their addresses
+;*
+;*
+;*****
+
+stretchline: sub source1,source2	;get width of source to stretch
+	div dest2,source2	;divide by the dest width to yield
+				;the blitter source step
+	shlq #16,dest1
+
+	shlq #16,source3	;Y pixel addresses to hi words
+	shrq #16,source1	;source X pixel back to integer
+
+	waitblit		;Ensure blitter is stopped
+	or source1,source3	;source3 has combined source pixel address
+	store dest1,(a2+_pixel)	;set dest pixel address
+	store source3,(a1+_pixel)	;source start
+	xor temp1,temp1		;generate zero
+	store temp1,(a1+_inc)	;zero integer source step
+	store temp1,(a1+_fpixel)	;fractional pixel pos'n to 0
+
+	store source2,(a1+_finc)	;result of initial divide
+
+	move dest2,r0			;get dest width to loop counter
+	bset #16,r0			;make y count=1
+	store r0,(temp2)		;set the count to dest width
+	store cmd,(blit)		;do the blit
+	frts				;return to caller.
+
+;*****
+;*
+;* V_StretchLine:  Stretch a column of the source bitmap and copy to the ENTIRE destination column.
+;*
+;* Input: r1 = Source start pixel  (source1)  16:16
+;*	 r2 = Source end pixel	  (source2)  16:16
+;* 	 r3 = Dest X column	  (dest1)
+;*	 r4 = Dest scan height.	  (dest2)
+;*	 r5 = Blitter command word.    (cmd)
+;*	 r6 = Source column (source3) 
+;*	 
+;*	 TEMP2 is used to hold the Count register address.
+;*	 Expects Blitter base stuff set outside of loop.
+;*	 Expects Blitter base registers to contain their addresses
+;*
+;*
+;*****
+
+v_stretchline: sub source1,source2	;get height of source to stretch
+	div dest2,source2	;divide by the dest height to yield
+				;the blitter source vertical step
+	movei #$ffff0000,r0	;mask
+	and r0,source1		;source Y in top 16 bits
+
+	waitblit		;Ensure blitter is stopped
+	or source1,source3	;source3 has combined source pixel address
+	store dest1,(a2+_pixel)	;set dest pixel address (DEST1,0)
+
+	store source3,(a1+_pixel)	;source start
+	xor temp1,temp1		;generate zero
+	store temp1,(a1+_inc)	;zero integer source step
+	store temp1,(a1+_fpixel)	;fractional pixel pos'n to 0
+
+	shlq #16,source2		;divide result to top 16-bits
+
+	store source2,(a1+_finc)	;result of initial divide
+					;is the fractional y-step
+	move dest2,r0			;get dest height to loop counter
+	bset #16,r0			;make outer loop count=1
+	store r0,(temp2)		;set the count
+	store cmd,(blit)		;do the blit
+	frts	
+
+
+;*****
+;*
+;* RippleWarp:  Stretch a screen horizontally, with 2 sine waves
+;*
+;*	in_buf: 0() = Source screen
+;*	gpu_screen = Dest screen
+;*
+;*****
+
+	veepos		REGEQU r16
+	veestep		REGEQU r17
+
+	sinebase 	REGEQU	r21		;base address of bytewise sine table
+	lphase		REGEQU	r22		;phase of left-hand wave		16:16
+	lamp		REGEQU	r23		;amplitude of left-hand wave		8:8
+	rphase		REGEQU	r24		;phase of right-hand wave		16:16
+	ramp		REGEQU  r25		;amplitude of right-hand wave		8:8
+	lstep		REGEQU	r26
+	rstep		REGEQU	r27		;speed of stepping through wave		16:16 both
+
+	byte		REGEQU	r28		;mask to mask off a byte.
+
+ripplewarp:	movei #in_buf,r0
+	load (r0),r20		;get source screen address
+	addq #4,r0
+	load (r0),lphase	;load up the RippleWarp parameters
+	addq #4,r0
+	load (r0),lamp
+	addq #4,r0
+	load (r0),rphase
+	addq #4,r0
+	load (r0),ramp
+	addq #4,r0
+	load (r0),lstep
+	addq #4,r0
+	load (r0),rstep
+
+	movei #A1_BASE,a1
+	movei #A2_BASE,a2	;set blittr base registers
+	movei #B_CMD,blit	;where the commands go	
+	store r20,(a1)		;set source base address
+	movei #gpu_screen,r0
+	load (r0),r20
+	store r20,(a2)		;set dest base address
+	movei #source_flags,r0
+	load (r0),r20
+	movei #XADDINC,r21
+	or r20,r21
+;	movei #(PITCH1|PIXEL8|WID384|XADDINC),r0
+	store r21,(a1+_flags)	;source flags
+	subq #4,r0
+	load (r0),r20
+	movei #(XADDPIX|YADD0),r21
+	or r20,r21
+;	movei #(PITCH1|PIXEL8|WID384|XADDPIX|YADD0),r0
+	store r21,(a2+_flags)	;dest flags
+	movei #(SRCEN|DSTA2|LFU_A|LFU_AN),cmd	;blitter Go cmd
+	movei #B_COUNT,temp2	;use temp2 to hold this.
+
+	movei #384,dest2	;dest scan width
+	movei #239,dest1	;dest scanline #
+	movei #239,source3	;source scanline #
+	movei #$10000,veestep
+;	move source3,veepos
+;	shlq #16,veepos
+
+	movei #_sysflags,r0
+	load (r0),r30		;get sys flags, to check for PAL
+	btst #5,r30
+	jr z,notpal
+	nop
+	movei #279,dest1
+	movei #229,source3
+	movei #$c000,veestep
+notpal:	movei #rippleloop,r29	;loop for branch back
+
+	move source3,veepos
+	shlq #16,veepos
+
+	movei #$ff,byte
+	movei #p_sines,sinebase	;set needed constants
+
+rippleloop: move lphase,r0
+	shrq #16,r0		;get int of phase
+ 	and byte,r0
+	add sinebase,r0
+	loadb (r0),r20		;get byte sine value 0-255
+	move lamp,r0		;left amplitude
+	mult r20,r0		;multiply by the sine
+	movei #$10000,source1
+	add r0,source1		;start pixel set
+	
+ 	move rphase,r0
+	shrq #16,r0		;get int of phase
+ 	and byte,r0
+	add sinebase,r0
+	loadb (r0),r20		;get byte sine value 0-255
+	move ramp,r0		;right amplitude
+	mult r20,r0		;multiply by the sine
+	movei #$1400000,source2	;##### FIXED for a 320 pixel wide source image
+;	movei #$630000,source2
+	sub r0,source2		;end pixel set
+
+	moveta source3,source3
+	moveta dest1,dest1
+
+	movei #stretchline,r0
+	fjsr r0
+
+	movefa source3,source3
+	movefa dest1,dest1
+
+	add lstep,lphase
+	add rstep,rphase
+
+	sub veestep,veepos
+	move veepos,source3
+	shrq #16,source3
+	subq #1,dest1
+	jump pl,(r29)		;loop for all scan lines
+	nop
+
+
+;	subq #1,source3
+
+	movei #stopgpu,r0
+	jump (r0)
+	nop			;done it	
+
+;*****
+;*
+;* V_RippleWarp:  Stretch a screen horizontally, with 2 sine waves
+;*
+;*	in_buf: 0() = Source screen
+;*	gpu_screen = Dest screen
+;*
+;*****
+
+
+v_rwarp:  waitblit		;in case prev warp is running
+	movei #in_buf,r0
+	load (r0),r20		;get source screen address
+	addq #4,r0
+	load (r0),lphase	;load up the RippleWarp parameters
+	addq #4,r0
+	load (r0),lamp
+	addq #4,r0
+	load (r0),rphase
+	addq #4,r0
+	load (r0),ramp
+	addq #4,r0
+	load (r0),lstep
+	addq #4,r0
+	load (r0),rstep
+
+	movei #A1_BASE,a1
+	movei #A2_BASE,a2	;set blittr base registers
+	movei #B_CMD,blit	;where the commands go	
+	store r20,(a1)		;set source base address
+	movei #gpu_screen,r0
+	load (r0),r20
+	store r20,(a2)		;set dest base address
+	movei #(PITCH1|PIXEL8|WID384|XADDINC|YADD1),r0
+	store r0,(a1+_flags)	;source flags
+	movei #(PITCH1|PIXEL8|WID384|XADD0|YADD1),r0
+	store r0,(a2+_flags)	;dest flags
+	movei #(SRCEN|DSTA2|LFU_A|LFU_AN),cmd	;blitter Go cmd
+	movei #B_COUNT,temp2	;use temp2 to hold this.
+
+	movei #240,dest2	;dest scan height
+	movei #383,dest1	;dest column #
+	movei #383,source3	;source column #
+	movei #v_rippleloop,r29	;loop for branch back
+
+	movei #$ff,byte
+	movei #p_sines,sinebase	;set needed constants
+
+v_rippleloop: move lphase,r0
+	shrq #16,r0		;get int of phase
+ 	and byte,r0
+	add sinebase,r0
+	loadb (r0),r20		;get byte sine value 0-255
+	move lamp,r0		;left amplitude
+	mult r20,r0		;multiply by the sine
+	movei #$10000,source1
+	add r0,source1		;start pixel set
+	
+ 	move rphase,r0
+	shrq #16,r0		;get int of phase
+ 	and byte,r0
+	add sinebase,r0
+	loadb (r0),r20		;get byte sine value 0-255
+	move ramp,r0		;right amplitude
+	mult r20,r0		;multiply by the sine
+	movei #$f00000,source2
+	sub r0,source2		;end pixel set
+
+	moveta source3,source3
+	moveta dest1,dest1
+
+	movei #v_stretchline,r0
+	fjsr r0
+
+	movefa source3,source3
+	movefa dest1,dest1
+
+	add lstep,lphase
+	add rstep,rphase
+
+	subq #1,dest1
+	jump pl,(r29)		;loop for all scan lines
+	subq #1,source3
+
+	movei #stopgpu,r0
+	jump (r0)
+	nop			;done it	
+
+;*****
+;*
+;* SCAR: SCale And Rotate an image into the destination rectangle
+;*
+;* INPUTS: set up source_ and dest_flags as usual; gpu_screen set to the destination screen;
+;*
+;* IN_BUF:  0()=Source screen
+;*          4()=Dest x width, in pixels
+;*	   8()=Dest y width, in pixels
+;*	  12()=X scale factor, as an 8:8 frac
+;*	  16()=Y scale factor, as an 8:8 frac (faster than multiplying a 16:16)
+;*	  20()=Angle of rotation, in brads
+;*	  24()=Centre of rotation X, 16:16, on source image
+;*	  28()=Centre of rotation Y, 16:16, on source image
+;*	  32()=Destination offset, Y:X
+;*
+;***** 
+
+	d_width	REGEQU r1		;Destination width
+	d_height REGEQU r2
+	x1	REGEQU r3
+	y1	REGEQU r4
+	x2 	REGEQU r5
+	y2	REGEQU r6		;Useful co-ordinate registers
+	
+	grad_int REGEQU r7
+	grad_frac REGEQU r8
+	lo_mask	REGEQU r9
+	hi_mask REGEQU r10
+	_byte	REGEQU r18
+	_sinebase REGEQU r19
+	_cmd 	REGEQU r26
+
+;	blit	REGEQU r13		;address of Blitter go
+;	a1	REGEQU r14
+;	a2	REGEQU r15		;Blitter base addresses
+
+	sin	REGEQU r16
+	cos	REGEQU r17
+;	temp1	REGEQU r11
+;	temp2	REGEQU r12
+
+scar:	movei #B_CMD,blit		;Init blitter regs
+	movei #(SRCEN|DSTA2|CLIP_A1|UPDA1F|UPDA1|UPDA2|LFU_A|LFU_AN|SRCSHADE|ZBUFF),_cmd	;blitter Go cmd
+	movei #A1_BASE,a1
+	movei #A2_BASE,a2
+
+	movei #(in_buf+36),r1
+	load (r1),r0
+	movei #B_PATD,r1
+	cmpq #0,r0
+	jr nz,axa
+	nop
+	movei #(SRCEN|DSTA2|CLIP_A1|UPDA1F|UPDA1|UPDA2|LFU_A|LFU_AN),_cmd	;blitter Go cmd
+	
+axa:	store r0,(r1)
+
+	movei #B_ZINC,r1
+	store r0,(r1)
+	movei #B_IINC,r1
+	store r0,(r1)
+	movei #B_I3,r1
+	store r0,(r1)
+	addq #4,r1
+	store r0,(r1)
+	addq #4,r1
+	store r0,(r1)
+	addq #4,r1
+	store r0,(r1)
+
+	movei #$FFFF0000,hi_mask
+	movei #$ffff,lo_mask		;always useful for blitter stuff!
+	movei #$ff,_byte
+	movei #p_sines,_sinebase
+	movei #gpu_screen,r20
+	load (r20),r0
+	subq #4,r20
+	store r0,(a2)			;set dest screen base
+	load (r20),r0			;source flags
+	subq #4,r20
+	movei #XADDINC,r21
+	or r0,r21
+	store r21,(a1+_flags)		;agen 1 to incremental step
+	load (r20),r0
+	movei #(XADDPIX|YADD0),r21
+	or r0,r21
+	store r21,(a2+_flags)
+
+	movei #in_buf,r0
+	load (r0),r20	
+	addq #4,r0	
+	store r20,(a1)			;set source screenbase	
+	load (r0),d_width	
+	addq #4,r0		
+	load (r0),d_height	
+	addq #4,r0			;get X- and Y-height	
+
+	move d_height,r20
+	shlq #16,r20
+	or d_width,r20
+	store r20,(a1+_clip)		;for DISO_A1
+
+	move d_width,temp1	
+	move d_height,temp2	
+	load (r0),r20			;get x-scale
+	addq #4,r0
+	mult r20,temp1			;temp1 is now ?:8 scaled
+	load (r0),r20
+	addq #4,r0			;y-scale...
+	mult r20,temp2			;is now ?:8 scaled
+
+	load (r0),r20
+	addq #4,r0			;get angle in brads
+
+	and _byte,r20
+	add _sinebase,r20
+	loadb (r20),sin
+	sub _sinebase,r20
+	movei #$40,r21
+	add r21,r20
+	and _byte,r20
+	add _sinebase,r20
+	loadb (r20),cos			;SIN and COS are positive values, 0-255
+
+	movei #$80,r21
+	sub r21,sin
+	sub r21,cos			;now they are signed +/-128
+	shlq #8,sin
+	shlq #8,cos			;and now they are signed 16:16 values.
+
+	shlq #8,temp1
+	shlq #8,temp2			;these co-ordinates to 16:16 too
+
+	move temp1,x1
+	fmult x1,cos
+	move temp1,y1
+	fmult y1,sin			;Translation of (x,0) in x1,y1
+	move temp2,x2
+	fmult x2,sin
+	neg x2
+	move temp2,y2
+	fmult y2,cos			;Transformation of (0,y) in x2,y2
+
+
+	move x1,grad_int
+	move grad_int,r21		;save for creating step
+	sdiv d_width,grad_int		;This now has the x-gradient along the horizontal scan
+	
+
+	move grad_int,grad_frac
+	shrq #16,grad_int		;grad_int has int X inc in low word		
+	and lo_mask,grad_frac		;The X components are now complete
+
+	move y1,temp1
+	move temp1,r22			;save this for creating the step
+	sdiv d_width,temp1		;Got y-gradient in temp
+
+	move temp1,temp2
+	and hi_mask,temp1		;Temp1 has Y int inc in hi word
+	shlq #16,temp2			;Y frac in hi word
+
+	or temp1,grad_int
+	or temp2,grad_frac		;These now contain the Increment.
+
+	moveta grad_int,grad_int
+	moveta grad_frac,grad_frac	;Move to alternates so I can re-use them
+
+	move x2,grad_int
+	sdiv d_height,grad_int		;This now has the x-gradient along the vertical scan
+	sub r21,grad_int		;must take into account the inner loop size
+
+	move grad_int,grad_frac
+	shrq #16,grad_int		;grad_int has int X inc in low word		
+	and lo_mask,grad_frac		;The X components are now complete
+
+	move y2,temp1
+	sdiv d_height,temp1		;Got y-gradient in temp
+	sub r22,temp1			;subtract inner loop size
+	move temp1,temp2
+	and hi_mask,temp1		;Temp1 has Y int inc in hi word
+	shlq #16,temp2			;Y frac in hi word
+
+	or temp1,grad_int
+	or temp2,grad_frac		;These now contain the Step.
+
+	load (r0),temp1			;Source X centre point in 16:16 format
+	addq #4,r0
+	sharq #1,x1
+	load (r0),temp2			;Source Y centre in 16:16
+	addq #4,r0
+	sharq #1,y1
+	sub x1,temp1			;TEMP1 and TEMP2 now contain the start point for the blit as 16:16 frac values.
+	sharq #1,x2
+	sub y1,temp2
+	sharq #1,y2
+	sub x2,temp1
+	sub y2,temp2
+
+	load (r0),r21			;The x and y regs are now free.  The last r0 load is the destination offset for the blit.
+
+	move temp1,x2			;x2 will hold the integer parts of a1's pixel pointer.
+	move temp1,y2			;y2 will hold the fractional parts of the pixel pointer.
+	shrq #16,x2
+	and lo_mask,y2			;The X-parts are complete.
+
+	move temp2,temp1		;Copy the Y value.
+	shlq #16,temp2			;Temp 2 has y frac in high
+	and hi_mask,temp1		;Temp 1 has int y high
+	or temp2,y2
+	or temp1,x2			;x2:y2 are the completed a1 pixel pointer values..
+
+	waitblit			;it's BLiTTER TIME!!
+
+	store x2,(a1+_pixel)
+	store y2,(a1+_fpixel)		;set a1 origin
+
+	store grad_int,(a1+_step)
+	store grad_frac,(a1+_fstep)	;set the Step
+
+	movefa grad_int,grad_int
+	movefa grad_frac,grad_frac
+	store grad_int,(a1+_inc)
+	store grad_frac,(a1+_finc)
+
+	move d_width,r0
+	neg r0
+	and lo_mask,r0
+	bset #16,r0			;Dest step: 1:-(x scan size)
+	store r0,(a2+_step)
+
+	store r21,(a2+_pixel)		;Pixel pointer passed from the last in_buf read
+	
+	shlq #16,d_height		;Move Y size (ie Outer Loop Count) to the top
+	or d_height,d_width		;d_width is now the inner and outer loop scounters
+	movei #B_COUNT,r0
+	store d_width,(r0)		;set B_COUNT
+
+	store _cmd,(blit)		;do it to it
+
+	movei #stopgpu,r0
+	jump (r0)
+	nop				;stop GPU
+
+;*****
+;*
+;* SCARPER: SCale And Rotate an image with PERspective into the destination rectangle
+;*
+;* INPUTS: set up source_ and dest_flags as usual; gpu_screen set to the destination screen;
+;*
+;* IN_BUF:  0()=Source screen
+;*          4()=Dest x width, in pixels
+;*	   8()=Dest y height, in pixels
+;*	  12()=X scale factor, as an 8:8 frac
+;*	  16()=Y scale factor, as an 8:8 frac (faster than multiplying a 16:16)
+;*	  20()=Angle of rotation, in brads
+;*	  24()=Centre of rotation X, 16:16, on source image
+;*	  28()=Centre of rotation Y, 16:16, on source image
+;*	  32()=Height of VP above surface, 16:16
+;*	  36()=Destination offset, Y:X
+;*
+;***** 
+
+;	d_width	REGEQU r1		;Destination width
+;	d_height REGEQU r2
+;	x1	REGEQU r3
+;	y1	REGEQU r4
+;	x2 	REGEQU r5
+;	y2	REGEQU r6		;Useful co-ordinate registers
+	
+;	grad_int REGEQU r7
+;	grad_frac REGEQU r8
+;	lo_mask	REGEQU r9
+;	hi_mask REGEQU r10
+;	_byte	REGEQU r18
+;	_sinebase REGEQU r19
+;	_cmd 	REGEQU r26
+
+;	blit	REGEQU r13		;address of Blitter go
+;	a1	REGEQU r14
+;	a2	REGEQU r15		;Blitter base addresses
+
+;	sin	REGEQU r16
+;	cos	REGEQU r17
+;	temp1	REGEQU r11
+;	temp2	REGEQU r12
+
+	v_height REGEQU r21		;height 'above' the textured surface
+	v_x 	REGEQU r22		;centre of rotation
+	v_y	REGEQU r23		;on the surface
+	loop_count REGEQU r24		;count of vertical scanlines drawn
+	loop_add REGEQU r25		;address of loop point
+
+	pixoff	REGEQU r27		;dest pixel offset. ** REMEMBER ** this will be mashed by macros FMULT and SDIV ***
+		
+
+scarper: movei #B_CMD,blit		;Init blitter regs
+	movei #(SRCEN|DSTA2|LFU_A|LFU_AN),_cmd	;blitter Go cmd
+	movei #A1_BASE,a1
+	movei #A2_BASE,a2
+	movei #$FFFF0000,hi_mask
+	movei #$ffff,lo_mask		;always useful for blitter stuff!
+	movei #$ff,_byte
+	movei #p_sines,_sinebase
+	movei #gpu_screen,r20
+	load (r20),r0
+	subq #4,r20
+	store r0,(a2)			;set dest screen base
+	load (r20),r0			;source flags
+	subq #4,r20
+	movei #(XADDINC),r21
+	or r0,r21
+	store r21,(a1+_flags)		;agen 1 to incremental step
+	load (r20),r0
+	movei #(XADDPIX|YADD0),r21
+	or r0,r21
+	store r21,(a2+_flags)
+
+	movei #in_buf,r0
+	load (r0),r20	
+	addq #4,r0	
+	store r20,(a1)			;set source screenbase	
+	load (r0),d_width	
+	addq #4,r0		
+	load (r0),d_height	
+	addq #4,r0			;get X- and Y-height	
+
+	move d_height,r20
+	shlq #16,r20
+	or d_width,r20
+	store r20,(a1+_clip)		;for DISO_A1
+
+	move d_width,temp1	
+	move d_height,temp2	
+	load (r0),r20			;get x-scale
+	addq #4,r0
+	mult r20,temp1			;temp1 is now ?:8 scaled
+	load (r0),r20
+	addq #4,r0			;y-scale...
+	mult r20,temp2			;is now ?:8 scaled
+
+	load (r0),r20
+	addq #4,r0			;get angle in brads
+
+	and _byte,r20
+	add _sinebase,r20
+	loadb (r20),sin
+	sub _sinebase,r20
+	movei #$40,r21
+	add r21,r20
+	and _byte,r20
+	add _sinebase,r20
+	loadb (r20),cos			;SIN and COS are positive values, 0-255
+
+	movei #$80,r21
+	sub r21,sin
+	sub r21,cos			;now they are signed +/-128
+	shlq #8,sin
+	shlq #8,cos			;and now they are signed 16:16 values.
+
+	shlq #8,temp1
+	shlq #8,temp2			;these co-ordinates to 16:16 too
+
+	move temp1,x1
+	fmult x1,cos
+	move temp1,y1
+	fmult y1,sin			;Translation of (x,0) in x1,y1
+	move temp2,x2
+	fmult x2,sin
+	neg x2
+	move temp2,y2
+	fmult y2,cos			;Transformation of (0,y) in x2,y2
+
+; (x1,y1) is now the vector of the scan across the horizon;
+; (x2,y2) is the vector looking out from the view point.
+
+	movei #ploop,loop_add
+	moveq #1,loop_count	;prepare to do the perspective loop
+	load (r0),v_x			;get X centre 
+	addq #4,r0
+	load (r0),v_y			;get Y centre
+	addq #4,r0
+	load (r0),v_height		;get height we're 'floating' above the plane
+	addq #4,r0
+	load (r0),pixoff		;get offset of start of dest window
+	moveta x1,x1
+	moveta y1,y1
+	moveta x2,x2
+	moveta y2,y2			;save original vectors
+	moveta pixoff,pixoff		;and this which gets trashed in the macros
+
+ploop:	move v_height,r0		;Hover height as a 16:16 frac
+	div loop_count,r0		;divide by the # of the scanline we are on
+
+	fmult x2,r0
+	fmult y2,r0			;scale the VP vector
+	fmult x1,r0
+	fmult y1,r0			;and the Horizon vector
+
+	move x1,grad_int
+	sdiv d_width,grad_int		;This now has the x-gradient along the horizontal scan
+	
+	move grad_int,grad_frac
+	shrq #16,grad_int		;grad_int has int X inc in low word		
+	and lo_mask,grad_frac		;The X components are now complete
+
+	move y1,temp1
+	sdiv d_width,temp1		;Got y-gradient in temp
+
+	move temp1,temp2
+	and hi_mask,temp1		;Temp1 has Y int inc in hi word
+	shlq #16,temp2			;Y frac in hi word
+
+	or temp1,grad_int
+	or temp2,grad_frac		;These now contain the Increment.
+
+	sharq #1,x1
+	sharq #1,y1
+
+	move v_x,temp1
+	move v_y,temp2
+
+	sub x1,temp1			;TEMP1 and TEMP2 now contain the start point for the blit as 16:16 frac values.
+	sharq #1,x2
+	sub y1,temp2
+	sharq #1,y2
+	sub x2,temp1
+	sub y2,temp2
+
+	movefa pixoff,pixoff		;retrieve the destination pixel offset
+
+	move temp1,x2			;x2 will hold the integer parts of a1's pixel pointer.
+	move temp1,y2			;y2 will hold the fractional parts of the pixel pointer.
+	shrq #16,x2
+	and lo_mask,y2			;The X-parts are complete.
+
+	move temp2,temp1		;Copy the Y value.
+	shlq #16,temp2			;Temp 2 has y frac in high
+	and hi_mask,temp1		;Temp 1 has int y high
+	or temp2,y2
+	or temp1,x2			;x2:y2 are the completed a1 pixel pointer values..
+
+	waitblit			;it's BLiTTER TIME!!
+
+	store x2,(a1+_pixel)
+	store y2,(a1+_fpixel)		;set a1 origin
+
+	store grad_int,(a1+_inc)
+	store grad_frac,(a1+_finc)	;set the Increment
+
+	store pixoff,(a2+_pixel)		;Pixel pointer passed from the last in_buf read
+	
+	move d_width,r20
+	bset #16,r20			;count to X scan
+	movei #B_COUNT,r0
+	store r20,(r0)		;set B_COUNT
+
+	store _cmd,(blit)		;do it to it
+
+	movei #$10000,r0
+	add r0,pixoff			;point pixoff to next scanline
+	movefa x1,x1
+	movefa y1,y1
+	movefa x2,x2
+	movefa y2,y2			;save all the stuff that got scaled
+
+	addq #1,loop_count
+	cmp loop_count,d_height
+	jump ne,(loop_add)		;loop for all destination scanlines
+	moveta pixoff,pixoff		;save updated pixoff
+	
+
+	movei #stopgpu,r0
+	jump (r0)
+	nop				;stop GPU
+
+
+
+;*****
+;*
+;* VOXEL: Based on the VoxelSpace technique used in Comanche Maximum Overkill
+;*
+;* INPUTS: set up dest_flags as usual; gpu_screen set to the destination screen;
+;*
+;* IN_BUF:  0()=Source screen
+;*          4()=Dest x width, in voxels (4-pixel width units)
+;*	   8()=Dest y (# of rows of voxels front to back)
+;*	  12()=X scale factor, as an 8:8 frac (for stepping over source image)
+;*	  16()=Y scale factor, as an 8:8 frac
+;*	  20()=Angle of rotation, in brads
+;*	  24()=Centre of rotation X, 16:16, on source image
+;*	  28()=Centre of rotation Y, 16:16, on source image
+;*	  32()=base height for voxel generation, 16:16
+;*	  36()=Multiplier for elevating voxels above the base, 16:16
+;*	  40()=Address of Prev Line table
+;***** 
+
+;	d_width	REGEQU r1		;Destination width
+;	d_height REGEQU r2
+;	x1	REGEQU r3
+;	y1	REGEQU r4
+;	x2 	REGEQU r5
+;	y2	REGEQU r6		;Useful co-ordinate registers
+	
+	v_scale REGEQU r7		;Voxel height scaler
+	xloop_count REGEQU r8
+;	lo_mask	REGEQU r9
+;	hi_mask REGEQU r10
+;	_byte	REGEQU r18
+;	_sinebase REGEQU r19
+;	_cmd 	REGEQU r26
+
+;	blit	REGEQU r13		;address of Blitter go
+;	a1	REGEQU r14
+	sourcebase REGEQU r15		;base of source screen
+
+;	sin	REGEQU r16
+;	cos	REGEQU r17
+;	temp1	REGEQU r11
+;	temp2	REGEQU r12
+
+;	v_height REGEQU r21		;height 'above' the textured surface
+;	v_x 	REGEQU r22		;centre of rotation
+;	v_y	REGEQU r23		;on the surface
+	yloop_count REGEQU r24		;count of vertical scanlines drawn
+	loop_add REGEQU r25		;address of loop point
+
+	temp3 REGEQU r27		
+	prevline REGEQU r31		;Holds the height of the pixels behind the current row
+
+voxel: movei #B_CMD,blit		;Init blitter regs
+	movei #(CLIP_A1|UPDA1|PATDSEL),_cmd	;blitter Go cmd, data will come from the pattern register
+	movei #A1_BASE,a1
+
+
+	xor r0,r0			;Blit the screen clear  (hard coded for test)
+	store r0,(a1+_pixel)
+	movei #$ffffffff,r0
+	movei #B_PATD,r1
+	store r0,(r1)
+	addq #4,r1
+	store r0,(r1)
+	movei #gpu_screen,r1
+	load (r1),r0
+	store r0,(a1+_base)
+	movei #(PITCH1|PIXEL8|WID384|XADDPHR),r0
+	store r0,(a1+_flags)
+	movei #$0001fe80,r0		;1,-384
+	store r0,(a1+_step)
+	movei #B_COUNT,r0
+	movei #$f00180,r1
+	store r1,(r0)
+	movei #(UPDA1|PATDSEL),r0
+	store r0,(blit)
+	waitblit
+
+	movei #$FFFF0000,hi_mask
+	movei #$ffff,lo_mask		;always useful for blitter stuff!
+	movei #$ff,_byte
+	movei #p_sines,_sinebase
+	movei #gpu_screen,r20
+	load (r20),r0
+	subq #4,r20
+	store r0,(a1)			;set dest screen base (a1 is the dest this time)
+	load (r20),r0			;source flags
+	movei #XADDPIX,r21
+	or r0,r21
+	store r21,(a1+_flags)		;agen 1 to integer step
+
+	movei #in_buf,r0
+	load (r0),sourcebase	
+	addq #4,r0	
+	load (r0),d_width	
+	addq #4,r0		
+	load (r0),d_height	
+	addq #4,r0			;get X- and Y-height	
+
+	movei #(in_buf+40),r21
+	load (r21),prevline	;Get prev line buffer address
+	moveta sourcebase,sourcebase	;sourcebase in alternate, h-map in actual
+	addq #4,r21
+	load (r21),sourcebase
+	moveta prevline,prevline
+	move d_width,r21
+	movei #240,r20
+clpl:	storew r20,(prevline)
+	subq #1,r21
+	jr ne,clpl			;Clear prev to max Y dimension
+	addq #2,prevline
+
+	movei #240,r20			;*** Hard coded for 384*240
+	shlq #16,r20
+	movei #384,r21
+	or r21,r20
+	store r20,(a1+_clip)		;for CLIP_A1
+
+	move d_width,temp1	
+	move d_height,temp2	
+	load (r0),r20			;get x-scale
+	addq #4,r0
+	mult r20,temp1			;temp1 is now ?:8 scaled
+	load (r0),r20
+	addq #4,r0			;y-scale...
+	mult r20,temp2			;is now ?:8 scaled
+
+	load (r0),r20
+	addq #4,r0			;get angle in brads
+
+	and _byte,r20
+	add _sinebase,r20
+	loadb (r20),sin
+	sub _sinebase,r20
+	movei #$40,r21
+	add r21,r20
+	and _byte,r20
+	add _sinebase,r20
+	loadb (r20),cos			;SIN and COS are positive values, 0-255
+
+	movei #$80,r21
+	sub r21,sin
+	sub r21,cos			;now they are signed +/-128
+	shlq #8,sin
+	shlq #8,cos			;and now they are signed 16:16 values.
+
+	shlq #8,temp1
+	shlq #8,temp2			;these co-ordinates to 16:16 too
+
+	move temp1,x1
+	fmult x1,cos
+	move temp1,y1
+	fmult y1,sin			;Translation of (x,0) in x1,y1
+	move temp2,x2
+	fmult x2,sin
+	neg x2
+	move temp2,y2
+	fmult y2,cos			;Transformation of (0,y) in x2,y2
+
+; (x1,y1) is now the vector of the scan across the horizon;
+; (x2,y2) is the vector looking out from the view point.
+
+	movei #vloop,loop_add
+	moveq #1,yloop_count	;prepare to do the perspective loop
+	load (r0),v_x			;get X centre 
+	addq #4,r0
+	load (r0),v_y			;get Y centre
+	addq #4,r0
+	load (r0),v_height		;get base from which Voxels are elevated
+	addq #4,r0
+	load (r0),v_scale		;get offset of start of dest window
+	moveta x1,x1
+	moveta y1,y1
+	moveta x2,x2
+	moveta y2,y2			;save original vectors
+
+	shlq #4,v_scale	
+	moveta v_scale,temp3
+
+	move v_x,r27
+	move v_y,r28
+
+	move x2,r0
+	sharq #4,r0
+	sub r0,r27			;Move TF point along view vector so it is visible
+	move y2,r0
+	sharq #4,r0
+	sub r0,r28
+
+	shrq #16,r27
+	shrq #16,r28			;get middle pixel in 27/28
+	movei #$1ff,r0
+	and r0,r27
+	and _byte,r28
+	sub _byte,r27
+	jr pl,hlo3
+	nop
+	neg r27
+hlo3:	movei #$7f,r0
+	sub r0,r28
+	jr pl,hlo4
+	nop
+	neg r28
+hlo4:
+
+
+	movei #width,r0
+	mult r0,r28			;Multiply by the size of one scanline
+	add r27,r28			;y2 should now be an offset to the pixel I want
+;	move r28,r29
+	add sourcebase,r28		;y2 points to the height map screen!
+	loadb (r28),r0			;height of centre pixel
+;	movei #$ff,r27
+;	movefa sourcebase,r28
+;	add r29,r28
+;	storeb r27,(r28)
+
+	shlq #13,r0
+	fmult r0,v_scale
+	add r0,v_height		;Make height follow the terrain
+
+
+vloop:	xor xloop_count,xloop_count	;X loop count to zero
+
+	move v_height,r0		;Hover height as a 16:16 frac
+	shlq #2,r0
+	move yloop_count,r20
+	shlq #1,r20
+	addq #25,r20
+	div r20,r0		;divide by the # of the scanline we are on; r0 is then the z-plane co-ordinate.
+	jr ne,vlgo
+	nop
+	movei #StopGPU,r0
+	jump (r0)
+	nop
+vlgo:	fmult x2,r0
+	fmult y2,r0			;scale the VP vector
+	fmult x1,r0
+	fmult y1,r0			;and the Horizon vector
+
+;	sharq #6,x1
+;	sharq #6,y1
+;	sharq #6,x2
+;	sharq #6,y2
+
+	shrq #16,r0
+	movefa temp3,v_scale
+	div r0,v_scale		;scale the Height Scaler
+
+	move x1,temp1
+	sdiv d_width,temp1		;Horizon scan X step between Voxels, 16:16
+	
+	move y1,temp2
+	sdiv d_width,temp2		;Got y-gradient in temp2
+
+	moveta temp1,temp1
+	moveta temp2,temp2		;save them for use in the inner loop
+
+	sharq #1,x1
+	sharq #1,y1
+
+	move v_x,temp1
+	move v_y,temp2
+
+	sub x1,temp1			;TEMP1 and TEMP2 now contain the start point for scanning the horizon line
+	sharq #1,x2
+	sub y1,temp2
+	sharq #1,y2
+	sub x2,temp1
+	sub y2,temp2
+	moveta v_scale,v_scale
+	movefa prevline,prevline	;Restore prev line pointer
+	moveq #0,r0
+	moveta r0,yloop_count		;Alt of this is flag for no pixels plotted
+
+hloop:	movefa v_scale,v_scale
+	move temp2,y2			;Get source screen scan line
+	move temp1,x2
+	shrq #16,x2
+	shrq #16,y2			;Current scan pos to integer
+	movei #$1ff,r0
+	and r0,x2
+	and _byte,y2
+	sub _byte,x2
+	jr pl,hlo1
+	nop
+	neg x2
+hlo1:	movei #$7f,r0
+	sub r0,y2
+	jr pl,hlo2
+	nop
+	neg y2
+hlo2:
+	movei #width,r0
+	mult r0,y2			;Multiply by the size of one scanline
+	add x2,y2			;y2 should now be an offset to the pixel I want
+	
+	movefa sourcebase,r0
+	move y2,r27	
+	add r0,y2			;y2 points to the texture screen!
+	loadb (y2),x2			;Got our pixel colour!
+
+	add sourcebase,r27
+	loadb (r27),r0			;r0 should have height map value
+
+	mult r0,v_scale			;Make height in v_scale based on height-map colour
+
+
+	move x2,r0
+	shlq #8,x2
+	or x2,r0			;r0 has 16-bits...
+	move r0,x2
+	shlq #16,r0
+	or r0,x2			;x2 has 32-bits....
+	waitblit
+	movei #B_PATD,r0
+	store x2,(r0)
+	addq #4,r0
+	store x2,(r0)			;init the pattern register to bkg colour
+
+
+;	move xloop_count,r0
+;	shlq #2,r0			;Initial X for the blit will be at (xcount*4)
+	move yloop_count,r20
+	movei #$640000,r27		;*** Hardcoded to start at y=100
+	and hi_mask,v_scale	
+	shlq #17,r20			;y height *2, plus shifted to high word
+	sub v_scale,r27
+	add r27,r20			;y is now base+100-v_scale
+	move r20,r0
+	move xloop_count,r20
+	shlq #2,r20
+	sharq #16,r0			;r0 has actual Y start pixel position
+	jr pl,popix
+	nop
+	moveq #0,r0
+popix:	cmp yloop_count,d_height
+	jr ne,nfill
+	nop
+	movei #200,r0			;Max height for front row (fill to ground)
+nfill:	loadw (prevline),r27		;Get previous calculated height this column
+	storew r0,(prevline)		;Save this height
+	addq #2,prevline		;Update the pointer
+	movei #200,r28			;Check for off-bottom
+	cmp r27,r28
+	jr mi,kning
+	nop
+	sub r27,r0			;Difference from last calculated value
+	jr pl,seeit			;It is positive so it can be seen
+	addq #1,r0			;(make sure it is not 0)
+kning:	movei #notvis,r0
+	jump (r0)
+	nop
+
+seeit:
+
+lpixel: moveta r0,yloop_count		;Write a nonzero value. Denotes a legal-pixel is being written.
+
+	shlq #16,r0			;Pixel-height to top	
+	shlq #16,r27			;Old height to top
+	or r27,r20			;Pixel starts at old height
+	store r20,(a1+_pixel)		;Start position to draw voxel
+	movei #$0001fffc,r27
+	store r27,(a1+_step)		;*** Hardcoded for pixel width of 4
+
+	moveq #4,r27
+	or r27,r0
+;	movei #$20004,r20
+	movei #B_COUNT,r27
+	store r0,(r27)			;set B_COUNT *** Hardcoded for a 4x4 pixel
+
+	store _cmd,(blit)		;do it to it
+
+notvis:	movefa temp1,r0
+	add r0,temp1			;add horizon step to x
+	movefa temp2,r0
+	add r0,temp2			;and to y
+
+	addq #1,xloop_count
+	movei #hloop,r0
+	cmp d_width,xloop_count
+	jump ne,(r0)		;loop for a h. scan line
+	nop
+
+	movefa x1,x1
+	movefa y1,y1
+	movefa x2,x2
+	movefa y2,y2			;save all the stuff that got scaled
+
+	movefa yloop_count,r0
+	addq #1,yloop_count
+	cmp yloop_count,d_height		;NE after this is the old way
+	jump pl,(loop_add)		;loop for all destination scanlines
+	nop	
+;	cmpq #0,r0
+;	jump ne,(loop_add)
+;	nop
+	movei #stopgpu,r0
+	jump (r0)
+	nop				;stop GPU
+
+
+;**************
+;*
+;* SINETHANG:  This just generates a smoothly varying source image Thang, mainly for use with Voxel.
+;*
+;* Input: set the dest screen in GPU_SCREEN, in_buf=sine X step, +4=sine Y step
+;*						   +8=x phase, +12=y phase
+;*
+;***************
+
+
+
+;	_sinebase	REGEQU r19
+;	_byte		REGEQU r18
+	sbase		REGEQU r1
+	xstep		REGEQU r2		;16:16 frac
+	ystep		REGEQU r3		;16:16 frac
+	xcount		REGEQU r4
+	ycount		REGEQU r5
+	xlooop		REGEQU r6
+	ylooop		REGEQU r7
+	xphase		REGEQU r8
+	yphase		REGEQU r9
+	zero		REGEQU r10
+	nlix		REGEQU r11
+	nliy		REGEQU r12
+
+sinethang: movei #gpu_screen,r0
+	load (r0),sbase			;set screen base
+	movei #in_buf,r0
+	load (r0),xstep
+	addq #4,r0
+	load (r0),ystep
+	addq #4,r0
+	load (r0),xphase
+	addq #4,r0
+	load (r0),yphase		;get initial status
+	addq #4,r0
+	load (r0),nlix
+	addq #4,r0
+	load (r0),nliy
+
+	movei #p_sines,_sinebase	
+	movei #$ff,_byte
+	movei #x_looop,xlooop
+	movei #y_looop,ylooop
+	xor zero,zero			;initialise them Constant thangs
+
+	moveta xphase,xphase		;To restart each'n'every line
+	moveta xstep,xstep
+	movei #240,ycount		;Do me 240 times..
+y_looop: movei #384,xcount
+	movefa xphase,xphase		;Set line start value
+	movefa xstep,xstep
+x_looop: move xphase,r20			;Copy for mungeing
+	move yphase,r21			;Might as well interleave Y shit, too
+	shrq #16,r20			;To int
+	shrq #16,r21			;To int
+	and _byte,r20			;To index
+	and _byte,r21			;To index
+	add _sinebase,r20		;Points to sine				
+	add _sinebase,r21		;Points to sine				
+	loadb (r20),r22
+	loadb (r21),r23			;Get the sines
+	mult r22,r23			;Multiply the little buggers
+	sharq #8,r23			;Normalise it
+	and _byte,r23			;That's it - that's the colour value, that is
+	storeb r23,(sbase)		;Put it on the Screen
+	add xstep,xphase		;Do the Phase
+	add nlix,xstep	
+	subq #1,xcount
+	jump ne,(xlooop)		;Loop
+	addq #1,sbase			;Update the screen address Thang
+	add nliy,ystep
+	subq #1,ycount
+	jump ne,(ylooop)
+	add ystep,yphase		;shift the y Phase
+	movei #stopgpu,r0
+	jump (r0)
+	nop				;stop

@@ -1,0 +1,10 @@
+#Created with FILEFIX version 5
+gag on
+read test.txt 4000 ; read test.dta 70d0 ; getsym test.sym
+gag off
+echo "	start	size	end"
+echo "text	4000	30d0	70cf"
+echo "data	70d0	648	7717"
+echo "bss	8000	800	87ff"
+echo "Symbols loaded"
+xpc 4000
