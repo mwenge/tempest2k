@@ -1,6 +1,3 @@
-[submodule "vasm-mirror"]
-	path = vasm-mirror
-	url = git@github.com:mbitsnbites/vasm-mirror.git
 [submodule "rln"]
 	path = rln
 	url = http://shamusworld.gotdns.org/git/rln
