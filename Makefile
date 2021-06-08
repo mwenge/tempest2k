@@ -28,6 +28,9 @@ cartridge: tempest2000.jag
 	./utils/CreateCart.py t2k.rom  src/incbin/romheader.bin T2000.TX src/incbin/paddingaftersamples.bin 
 	echo "602bc9953d3737b1ba52b2a0d9932f7c  t2k.rom" | md5sum -c
 
+run: cartridge
+	wine ./utils/PT.EXE t2k.rom
+
 clean:
 	-rm src/bin/*.o
 	-rm src/bin/*.cof
