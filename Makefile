@@ -1,9 +1,11 @@
 .PHONY: all clean
 
+DIRS=src/bin
 
 all: clean cartridge
 
 tempest2000.jag: 
+	$(shell mkdir -p $(DIRS))
 	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/donky.gas -o src/bin/donky.o
 	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/camel.gas -o src/bin/camel.o
 	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/antelope.gas -o src/bin/antelope.o
