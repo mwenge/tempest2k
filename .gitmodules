@@ -6,4 +6,4 @@
 	url = http://shamusworld.gotdns.org/git/rln
 [submodule "rmac"]
 	path = rmac
-	url = http://shamusworld.gotdns.org/git/rmac
+	url = git@github.com:mwenge/rmac.git
