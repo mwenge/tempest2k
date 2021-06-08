@@ -4,7 +4,7 @@ DIRS=src/bin
 
 all: clean cartridge
 
-tempest2000.jag: 
+t2000.abs: 
 	$(shell mkdir -p $(DIRS))
 	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/donky.gas -o src/bin/donky.o
 	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/camel.gas -o src/bin/camel.o
@@ -23,7 +23,7 @@ tempest2000.jag:
 	./rln/rln -e -a 802000 4000 efa8 src/bin/yak.cof src/bin/vidinit.cof src/bin/yakgpu.cof src/bin/images_sounds.o -o t2000.abs
 	echo "515c0e0fcfe9a96d24c858968c3bad72  t2000.abs" | md5sum -c
 
-cartridge: tempest2000.jag
+cartridge: t2000.abs
 	wine ./utils/filefix t2000.abs
 	./utils/CreateCart.py t2k.rom  src/incbin/romheader.bin T2000.TX src/incbin/paddingaftersamples.bin 
 	echo "602bc9953d3737b1ba52b2a0d9932f7c  t2k.rom" | md5sum -c
