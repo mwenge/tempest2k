@@ -2,9 +2,7 @@
 
 This is the source code for Tempest 2000 by Jeff Minter.
 
-The source code, after some light modifications, can be compiled into an executable that you can run
-in `virtual-jaguar`.
-
+The source code can be compiled into an executable that you can run in `virtual-jaguar`.
 
 ## Build Instructions
 
@@ -48,3 +46,4 @@ This will create a file `t2k.rom`. You can run this as follows using `virtual-ja
 ```sh
 virtual-jaguar t2k.rom
 ```
+
