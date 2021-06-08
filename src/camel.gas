@@ -147,19 +147,19 @@
 ;*
 ;* INPUTS: in_buf	+0 = Pointer to start of poly data structure in main RAM
 ;*
-;* Poly data structure: <x1.w><y1.w><i1.w><x2.w><y2.w><i2.w><x3.w><y3.w><i3.w>
+;* Poly data structure: <x1_n.w><y1_n.w><i1_n.w><x2_n.w><y2_n.w><i2_n.w><x3_n.w><y3_n.w><i3_n.w>
 ;*
 ;*****
 
-	x1		REGEQU r3
-	y1		REGEQU r4
-	x2		REGEQU r5
-	y2		REGEQU r6
-	x3		REGEQU r7
-	y3		REGEQU r8
-	i1		REGEQU r9
-	i2 		REGEQU r10
-	i3		REGEQU r11
+	x1_n		REGEQU r3
+	y1_n		REGEQU r4
+	x2_n		REGEQU r5
+	y2_n		REGEQU r6
+	x3_n		REGEQU r7
+	y3_n		REGEQU r8
+	i1_n		REGEQU r9
+	i2_n 		REGEQU r10
+	i3_n		REGEQU r11
 	xinc1		REGEQU r12
 	iinc1		REGEQU r15
 	xinc2		REGEQU r16
@@ -235,19 +235,19 @@ stoploop: jr stoploop
 ;*
 ;* INPUTS: in_buf	+0 = Pointer to start of poly data structure in main RAM
 ;*
-;* Poly data structure: <x1.w><y1.w><i1.w><col1.w><x2.w><y2.w><i2.w><col2.w><x3.w><y3.w><i3.w><col3.w>
+;* Poly data structure: <x1_n.w><y1_n.w><i1_n.w><col1.w><x2_n.w><y2_n.w><i2_n.w><col2.w><x3_n.w><y3_n.w><i3_n.w><col3.w>
 ;*
 ;*****
 
-;	x1		REGEQU r3
-;	y1		REGEQU r4
-;	x2		REGEQU r5
-;	y2		REGEQU r6
-;	x3		REGEQU r7
-;	y3		REGEQU r8
-;	i1		REGEQU r9
-;	i2 		REGEQU r10
-;	i3		REGEQU r11
+;	x1_n		REGEQU r3
+;	y1_n		REGEQU r4
+;	x2_n		REGEQU r5
+;	y2_n		REGEQU r6
+;	x3_n		REGEQU r7
+;	y3_n		REGEQU r8
+;	i1_n		REGEQU r9
+;	i2_n 		REGEQU r10
+;	i3_n		REGEQU r11
 ;	xinc1		REGEQU r12
 ;	iinc1		REGEQU r15
 ;	xinc2		REGEQU r16
@@ -283,70 +283,70 @@ stoploop: jr stoploop
 
 pretty_poly:	movei #in_buf,r20
 	load (r20),r0			;get pointer to poly data
-	loadw (r0),x1		;get all the bits of poly
+	loadw (r0),x1_n		;get all the bits of poly
 	addq #2,r0
-	loadw (r0),y1
+	loadw (r0),y1_n
 	addq #2,r0
-	loadw (r0),i1
+	loadw (r0),i1_n
 	addq #2,r0
 	loadw (r0),c1
 	addq #2,r0
-	loadw (r0),x2
+	loadw (r0),x2_n
 	addq #2,r0
-	loadw (r0),y2
+	loadw (r0),y2_n
 	addq #2,r0
-	loadw (r0),i2
+	loadw (r0),i2_n
 	addq #2,r0
 	loadw (r0),c2
 	addq #2,r0
-	loadw (r0),x3
+	loadw (r0),x3_n
 	addq #2,r0
-	loadw (r0),y3
+	loadw (r0),y3_n
 	addq #2,r0
-	loadw (r0),i3		;all poly details got
+	loadw (r0),i3_n		;all poly details got
 	addq #2,r0
 	loadw (r0),c3
-	shlq #8,i1
-	shlq #8,i2
-	shlq #8,i3		;intensity values to 24-Bit
+	shlq #8,i1_n
+	shlq #8,i2_n
+	shlq #8,i3_n		;intensity values to 24-Bit
 
-	cmp y1,y2		;Get vertices in order: (x1,y1)=TOP (lowest y) ---> (x3,y3)=BOTTOM
+	cmp y1_n,y2_n		;Get vertices in order: (x1_n,y1_n)=TOP (lowest y) ---> (x3_n,y3_n)=BOTTOM
 	jr pl,p_nswap1		;No nop after, as first bit of the macro only bashes r31
-	swap x1,x2
-	swap y1,y2
-	swap i1,i2
+	swap x1_n,x2_n
+	swap y1_n,y2_n
+	swap i1_n,i2_n
 	swap c1,c2
-p_nswap1: cmp y1,y3
+p_nswap1: cmp y1_n,y3_n
 	jr pl,p_nswap2
-	swap x1,x3
-	swap y1,y3
-	swap i1,i3		;Now, (x1,y1) is definitely the top..
+	swap x1_n,x3_n
+	swap y1_n,y3_n
+	swap i1_n,i3_n		;Now, (x1_n,y1_n) is definitely the top..
 	swap c1,c3
-p_nswap2: cmp y2,y3
+p_nswap2: cmp y2_n,y3_n
 	jr pl,p_nswap3
-	swap x2,x3
-	swap y2,y3
-	swap i2,i3		;The points are now in top-to-bottom order,
+	swap x2_n,x3_n
+	swap y2_n,y3_n
+	swap i2_n,i3_n		;The points are now in top-to-bottom order,
 	swap c2,c3
 p_nswap3:
-	move y2,count1
-	move y3,count2
-	sub y1,count1
-	sub y2,count2
-	move y3,count3
+	move y2_n,count1
+	move y3_n,count2
+	sub y1_n,count1
+	sub y2_n,count2
+	move y3_n,count3
 	addq #1,count1
-	sub y1,count3
+	sub y1_n,count3
 	addq #1,count2
-	addq #1,count3		;COUNT1=Y length of first span, count2=second span, y3=third span
+	addq #1,count3		;COUNT1=Y length of first span, count2=second span, y3_n=third span
 
-	move x3,xinc2
-	move x2,xinc1
-	sub x1,xinc2
-	sub x1,xinc1
-	move i3,iinc2
-	move i2,iinc1		;copy target values...
-	sub i1,iinc2
-	sub i1,iinc1
+	move x3_n,xinc2
+	move x2_n,xinc1
+	sub x1_n,xinc2
+	sub x1_n,xinc1
+	move i3_n,iinc2
+	move i2_n,iinc1		;copy target values...
+	sub i1_n,iinc2
+	sub i1_n,iinc1
 	shlq #16,xinc2
 	shlq #16,xinc1		;pixel values to 16:16
 
@@ -358,10 +358,10 @@ p_nswap3:
 	movei #p_loop1,loop1
 	movei #p_loop2,loop2	;initialise loop addresses
 
-	moveta x3,x3
-	moveta i3,i3
-	moveta x2,x2
-	moveta i2,i2		;Save these in alternates so they are free for use in the loop
+	moveta x3_n,x3_n
+	moveta i3_n,i3_n
+	moveta x2_n,x2_n
+	moveta i2_n,i2_n		;Save these in alternates so they are free for use in the loop
 
 	move c1,sum5
 	move c1,sum6
@@ -384,7 +384,7 @@ p_nswap3:
 	and r0,cinc1
 	and r0,cinc2		;Split and fractionate the vectors
 
-	move x1,sum1		;Get rid of x1, as it is about to become CINC4
+	move x1_n,sum1		;Get rid of x1_n, as it is about to become CINC4
 
 	move c3,cinc3		;Now, PRECALCULATE the inc for the second short side
 	move c3,cinc4		;Get second short side's colour values
@@ -416,9 +416,9 @@ p_nswap3:
 	sdiv count3,cinc3
 	sdiv count3,cinc4	;Make the increment per scan line
 
-	move i1,sum2
+	move i1_n,sum2
 	move sum1,sum3
-	move i1,sum4
+	move i1_n,sum4
 	shlq #16,sum1
 	shlq #16,sum3		;copy start parameters and convert to 16:16
 
@@ -426,9 +426,9 @@ p_nswap3:
 	load (r0),base		;get screenbase
 	moveta base,base	;stash it so its register can be used
 
-	moveta y1,y1
+	moveta y1_n,y1_n
 	movei #mwidth,r0
-	mult r0,y1		;turn Y into a scanline address
+	mult r0,y1_n		;turn Y into a scanline address
 
 p_loop1:
 
@@ -449,7 +449,7 @@ p_loop1:
 	neg xinc1		;change sign of step if necessary
 notneggy: bclr #0,sum1
  	shrq #16,sum3		;sum3 is the loop size
-	add y1,sum1		;sum1 is the offset to the screen pixel
+	add y1_n,sum1		;sum1 is the offset to the screen pixel
 	addq #1,sum3
 	add sum1,base		;base now points to the start pixel
 
@@ -502,12 +502,12 @@ p_loop3: move sum5,r0
 
 ;* Scanline draw complete
 
-	movefa y1,y1
-	addq #1,y1		;step to nxt scanline
+	movefa y1_n,y1_n
+	addq #1,y1_n		;step to nxt scanline
 	movei #mwidth,r0
-	moveta y1,y1
+	moveta y1_n,y1_n
 	add xinc1,sum1
-	mult r0,y1
+	mult r0,y1_n
 	add iinc1,sum2
 	add xinc2,sum3
 	add cinc1,sum5
@@ -518,10 +518,10 @@ p_loop3: move sum5,r0
 	jump ne,(loop1)
 	add iinc2,sum4		;move to next values
 
-	movefa x3,xinc1
-	movefa i3,iinc1		;new target point is x3/i3
-	movefa x2,r0
-	movefa i2,r1
+	movefa x3_n,xinc1
+	movefa i3_n,iinc1		;new target point is x3_n/i3_n
+	movefa x2_n,r0
+	movefa i2_n,r1
 	sub r0,xinc1
 	sub r1,iinc1		;get differences
 	shlq #16,xinc1
@@ -551,7 +551,7 @@ p_loop2:
 	neg xinc1		;change sign of step if necessary
 n2otneggy: bclr #0,sum1
  	shrq #16,sum3		;sum3 is the loop size
-	add y1,sum1		;sum1 is the offset to the screen pixel
+	add y1_n,sum1		;sum1 is the offset to the screen pixel
 	addq #1,sum3
 	add sum1,base		;base now points to the start pixel
 
@@ -604,12 +604,12 @@ p2_loop3: move sum5,r0
 
 ;* Scanline draw complete
 
-	movefa y1,y1
-	addq #1,y1		;step to nxt scanline
+	movefa y1_n,y1_n
+	addq #1,y1_n		;step to nxt scanline
 	movei #mwidth,r0
-	moveta y1,y1
+	moveta y1_n,y1_n
 	add xinc1,sum1
-	mult r0,y1
+	mult r0,y1_n
 	add iinc1,sum2
 	add xinc2,sum3
 	add cinc1,sum5
@@ -913,15 +913,15 @@ pasthack: move r0,xx
 ;*
 ;*****
 	
-;	x1		REGEQU r3		all these already defined for the poly renderer
-;	y1		REGEQU r4
-;	x2		REGEQU r5
-;	y2		REGEQU r6
-;	x3		REGEQU r7
-;	y3		REGEQU r8
-;	i1		REGEQU r9
-;	i2 		REGEQU r10
-;	i3		REGEQU r11
+;	x1_n		REGEQU r3		all these already defined for the poly renderer
+;	y1_n		REGEQU r4
+;	x2_n		REGEQU r5
+;	y2_n		REGEQU r6
+;	x3_n		REGEQU r7
+;	y3_n		REGEQU r8
+;	i1_n		REGEQU r9
+;	i2_n 		REGEQU r10
+;	i3_n		REGEQU r11
 ;	xinc1		REGEQU r12
 ;	iinc1		REGEQU r15
 ;	xinc2		REGEQU r16

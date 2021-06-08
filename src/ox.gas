@@ -162,11 +162,11 @@ fline:
 ; draw a 3D line with points on the line _offset by a function (ie line+noise=lightning)
 
 	pointer REGEQU r0
-	x1	REGEQU r15
-	y1	REGEQU r16
+	x1_n	REGEQU r15
+	y1_n	REGEQU r16
 	z1	REGEQU r17
-	x2	REGEQU r18
-	y2	REGEQU r19
+	x2_n	REGEQU r18
+	y2_n	REGEQU r19
 	z2	REGEQU r20
 	col	REGEQU r21
 	segs	REGEQU r22
@@ -177,8 +177,8 @@ fline:
 	zto	REGEQU r12
 	rseed	REGEQU r25	;SEED and MASK for shift/mask RNG
 	rmask	REGEQU r26
-	x0	REGEQU r31
-	y0	REGEQU r13
+	x0_n	REGEQU r31
+	y0_n	REGEQU r13
 	intens_0 REGEQU r14
 	intens_1 REGEQU r9
 	imax	REGEQU r8
@@ -193,16 +193,16 @@ fline:
 	movei #B_CMD,cmd
 	movei #in_buf,pointer
 
-	load (pointer),x1
+	load (pointer),x1_n
 	addq #4,pointer
-	load (pointer),y1
+	load (pointer),y1_n
 	addq #4,pointer
 	load (pointer),z1	;get start X, Y and Z xform co-ordinates
 	addq #4,pointer
 
-	load (pointer),x2
+	load (pointer),x2_n
 	addq #4,pointer
-	load (pointer),y2
+	load (pointer),y2_n
 	addq #4,pointer
 	load (pointer),z2	;get end X, Y and Z xform co-ordinates
 	addq #4,pointer
@@ -213,11 +213,11 @@ fline:
 	addq #4,pointer
 	load (pointer),rseed
 
-	sub x1,x2
-	sub y1,y2
+	sub x1_n,x2_n
+	sub y1_n,y2_n
 	sub z1,z2		;get deltas
-	sdiv segs,x2
-	sdiv segs,y2
+	sdiv segs,x2_n
+	sdiv segs,y2_n
 	sdiv segs,z2		;get increment pre seg for raw line
 
 	movei #width,xmax
@@ -230,8 +230,8 @@ fline:
 	movei #palheight,ymax
 notpal:
 	movei #$b8,rmask	;mask for an 8bit function
-	moveta x1,x1
-	moveta y1,y1
+	moveta x1_n,x1_n
+	moveta y1_n,y1_n
 	moveta z1,z1		;save initial line point
 
 	shrq #14,z1		;calculate initial point transformed x/y and i
@@ -249,10 +249,10 @@ notpal:
 satu2:	mult imax,intens_0
 	div zmax,intens_0		;should leave with intensity
 	shlq #8,intens_0		;i-value (I think)
-gotme2:	sdiv z1,x1
-	sdiv z1,y1		;perspective transform xy centre position
-	sharq #7,x1
-	sharq #7,y1
+gotme2:	sdiv z1,x1_n
+	sdiv z1,y1_n		;perspective transform xy centre position
+	sharq #7,x1_n
+	sharq #7,y1_n
 
 ;	move xmax,r0
 ;	move ymax,r1
@@ -264,23 +264,23 @@ gotme2:	sdiv z1,x1
 	addq #4,r2
 	load (r2),r0
 
-	add r0,x1
-	add r1,y1		;dest xy to screen co-ordinates
+	add r0,x1_n
+	add r1,y1_n		;dest xy to screen co-ordinates
 
-	move x1,x0
-	move y1,y0		;now, initial x0, y0 and Intensity are set up.
+	move x1_n,x0_n
+	move y1_n,y0_n		;now, initial x0_n, y0_n and Intensity are set up.
 
-lin3d:	movefa x1,xto
-	movefa y1,yto
+lin3d:	movefa x1_n,xto
+	movefa y1_n,yto
 	movefa z1,zto		;copy current base line point
-	add x2,xto
-	add y2,yto
+	add x2_n,xto
+	add y2_n,yto
 	add z2,zto		;generate next base line point
-	moveta xto,x1
-	moveta yto,y1
+	moveta xto,x1_n
+	moveta yto,y1_n
 	moveta zto,z1		;store next base line point for next iteration
 
-; now, x0/y0/intens_0 are set up already, xto-zto contain the next base line segment end
+; now, x0_n/y0_n/intens_0 are set up already, xto-zto contain the next base line segment end
 ; time to apply some function to xto-zto
 
 ;***** Randomise XYZ function
@@ -352,10 +352,10 @@ gotme1:	sdiv zto,xto
 ; Now XTO/YTO/INTENS_1 are set....
 
 	movei #nxtpnt,r0	;Rough clipping func, discards entire segment if any is off screen
-	cmpq #0,x0
+	cmpq #0,x0_n
 	jump mi,(r0)
 	nop
-	cmpq #0,y0
+	cmpq #0,y0_n
 	jump mi,(r0)
 	nop
 	cmpq #0,xto
@@ -364,28 +364,28 @@ gotme1:	sdiv zto,xto
 	cmpq #0,yto
 	jump mi,(r0)
 	nop
-	cmp xmax,x0
+	cmp xmax,x0_n
 	jump pl,(r0)
 	nop
 	cmp xmax,xto
 	jump pl,(r0)
 	nop
-	cmp ymax,y0
+	cmp ymax,y0_n
 	jump pl,(r0)
 	nop
 	cmp ymax,yto
 	jump pl,(r0)
 	nop			;End rough clipping
 
-; Now do an unclipped Gouraud linedraw between (x0/y0/i0) and (xto/yto/i1)
+; Now do an unclipped Gouraud linedraw between (x0_n/y0_n/i0_n) and (xto/yto/i1_n)
 
 ;***** Linedraw code
 
-	sub x0,xto
-	sub y0,yto			;get differences
-	move y0,L_PIX
+	sub x0_n,xto
+	sub y0_n,yto			;get differences
+	move y0_n,L_PIX
 	shlq #16,L_PIX
-	or x0,L_PIX			;set pixel origin
+	or x0_n,L_PIX			;set pixel origin
 	move xto,r0
 	move yto,r1
 	abs r0
@@ -542,8 +542,8 @@ ldend:
 
 ;***** End linedraw code
 
-nxtpnt:	movefa xto,x0
-	movefa yto,y0
+nxtpnt:	movefa xto,x0_n
+	movefa yto,y0_n
 	move intens_1,intens_0	;copy next point to prev point
 	movei #lin3d,r0
 	subq #1,segs
@@ -567,11 +567,11 @@ stoploop: jr stoploop
 ;*****
 
 	blit	REGEQU r13		;address of Blitter go
-	a1	REGEQU r14
-	a2	REGEQU r15		;Blitter base addresses
+	a1_n	REGEQU r14
+	a2_n	REGEQU r15		;Blitter base addresses
 ;	cmd	REGEQU r5		;to hold the Blitter Go command
 	source	REGEQU r3		;srce screen
-	z_max	REGEQU r4
+	z_max_n	REGEQU r4
 	_offset	REGEQU r26
 	yfront	REGEQU r6
 	yback	REGEQU r7
@@ -596,8 +596,8 @@ stoploop: jr stoploop
 
 mode7:
 	movei #B_CMD,blit
-	movei #A1_BASE,a1
-	movei #A2_BASE,a2
+	movei #A1_BASE,a1_n
+	movei #A2_BASE,a2_n
 	movei #(SRCEN|CLIP_A1|DSTA2|LFU_A|LFU_AN|SRCSHADE|ZBUFF),cmd	;initialise Blitter constants
 ;	movei #(SRCEN|CLIP_A1|DSTA2|LFU_A|LFU_AN),cmd	;initialise Blitter constants
 
@@ -626,7 +626,7 @@ notpal2:
 	movei #in_buf,r0		;get the parameters out of in_buf
 	load (r0),source
 	addq #4,r0
-	load (r0),z_max
+	load (r0),z_max_n
 	addq #4,r0
 	load (r0),_offset
 	addq #4,r0
@@ -653,18 +653,18 @@ notpal2:
 knink:	sharq #16,sline		;make sline integer
 
 	move yback,r0		;final 2D scanline Y is (YBACK/ZMAX)+centre, where zmax=most distant horizon point
-	sdiv z_max,r0
+	sdiv z_max_n,r0
 	add ycentr,r0
 	shrq #16,r0		;sline has integer start line, r0 has integer end line
 
 
 	waitblit
 
-	store source,(a1)
-	store r1,(a2)		;set screen bases
+	store source,(a1_n)
+	store r1,(a2_n)		;set screen bases
 	
 	movei #$1000140,r27
-	store r27,(a1+_clip)
+	store r27,(a1_n+_clip)
 
 	move sline,scanlines
 
@@ -710,7 +710,7 @@ scan_loop:
 	shlq #16,r1
 	div r1,r0			;generate Z (increasing from 1.0)
 
-	cmp z_max,r0
+	cmp z_max_n,r0
 	jump pl,(xc)
 	nop
 
@@ -729,7 +729,7 @@ scan_loop:
 
 	movei #$7fffff,intensi		;i increases (is negated)
 	fmult intensi,r0
-	div z_max,intensi
+	div z_max_n,intensi
 	neg intensi
 	movei #$ffffff,r1
 ;	fmult intensi,r0
@@ -771,27 +771,27 @@ scroat:
 	movei #B_IINC,r27
 	store intensi,(r27)
 
-	store r0,(a1+_pixel)
-	store r1,(a1+_fpixel)		;set source blit Origin
+	store r0,(a1_n+_pixel)
+	store r1,(a1_n+_fpixel)		;set source blit Origin
 
 	move scale,r0
 	move scale,r1
 	and lomask,r0			;r0 has inc fractional (y=0)
 	shrq #16,r1			;r1 has inc integer
 
-	store r0,(a1+_finc)
-	store r1,(a1+_inc)
+	store r0,(a1_n+_finc)
+	store r1,(a1_n+_inc)
 		
 
 	movei #(PITCH1|PIXEL16|WID320|XADDINC),r0
-	store r0,(a1+_flags)
+	store r0,(a1_n+_flags)
 
 	move sline,r0
 	shlq #16,r0			;r0=dest scanline, X=0
-	store r0,(a2+_pixel)
+	store r0,(a2_n+_pixel)
 
 	movei #(PITCH1|PIXEL16|WID384|XADDPIX|YADD0),r0
-	store r0,(a2+_flags)		;address registers set up and ready to go
+	store r0,(a2_n+_flags)		;address registers set up and ready to go
 
 	movei #$10180,r0
 	movei #B_COUNT,r1
@@ -1022,8 +1022,8 @@ voo:
 ;
 
 	opointer	REGEQU r3
-	x		REGEQU r4
-	y		REGEQU r5
+	xn		REGEQU r4
+	yn		REGEQU r5
 	zval		REGEQU r6
 	_xscale		REGEQU r7
 	yscale		REGEQU r8
@@ -1074,9 +1074,9 @@ notpal5:
 	movei #in_buf,r0		;fetch the parameters out of in_buf
 	load (r0),opointer
 	addq #4,r0
-	load (r0),x
+	load (r0),xn
 	addq #4,r0
-	load (r0),y
+	load (r0),yn
 	addq #4,r0
 	load (r0),zval
 	addq #4,r0
@@ -1145,8 +1145,8 @@ v_loop:	loadw (opointer),_x1		;get the un-transformed point
 	shlq #6,_y1
 	shlq #14,_z1			;translate to 16:16
 
-	add x,_x1
-	add y,_y1
+	add xn,_x1
+	add yn,_y1
 	add zval,_z1			;translate to final position in t-space
 	jump mi,(zneg)			;-ve z, so bugger orff
 	nop

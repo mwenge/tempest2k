@@ -166,32 +166,36 @@ gpuwait: movem.l	a0/d0,-(sp)
 ;
 ;	CONSTANT DATA (GPU PROGRAMS)
 ;
+; The extra bytes before each include are the .BIN output header the MAC
+; assembler would have produced for each. Unfortunately neither rmac nor
+; vasm support this output format, so we have to use vasm to create an 
+; absolute binary and append the headers here.
 fastvector:
   DC.L $00f03000 , $00000a82
 	.incbin	"bin/llama.o"
 xvector:
-DC.L $00f03000 , $00000c46
+  DC.L $00f03000 , $00000c46
 	.incbin 	"bin/goat.o"
 demons:
-DC.L $00f03000 , $00000e48
+  DC.L $00f03000 , $00000e48
 	.incbin	"bin/antelope.o"
 parrot:
-DC.L $00f03000 , $0000068a
+  DC.L $00f03000 , $0000068a
 	.incbin	"bin/camel.o"
 xparrot:
-DC.L $00f03000 , $00000d32
+  DC.L $00f03000 , $00000d32
 	.incbin	"bin/xcamel.o"
 texter:
-DC.L $00f03000 , $000002f6
+  DC.L $00f03000 , $000002f6
 	.incbin 	"bin/stoat.o"
 bovine:
-DC.L $00f03000 , $00000a3c
+  DC.L $00f03000 , $00000a3c
 	.incbin	"bin/ox.o"
 equine:
-DC.L $00f03000 , $00000b4a
+  DC.L $00f03000 , $00000b4a
 	.incbin 	"bin/horse.o"
 equine2:
-DC.L $00f03000 , $000009e0
+  DC.L $00f03000 , $000009e0
 	.incbin 	"bin/donky.o"
 
 .data

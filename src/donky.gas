@@ -141,15 +141,15 @@
 ;*
 ;*****
 	
-	x1		REGEQU r3	
-	y1		REGEQU r4
-	x2		REGEQU r5
-	y2		REGEQU r6
-	x3		REGEQU r7
-	y3		REGEQU r8
-	i1		REGEQU r9
-	i2 		REGEQU r10
-	i3		REGEQU r11
+	x1_n		REGEQU r3	
+	y1_n		REGEQU r4
+	x2_n		REGEQU r5
+	y2_n		REGEQU r6
+	x3_n		REGEQU r7
+	y3_n		REGEQU r8
+	i1_n		REGEQU r9
+	i2_n 		REGEQU r10
+	i3_n		REGEQU r11
 	xinc1		REGEQU r12
 	iinc1		REGEQU r15
 	xinc2		REGEQU r16
@@ -313,16 +313,16 @@ polyloop: nop
 	sharq #13,r27
 	sharq #13,r28
 
-	loadw (ctptr),i3
+	loadw (ctptr),i3_n
 	add r14,ctptr
-	move colour,i3
+	move colour,i3_n
 	loadw (ctptr),colour
 	sub r14,ctptr
 	addq #2,ctptr
-	add angl,i3
-	and byte,i3
-	add sinebase,i3
-	loadb (i3),r0
+	add angl,i3_n
+	and byte,i3_n
+	add sinebase,i3_n
+	loadb (i3_n),r0
 	shrq #1,r0
 	addq #32,r0
 	addq #32,r0
@@ -330,49 +330,49 @@ polyloop: nop
 	shrq #8,r0
 
 	shlq #6,r0
-	move r0,i3
+	move r0,i3_n
 	shlq #2,r0
-	move r0,i2
-	move r0,i1
+	move r0,i2_n
+	move r0,i1_n
 	
 
 
-;	shlq #4,i3
-;	move i3,i2
-;	shlq #4,i2
-;	move i2,i1
+;	shlq #4,i3_n
+;	move i3_n,i2_n
+;	shlq #4,i2_n
+;	move i2_n,i1_n
 
-;	movei #$ff00,i1
-;	movei #$ff00,i2
-;	movei #$0400,i3
+;	movei #$ff00,i1_n
+;	movei #$ff00,i2_n
+;	movei #$0400,i3_n
 	
 	movei #dopolly,r0
 	fjsr r0
 
-;	loadw (ctptr),i1
+;	loadw (ctptr),i1_n
 ;	add r14,ctptr
 ;	loadw (ctptr),colour
 ;	sub r14,ctptr
-;	add angl,i1
+;	add angl,i1_n
 ;	addq #2,ctptr
-;	and byte,i1
-;	add sinebase,i1
-;	loadb (i1),r0
+;	and byte,i1_n
+;	add sinebase,i1_n
+;	loadb (i1_n),r0
 ;	shrq #1,r0
 ;	addq #32,r0
 ;	addq #32,r0
 ;	shlq #6,r0
-;	move r0,i1
-;	move r0,i2
+;	move r0,i1_n
+;	move r0,i2_n
 ;	shlq #2,r0
-;	move r0,i3
+;	move r0,i3_n
 
-	swap i3,i1
-	move i1,i2
+	swap i3_n,i1_n
+	move i1_n,i2_n
 
-;	movei #$0400,i1
-;	movei #$0400,i2
-;	movei #$ff00,i3
+;	movei #$0400,i1_n
+;	movei #$0400,i2_n
+;	movei #$ff00,i3_n
 	
 	swap zzz,r29
 	swap r1,r27
@@ -406,36 +406,36 @@ stoploop: jr stoploop
 
 
 
-dopolly: moveta i1,i1		
-	moveta i2,i2
-	moveta i3,i3			;all three i-values to altern8s
+dopolly: moveta i1_n,i1_n		
+	moveta i2_n,i2_n
+	moveta i3_n,i3_n			;all three i-values to altern8s
 
-	move r1,x1
-	move r2,y1
+	move r1,x1_n
+	move r2,y1_n
 
-	subq #32,x1
-	subq #32,y1
-	subq #32,x1
-	subq #32,y1
-;	sub xcen,x1
-;	sub xcen,y1			;move to local centre
-	move x1,x2
-	move y1,y2			;copy them for rotation
-	neg y1				;y1 will be the -SIN term in the rotation so negate it
-	imult cos,x1
-	imult sin,y1
-	imult sin,x2
-	imult cos,y2			;do the rotation-multiplies
-	add y1,x1
-	add x2,y2			;add the products, resultant rotated point is (x1,y2)
-	shlq #8,x1
-	shlq #8,y2			;rotated point to 16:16
-	add xxx,x1
-	add yyy,y2			;move to final XY in Tempest space
-	sdiv r29,x1
-	sdiv r29,y2			;perspective transform
-	sharq #7,x1
-	sharq #7,y2
+	subq #32,x1_n
+	subq #32,y1_n
+	subq #32,x1_n
+	subq #32,y1_n
+;	sub xcen,x1_n
+;	sub xcen,y1_n			;move to local centre
+	move x1_n,x2_n
+	move y1_n,y2_n			;copy them for rotation
+	neg y1_n				;y1_n will be the -SIN term in the rotation so negate it
+	imult cos,x1_n
+	imult sin,y1_n
+	imult sin,x2_n
+	imult cos,y2_n			;do the rotation-multiplies
+	add y1_n,x1_n
+	add x2_n,y2_n			;add the products, resultant rotated point is (x1_n,y2_n)
+	shlq #8,x1_n
+	shlq #8,y2_n			;rotated point to 16:16
+	add xxx,x1_n
+	add yyy,y2_n			;move to final XY in Tempest space
+	sdiv r29,x1_n
+	sdiv r29,y2_n			;perspective transform
+	sharq #7,x1_n
+	sharq #7,y2_n
 
 	movei #ycent,r0
 	load (r0),r31
@@ -443,84 +443,84 @@ dopolly: moveta i1,i1
 	movei #192,r0
 
 ;	movei #120,r31
-	add r0,x1			;final x1
-	add r31,y2			;final y1
-	moveta x1,x1			;						*****
-	moveta y2,y1			;Set up in alternates for the polyrenderer	*****	
+	add r0,x1_n			;final x1_n
+	add r31,y2_n			;final y1_n
+	moveta x1_n,x1_n			;						*****
+	moveta y2_n,y1_n			;Set up in alternates for the polyrenderer	*****	
 
-	move r27,x1
-	move r28,y1
+	move r27,x1_n
+	move r28,y1_n
 
-	subq #32,x1
-	subq #32,y1
-	subq #32,x1
-	subq #32,y1
-;	sub xcen,x1
-;	sub xcen,y1			;move to local centre
-	move x1,x2
-	move y1,y2			;copy them for rotation
-	neg y1				;y1 will be the -SIN term in the rotation so negate it
-	imult cos,x1
-	imult sin,y1
-	imult sin,x2
-	imult cos,y2			;do the rotation-multiplies
-	add y1,x1
-	add x2,y2			;add the products, resultant rotated point is (x1,y2)
-	shlq #8,x1
-	shlq #8,y2			;rotated point to 16:16
-	add xxx,x1
-	add yyy,y2			;move to final XY in Tempest space
-	sdiv r29,x1
-	sdiv r29,y2			;perspective transform
-	sharq #7,x1
-	sharq #7,y2
+	subq #32,x1_n
+	subq #32,y1_n
+	subq #32,x1_n
+	subq #32,y1_n
+;	sub xcen,x1_n
+;	sub xcen,y1_n			;move to local centre
+	move x1_n,x2_n
+	move y1_n,y2_n			;copy them for rotation
+	neg y1_n				;y1_n will be the -SIN term in the rotation so negate it
+	imult cos,x1_n
+	imult sin,y1_n
+	imult sin,x2_n
+	imult cos,y2_n			;do the rotation-multiplies
+	add y1_n,x1_n
+	add x2_n,y2_n			;add the products, resultant rotated point is (x1_n,y2_n)
+	shlq #8,x1_n
+	shlq #8,y2_n			;rotated point to 16:16
+	add xxx,x1_n
+	add yyy,y2_n			;move to final XY in Tempest space
+	sdiv r29,x1_n
+	sdiv r29,y2_n			;perspective transform
+	sharq #7,x1_n
+	sharq #7,y2_n
 
 	movei #ycent,r0
 	load (r0),r31
 
 	movei #192,r0
 
-	add r0,x1			;final x1
-	add r31,y2			;final y1
-	moveta x1,x2			;						*****
-	moveta y2,y2			;Set up in alternates for the polyrenderer	*****	
+	add r0,x1_n			;final x1_n
+	add r31,y2_n			;final y1_n
+	moveta x1_n,x2_n			;						*****
+	moveta y2_n,y2_n			;Set up in alternates for the polyrenderer	*****	
 
-	move r1,x1
-	move r2,y1
+	move r1,x1_n
+	move r2,y1_n
 
-	subq #32,x1
-	subq #32,y1
-	subq #32,x1
-	subq #32,y1
-;	sub xcen,x1
-;	sub xcen,y1			;move to local centre
-	move x1,x2
-	move y1,y2			;copy them for rotation
-	neg y1				;y1 will be the -SIN term in the rotation so negate it
-	imult cos,x1
-	imult sin,y1
-	imult sin,x2
-	imult cos,y2			;do the rotation-multiplies
-	add y1,x1
-	add x2,y2			;add the products, resultant rotated point is (x1,y2)
-	shlq #8,x1
-	shlq #8,y2			;rotated point to 16:16
-	add xxx,x1
-	add yyy,y2			;move to final XY in Tempest space
-	sdiv zzz,x1
-	sdiv zzz,y2			;perspective transform
-	sharq #7,x1
-	sharq #7,y2
+	subq #32,x1_n
+	subq #32,y1_n
+	subq #32,x1_n
+	subq #32,y1_n
+;	sub xcen,x1_n
+;	sub xcen,y1_n			;move to local centre
+	move x1_n,x2_n
+	move y1_n,y2_n			;copy them for rotation
+	neg y1_n				;y1_n will be the -SIN term in the rotation so negate it
+	imult cos,x1_n
+	imult sin,y1_n
+	imult sin,x2_n
+	imult cos,y2_n			;do the rotation-multiplies
+	add y1_n,x1_n
+	add x2_n,y2_n			;add the products, resultant rotated point is (x1_n,y2_n)
+	shlq #8,x1_n
+	shlq #8,y2_n			;rotated point to 16:16
+	add xxx,x1_n
+	add yyy,y2_n			;move to final XY in Tempest space
+	sdiv zzz,x1_n
+	sdiv zzz,y2_n			;perspective transform
+	sharq #7,x1_n
+	sharq #7,y2_n
 ;	movei #120,r31
 
 	movei #ycent,r0
 	load (r0),r31
 	movei #192,r0
 
-	add r0,x1			;final x1
-	add r31,y2			;final y1
-	moveta x1,x3			;						*****
-	moveta y2,y3			;Set up in alternates for the polyrenderer	*****	
+	add r0,x1_n			;final x1_n
+	add r31,y2_n			;final y1_n
+	moveta x1_n,x3_n			;						*****
+	moveta y2_n,y3_n			;Set up in alternates for the polyrenderer	*****	
 
 ;* Now everything is set up, time to render the poly.
 
@@ -533,57 +533,57 @@ dopolly: moveta i1,i1
 
 
 
-	shlq #8,i1			;This is the polyrenderer, same as POLY above
-	shlq #8,i2
-	shlq #8,i3		;intensity values to 24-Bit
+	shlq #8,i1_n			;This is the polyrenderer, same as POLY above
+	shlq #8,i2_n
+	shlq #8,i3_n		;intensity values to 24-Bit
 
 	
 
-	cmp y1,y2		;Get vertices in order: (x1,y1)=TOP (lowest y) ---> (x3,y3)=BOTTOM
+	cmp y1_n,y2_n		;Get vertices in order: (x1_n,y1_n)=TOP (lowest y) ---> (x3_n,y3_n)=BOTTOM
 	jr pl,i_nswap1		;No nop after, as first bit of the macro only bashes r31
-	swap x1,x2
-	swap y1,y2
-	swap i1,i2
-i_nswap1: cmp y1,y3
+	swap x1_n,x2_n
+	swap y1_n,y2_n
+	swap i1_n,i2_n
+i_nswap1: cmp y1_n,y3_n
 	jr pl,i_nswap2
-	swap x1,x3
-	swap y1,y3
-	swap i1,i3		;Now, (x1,y1) is definitely the top..
-i_nswap2: cmp y2,y3
+	swap x1_n,x3_n
+	swap y1_n,y3_n
+	swap i1_n,i3_n		;Now, (x1_n,y1_n) is definitely the top..
+i_nswap2: cmp y2_n,y3_n
 	jr pl,i_nswap3
-	swap x2,x3
-	swap y2,y3
-	swap i2,i3		;The points are now in top-to-bottom order,
+	swap x2_n,x3_n
+	swap y2_n,y3_n
+	swap i2_n,i3_n		;The points are now in top-to-bottom order,
 i_nswap3:
 
 
 ;	movei #zkk,r0
 ;	movei #239,r1
-;	cmp r1,y3
+;	cmp r1,y3_n
 ;	jump pl,(r0)
 ;	nop
-;	cmpq #0,y1
+;	cmpq #0,y1_n
 ;	jump mi,(r0)
 ;	nop
 	
-	move y2,count1
-	move y3,count2
-	sub y1,count1
-	sub y2,count2
-	move y3,count3
+	move y2_n,count1
+	move y3_n,count2
+	sub y1_n,count1
+	sub y2_n,count2
+	move y3_n,count3
 	addq #1,count1
-	sub y1,count3
+	sub y1_n,count3
 	addq #1,count2
-	addq #1,count3		;COUNT1=Y length of first span, count2=second span, y3=third span
+	addq #1,count3		;COUNT1=Y length of first span, count2=second span, y3_n=third span
 
-	move x3,xinc2
-	move x2,xinc1
-	sub x1,xinc2
-	sub x1,xinc1
-	move i3,iinc2
-	move i2,iinc1		;copy target values...
-	sub i1,iinc2
-	sub i1,iinc1
+	move x3_n,xinc2
+	move x2_n,xinc1
+	sub x1_n,xinc2
+	sub x1_n,xinc1
+	move i3_n,iinc2
+	move i2_n,iinc1		;copy target values...
+	sub i1_n,iinc2
+	sub i1_n,iinc1
 	shlq #16,xinc2
 	shlq #16,xinc1		;pixel values to 16:16
 
@@ -599,31 +599,31 @@ i_nswap3:
 	movei #i_loop2,loop2	;initialise loop addresses
 	shlq #16,count3
 
-	move x1,sum1
+	move x1_n,sum1
 	or r0,count3
-	move i1,sum2
+	move i1_n,sum2
 	shlq #8,count3		;finish preparing colour for blitter
 
 
 
-	move x1,sum3
-	move i1,sum4
+	move x1_n,sum3
+	move i1_n,sum4
 	shlq #16,sum1
 	shlq #16,sum3		;copy start parameters and convert to 16:16
 
 ;* now init the Blitter
 
 	movei #tri1on,r0
-	cmpq #0,y1		;check 4 y2 onscreen
+	cmpq #0,y1_n		;check 4 y2_n onscreen
 	jump pl,(r0)		;tri1 is onscreen, no top clipping
 	nop
 	movei #cliptri1,r0
-	cmpq #0,y2
+	cmpq #0,y2_n
 	jr eq,split2
 	nop
 	jump pl,(r0)		;got to clip Triangle One
 	nop
-	cmpq #0,y3
+	cmpq #0,y3_n
 	jr pl,split2		;check for whole thing off top edge?
 	nop	
 	movei #zkk,r0
@@ -637,17 +637,17 @@ split2: move count1,r0		;Code to skip the first subtriangle
 	fmult r31,r0
 	add r1,sum3
 	add r31,sum4		;where long edge would be at
-	xor y1,y1
-	move x2,sum1
-	move i2,sum2
+	xor y1_n,y1_n
+	move x2_n,sum1
+	move i2_n,sum2
 	shlq #16,sum1
 	movei #setp2,r0		;skip to next subtriangle
 	jump (r0)
 	nop
 
 
-cliptri1: move y1,r0		;get amount of clip lines
-	add y1,count1		;reduce count by the size of the clip
+cliptri1: move y1_n,r0		;get amount of clip lines
+	add y1_n,count1		;reduce count by the size of the clip
 	neg r0			;make it +ve
 	addq #1,count1		;(never zero)
 	shlq #16,r0		;make it 16:16
@@ -663,17 +663,17 @@ cliptri1: move y1,r0		;get amount of clip lines
 	fmult r31,r0
 	add r1,sum3
 	add r31,sum4		;now, offsets are OK and the poly is shortened
-	moveq #0,y1		;(it starts at top of screen)
+	moveq #0,y1_n		;(it starts at top of screen)
 tri1on: movei #279,r0
 	movei #zkk,r31
-	cmp r0,y1		;check for right off bottom edge
+	cmp r0,y1_n		;check for right off bottom edge
 	jump pl,(r31)		;next poly if it was
 	nop
 	movei #tri1bot,r1
-	cmp r0,y2		;check for this subtri split
+	cmp r0,y2_n		;check for this subtri split
 	jump mi,(r1)		;not split, jump around
 	nop
-	move y2,r1
+	move y2_n,r1
 	sub r0,r1		;get amount of overhang
 	sub r1,count1		;shorten poly by that amount
 	jump mi,(r31)
@@ -681,7 +681,7 @@ tri1on: movei #279,r0
 	jump eq,(r31)		;ensure -ve or 0 length never happens
 	nop
 
-tri1bot: shlq #16,y1		;y1 to blitter format
+tri1bot: shlq #16,y1_n		;y1_n to blitter format
 
 
 i_loop1:
@@ -772,13 +772,13 @@ i_pixmode: movei #B_IINC,r0
 	store isize,(r0)	;set the intensity-increment
 
 	movei #skip1,r1
-	cmpq #0,y1
+	cmpq #0,y1_n
 	jump mi,(r1)
 	nop
 
 	movei #$ffff,r1
 	and r1,xstart
-	or y1,xstart		;form a pixel address
+	or y1_n,xstart		;form a pixel address
 	store xstart,(n_a1+_pixel)
 
 
@@ -793,7 +793,7 @@ i_pixmode: movei #B_IINC,r0
 
 
 skip1:	movei #$10000,r0
-	add r0,y1		;step to nxt scanline
+	add r0,y1_n		;step to nxt scanline
 	add xinc1,sum1
 	add iinc1,sum2
 	add xinc2,sum3
@@ -807,21 +807,21 @@ setp2:
 ;	nop
 
 
-	move x3,xinc1
-	move i3,iinc1		;new target point is x3/i3
-	sub x2,xinc1
-	sub i2,iinc1		;get differences
+	move x3_n,xinc1
+	move i3_n,iinc1		;new target point is x3_n/i3_n
+	sub x2_n,xinc1
+	sub i2_n,iinc1		;get differences
 	shlq #16,xinc1
 
 	sdiv count2,xinc1
 	sdiv count2,iinc1	;new increments
 
 	movei #tri2on,r0
-	cmpq #0,y2		;Check for poly split by screen top
-	jump pl,(r0)		;Not split if y2 positive
+	cmpq #0,y2_n		;Check for poly split by screen top
+	jump pl,(r0)		;Not split if y2_n positive
 	nop
- 	move y2,r0		;get amount of clip lines
-	add y2,count2		;reduce count by the size of the clip
+ 	move y2_n,r0		;get amount of clip lines
+	add y2_n,count2		;reduce count by the size of the clip
 	neg r0			;make it +ve
 	addq #1,count2		;(never zero)
 	shlq #16,r0		;make it 16:16
@@ -841,14 +841,14 @@ setp2:
 
 tri2on: movei #279,r0
 	movei #zkk,r31
-	cmp r0,y2		;check for right off bottom edge
+	cmp r0,y2_n		;check for right off bottom edge
 	jump pl,(r31)		;next poly if it was
 	nop
 	movei #tri2bot,r1
-	cmp r0,y3		;check for this subtri split
+	cmp r0,y3_n		;check for this subtri split
 	jump mi,(r1)		;not split, jump around
 	nop
-	move y3,r1
+	move y3_n,r1
 	sub r0,r1		;get amount of overhang
 	sub r1,count2		;shorten poly by that amount
 	jump mi,(r31)
@@ -949,13 +949,13 @@ p3ixmode:
 	store isize,(r0)	;set the intensity-increment
 
 	movei #skip2,r1
-	cmpq #0,y1
+	cmpq #0,y1_n
 	jump mi,(r1)
 	nop
 
 	movei #$ffff,r1
 	and r1,xstart
-	or y1,xstart		;form a pixel address
+	or y1_n,xstart		;form a pixel address
 	store xstart,(n_a1+_pixel)
 
 
@@ -968,7 +968,7 @@ p3ixmode:
 ;****   Poly line blit end
 
 skip2:	movei #$10000,r0
-	add r0,y1		;step to nxt scanline
+	add r0,y1_n		;step to nxt scanline
 	add xinc1,sum1
 	add iinc1,sum2
 	add xinc2,sum3

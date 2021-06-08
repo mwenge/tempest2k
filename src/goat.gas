@@ -42,10 +42,10 @@ L_INC 		REGEQU	R5
 L_PIX		REGEQU	R6
 L_COUNT		REGEQU	R7
 L_INCF		REGEQU	R8
-x1		REGEQU	R9		;thangs
-y1		REGEQU	R10
-x2		REGEQU 	R11
-y2		REGEQU  R12
+x1_n		REGEQU	R9		;thangs
+y1_n		REGEQU	R10
+x2_n		REGEQU 	R11
+y2_n		REGEQU  R12
 cmd		REGEQU	R20
 buffer		REGEQU	R14
 count		REGEQU	R21
@@ -287,7 +287,7 @@ view_otm:
 
 
 
-a1	REGEQU r15
+a1_n	REGEQU r15
 	_base EQU 0
 	_flags EQU 1
 	_clip EQU 2
@@ -300,10 +300,10 @@ a1	REGEQU r15
 	_finc EQU 8
 
 
-undraw:	movei #BLIT_A1BASE,a1	;blitter Base
+undraw:	movei #BLIT_A1BASE,a1_n	;blitter Base
 	movei #BLIT_CMD,cmd	;blitter flags/go
 	xor r0,r0			;Blit the screen clear  (hard coded for 384x240, 16bit)
-	store r0,(a1+_pixel)
+	store r0,(a1_n+_pixel)
 	moveq #0,r0
 	movei #BLIT_PATD,r1
 	store r0,(r1)
@@ -311,11 +311,11 @@ undraw:	movei #BLIT_A1BASE,a1	;blitter Base
 	store r0,(r1)
 	movei #gpu_screen,r1
 	load (r1),r0
-	store r0,(a1)
+	store r0,(a1_n)
 	movei #(PITCH1|PIXEL16|WIDTH384|XADDPHR),r0
-	store r0,(a1+_flags)
+	store r0,(a1_n+_flags)
 	movei #$0001fe80,r0		;1,-384
-	store r0,(a1+_step)
+	store r0,(a1_n+_step)
 	movei #BLIT_COUNT,r0
 	movei #$f00180,r1
 	store r1,(r0)
@@ -716,11 +716,11 @@ gv1:	moveq #12,r4
 	moveta r6,r21
 	moveta r7,r22		;save transformed xyz co-ordinates	(may be needed by the z-clipper)
 
- 	move x1,x2
-	move y1,y2		;copy to x2.y2 (unchanging point)
+ 	move x1_n,x2_n
+	move y1_n,y2_n		;copy to x2_n.y2_n (unchanging point)
 	move intens_0,intens_1
-	moveta x2,x2
-	moveta y2,y2		;so original value can be got back
+	moveta x2_n,x2_n
+	moveta y2_n,y2_n		;so original value can be got back
 	moveta intens_1,intens_1
 
 nxtconn: loadw (r24),r0		;get connected-vertex number
@@ -764,7 +764,7 @@ zfail:	movei #znext,r28	;skip a line
 	nop	
 	movei #fixedillegal,r28	;two different cases for if legal or illegal fixed point
 	cmpq #0,intens_1	;was the fixed point out of range?
-	jump mi,(r28)		;-ve, it was, and its co-ords are in x2 and y2
+	jump mi,(r28)		;-ve, it was, and its co-ords are in x2_n and y2_n
 	nop
 	movefa r20,r0
 	movefa r21,r1
@@ -784,21 +784,21 @@ zfail:	movei #znext,r28	;skip a line
 	nop
 	neg r5
 _nz1:	div r3,r5		;make the new unsigned x vector size
-	move r6,x1
-	sharq #shift1,x1		;int an' sign extend y
-	sub r1,x1		;signed y size
-	imult r2,x1
+	move r6,x1_n
+	sharq #shift1,x1_n		;int an' sign extend y
+	sub r1,x1_n		;signed y size
+	imult r2,x1_n
 	cmpq #0,r4
 	jr pl,_nz2
 	nop
 	neg r5			;set right sign for x component
-_nz2:	move x1,r6		;save sign
+_nz2:	move x1_n,r6		;save sign
 	cmpq #0,r6
 	jr pl,_nz3
 	nop
 	neg r6
 _nz3:	div r3,r6
-	cmpq #0,x1
+	cmpq #0,x1_n
 	jr pl,_nz4
 	nop
 	neg r6
@@ -809,10 +809,10 @@ _nz4:	add r0,r5		;make transformed xy
 	movei #z_top,r28
 	load (r28),intens_0
 	shlq #8,intens_0
-	movei #192,x1
-	movei #120,y1
-	add r5,x1
-	add r6,y1		;set parameters for the line
+	movei #192,x1_n
+	movei #120,y1_n
+	add r5,x1_n
+	add r6,y1_n		;set parameters for the line
 	movei #zlegal,r0
 	jump (r0)
 	nop
@@ -823,8 +823,8 @@ fixedillegal: move r5,r0		;x and y pair
 	sharq #shift1,r1
 	move r7,r2		;legal point expanded
 	move r2,r3
-	movefa r22,y2
-	sub y2,r3		;r3 is the total length of the z component and will be used to divide the others.
+	movefa r22,y2_n
+	sub y2_n,r3		;r3 is the total length of the z component and will be used to divide the others.
 	movei #$ffff0000,r28
 	movefa r20,r4		;r4 is combined x and y of the naughty point
 	sharq #shift1,r4
@@ -836,21 +836,21 @@ fixedillegal: move r5,r0		;x and y pair
 	nop
 	neg r5
 _nz5:	div r3,r5		;make the new unsigned x vector size
-	movefa r21,x2		;signed y as 16:16
-	sharq #shift1,x2
-	sub r1,x2		;signed y size
-	imult r2,x2
+	movefa r21,x2_n		;signed y as 16:16
+	sharq #shift1,x2_n
+	sub r1,x2_n		;signed y size
+	imult r2,x2_n
 	cmpq #0,r4
 	jr pl,_nz6
 	nop
 	neg r5			;set right sign for x component
-_nz6:	move x2,r6		;save sign
+_nz6:	move x2_n,r6		;save sign
 	cmpq #0,r6
 	jr pl,_nz7
 	nop
 	neg r6
 _nz7:	div r3,r6
-	cmpq #0,x2
+	cmpq #0,x2_n
 	jr pl,_nz8
 	nop
 	neg r6
@@ -861,10 +861,10 @@ _nz8:	add r0,r5		;make transformed xy
 	movei #z_top,r28
 	load (r28),intens_1
 	shlq #8,intens_1
-	movei #192,x2
-	movei #120,y2
-	add r5,x2
-	add r6,y2		;set parameters for the line
+	movei #192,x2_n
+	movei #120,y2_n
+	add r5,x2_n
+	add r6,y2_n		;set parameters for the line
 		
 
 zlegal:
@@ -874,8 +874,8 @@ zlegal:
 
 
 		
-znext:	movefa x2,x2
-	movefa y2,y2
+znext:	movefa x2_n,x2_n
+	movefa y2_n,y2_n
 	movefa intens_1,intens_1
 	movefa r23,r23
 	movefa r15,r15
@@ -972,8 +972,8 @@ zbogus:	movei #$ffff0000,r1	;mask to keep int of x
 	or r0,r28
 	
 	movei #-2,intens_0	;-ve2 intensity means 'this is a point that needs z cliipping'
-	move r28,x1
-	move r7,y1		;return packed 3D stuff as XY co-ords
+	move r28,x1_n
+	move r7,y1_n		;return packed 3D stuff as XY co-ords
 	frts
 
 zsafe:	movei #z_max,r28	;maximum z for depth q
@@ -994,17 +994,17 @@ gotme:	move r5,r1
 	sdiv r7,r1
 	sharq #7,r1
 	movei #xcent,r27
-	load (r27),x1
+	load (r27),x1_n
 	subq #4,r27
-;	movei #192,x1
-	add r1,x1		;final x1
+;	movei #192,x1_n
+	add r1,x1_n		;final x1_n
 			
 	move r6,r1
 	sdiv r7,r1
 	sharq #7,r1
-;	movei #120,y1
-	load (r27),y1
-	add r1,y1		;final y1
+;	movei #120,y1_n
+	load (r27),y1_n
+	add r1,y1_n		;final y1_n
 
 	frts
 
@@ -1120,55 +1120,55 @@ nxtpix:	movefa r0,r0
 
 clip_gouline:
 ;
-; clip the line (x1,y1)-(x2,y2) to the vector viewport
+; clip the line (x1_n,y1_n)-(x2_n,y2_n) to the vector viewport
 
 ; calculate the cohen-sutherland outcodes
 
 
 
  	moveq #0,r15	;swapped points phlag
-doit:	moveq #0,r0		;r0 to build outcode for (x1,y1)
+doit:	moveq #0,r0		;r0 to build outcode for (x1_n,y1_n)
 	movei #vyhi,r28
-	sub y1,r28
+	sub y1_n,r28
 	jr pl,clip_1
 	nop
 	bset #3,r0		;sign bit of (ymax-y)
 clip_1:	movei #vylo,r2
-	move y1,r28
+	move y1_n,r28
 	sub r2,r28
 	jr pl,clip_2
 	nop
 	bset #2,r0		;not sign bit of (ymin-y)
 clip_2:	movei #vxhi,r28
-	sub x1,r28
+	sub x1_n,r28
 	jr pl,clip_3
 	nop
 	bset #1,r0		;sign bit of (ymax-y)
 clip_3:	movei #vxlo,r2
-	move x1,r28
+	move x1_n,r28
 	sub r2,r28
 	jr pl,clip_4
 	nop
 	bset #0,r0		;not sine bit of (ymin-y)
-clip_4:	moveq #0,r1		;r1 to build outcode for (x2,y2)
+clip_4:	moveq #0,r1		;r1 to build outcode for (x2_n,y2_n)
 	movei #vyhi,r28
-	sub y2,r28
+	sub y2_n,r28
 	jr pl,clip_5
 	nop
 	bset #3,r1		;sign bit of (ymax-y)
 clip_5:	movei #vylo,r2
-	move y2,r28
+	move y2_n,r28
 	sub r2,r28
 	jr pl,clip_6
 	nop
 	bset #2,r1		;not sign bit of (ymin-y)
 clip_6:	movei #vxhi,r28
-	sub x2,r28
+	sub x2_n,r28
 	jr pl,clip_7
 	nop
 	bset #1,r1		;sign bit of (ymax-y)
 clip_7:	movei #vxlo,r2
-	move x2,r28
+	move x2_n,r28
 	sub r2,r28
 	jr pl,clip_8
 	nop
@@ -1181,12 +1181,12 @@ clip_ok: movei #gouline,r0	;bog off
 	cmpq #0,r15		;points swapped?
 	jump eq,(r0)		;no
 	nop
-	move x1,r28
-	move y1,r2
-	move x2,x1
-	move y2,y1
-	move r28,x2
-	move r2,y2		;swop points
+	move x1_n,r28
+	move y1_n,r2
+	move x2_n,x1_n
+	move y2_n,y1_n
+	move r28,x2_n
+	move r2,y2_n		;swop points
 	jump (r0)
 	nop
 
@@ -1205,21 +1205,21 @@ clip_iterate: cmpq #0,r0	;check first endpoint is on the screen
 	move r1,r0
 	move r28,r1		;swop outcodes
 
-	move x1,r28
-	move y1,r2
-	move x2,x1
-	move y2,y1
-	move r28,x2
-	move r2,y2		;swop points
+	move x1_n,r28
+	move y1_n,r2
+	move x2_n,x1_n
+	move y2_n,y1_n
+	move r28,x2_n
+	move r2,y2_n		;swop points
 	moveq #1,r2
 	xor r2,r15		;flippyflag points are swapped
 
 
 right_order:
- 	move x2,r5
-	move y2,r6
-	sub x1,r5		;get vector sizes
-	sub y1,r6		;in (r5,r6)
+ 	move x2_n,r5
+	move y2_n,r6
+	sub x1_n,r5		;get vector sizes
+	sub y1_n,r6		;in (r5,r6)
 	move r0,r7		;save outcode 1
 
 	movei #do_out1,r4
@@ -1227,13 +1227,13 @@ right_order:
 	jump z,(r4)
 	nop
 	movei #vyhi,r1
-	sub y1,r1
+	sub y1_n,r1
 	imult r5,r1
 	move r6,r0
 	abs r0
 	sdiv r0,r1
-	sub r1,x1		;new X pos from that calculation
-	movei #vyhi,y1		;new Y if top of screen
+	sub r1,x1_n		;new X pos from that calculation
+	movei #vyhi,y1_n		;new Y if top of screen
 	movei #doit,r0
 	jump (r0)
 	nop
@@ -1243,13 +1243,13 @@ do_out1: movei #do_out2,r4
 	jump z,(r4)
 	nop
 	movei #vylo,r1
-	sub y1,r1
+	sub y1_n,r1
 	imult r5,r1
 	move r6,r0
 	abs r0
 	sdiv r0,r1
-	add r1,x1		;new X pos from that calculation
-	movei #vylo,y1		;new Y if top of screen
+	add r1,x1_n		;new X pos from that calculation
+	movei #vylo,y1_n		;new Y if top of screen
 	movei #doit,r0
 	jump (r0)
 	nop
@@ -1260,13 +1260,13 @@ do_out2: movei #do_out3,r4
 	nop
 
 	movei #vxhi,r1
-	sub x1,r1
+	sub x1_n,r1
 	imult r6,r1
 	move r5,r0
 	abs r0
 	sdiv r0,r1
-	sub r1,y1		;new X pos from that calculation
-	movei #vxhi,x1		;new Y if top of screen
+	sub r1,y1_n		;new X pos from that calculation
+	movei #vxhi,x1_n		;new Y if top of screen
 	movei #doit,r0
 	jump (r0)
 	nop
@@ -1278,13 +1278,13 @@ do_out3:
 	nop
 
 	movei #vxlo,r1
-	sub x1,r1
+	sub x1_n,r1
 	imult r6,r1
 	move r5,r0
 	abs r0
 	sdiv r0,r1
-	add r1,y1		;new X pos from that calculation
-	movei #vxlo,x1		;new Y if top of screen
+	add r1,y1_n		;new X pos from that calculation
+	movei #vxlo,x1_n		;new Y if top of screen
 	movei #doit,r0
 	jump (r0)
 	nop
@@ -1294,7 +1294,7 @@ do_out3:
 
 gouline:
 ;
-; line draw with colour graduation. x2 and y2 are mashed
+; line draw with colour graduation. x2_n and y2_n are mashed
 
 
 	movei #lineparams,r28
@@ -1445,13 +1445,13 @@ lineparams:
 ; Get parameters for linedraw (or anything that uses gradients)
 
 
-	sub x1,x2
-	sub y1,y2			;get differences
-	move y1,L_PIX
+	sub x1_n,x2_n
+	sub y1_n,y2_n			;get differences
+	move y1_n,L_PIX
 	shlq #16,L_PIX
-	or x1,L_PIX			;set pixel origin
-	move x2,r0
-	move y2,r1
+	or x1_n,L_PIX			;set pixel origin
+	move x2_n,r0
+	move y2_n,r1
 	abs r0
 	abs r1				;get abs size
 	cmp r0,r1
@@ -1465,14 +1465,14 @@ x_greater: movei #zreturn,r28
 	cmpq #0,r0
 	jump eq,(r28)			;check for 0-length and go if true
 	nop
- 	shlq #16,y2			;y difference to 16:16
+ 	shlq #16,y2_n			;y difference to 16:16
 	moveq #0,r3
-	cmp r3,y2			;stuff to do signed divide
+	cmp r3,y2_n			;stuff to do signed divide
 	jr pl,pos2
 	nop
 	bset #0,r3
-	abs y2
-pos2:	div r0,y2			;divide by x
+	abs y2_n
+pos2:	div r0,y2_n			;divide by x
 	move r0,L_COUNT
 	addq #1,L_COUNT
 	bset #16,L_COUNT		;set count to X
@@ -1480,17 +1480,17 @@ pos2:	div r0,y2			;divide by x
 	nop
 	jr z,pos22
 	nop
-	neg y2
+	neg y2_n
 pos22:
 ;	move r0,L_COUNT
 ;	bset #16,L_COUNT		;set count to X
-	move y2,L_INCF
+	move y2_n,L_INCF
 	shlq #16,L_INCF			;Frac of Y, zero X
 	movei #$ffff0000,r3
-	move y2,L_INC
+	move y2_n,L_INC
 	and r3,L_INC
 	moveq #1,r0
-	cmpq #0,x2			;check sign of x
+	cmpq #0,x2_n			;check sign of x
 	jr pl,sgnpos
 	nop
 	movei #$ffff,r0			;-1
@@ -1501,14 +1501,14 @@ y_greater: movei #zreturn,r28
 	cmpq #0,r1
 	jump eq,(r28)			;check for 0-length and go if true
 	nop
- 	shlq #16,x2			;x difference to 16:16
+ 	shlq #16,x2_n			;x difference to 16:16
 	moveq #0,r3
-	cmp r3,x2			;stuff to do signed divide
+	cmp r3,x2_n			;stuff to do signed divide
 	jr pl,pos1
 	nop
 	bset #0,r3
-	abs x2
-pos1:	div r1,x2			;divide by Y
+	abs x2_n
+pos1:	div r1,x2_n			;divide by Y
 	move r1,L_COUNT
 	addq #1,L_COUNT
 	bset #16,L_COUNT		;set count to Y
@@ -1516,17 +1516,17 @@ pos1:	div r1,x2			;divide by Y
 	nop
 	jr z,pos12
 	nop
-	neg x2
+	neg x2_n
 pos12:
 ;	move r1,L_COUNT
 ;	bset #16,L_COUNT		;set count to Y
-	move x2,L_INCF
+	move x2_n,L_INCF
 	movei #$ffff,r3
 	and r3,L_INCF			;Frac of X, zero Y
-	move x2,L_INC
+	move x2_n,L_INC
 	shrq #16,L_INC
 	movei #$10000,r0
-	cmpq #0,y2			;check sign of y
+	cmpq #0,y2_n			;check sign of y
 	nop
 	jr pl,sgnpos1
 	nop

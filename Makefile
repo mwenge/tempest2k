@@ -6,16 +6,15 @@ all: clean cartridge
 
 t2000.abs: 
 	$(shell mkdir -p $(DIRS))
-	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/donky.gas -o src/bin/donky.o
-	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/camel.gas -o src/bin/camel.o
-	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/antelope.gas -o src/bin/antelope.o
-	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/goat.gas -o src/bin/goat.o
-	#./rmac/rmac -fa -mtom -isrc src/llama.gas -o src/llama.bin
-	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/llama.gas -o src/bin/llama.o
-	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/horse.gas -o src/bin/horse.o
-	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/ox.gas -o src/bin/ox.o
-	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/stoat.gas -o src/bin/stoat.o
-	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/xcamel.gas -o src/bin/xcamel.o
+	./rmac/rmac -fr -mtom -isrc src/donky.gas -o src/bin/donky.o
+	./rmac/rmac -fr -mtom -isrc src/camel.gas -o src/bin/camel.o
+	./rmac/rmac -fr -mtom -isrc src/antelope.gas -o src/bin/antelope.o
+	./rmac/rmac -fr -mtom -isrc src/goat.gas -o src/bin/goat.o
+	./rmac/rmac -fr -mtom -isrc src/llama.gas -o src/bin/llama.o
+	./rmac/rmac -fr -mtom -isrc src/horse.gas -o src/bin/horse.o
+	./rmac/rmac -fr -mtom -isrc src/ox.gas -o src/bin/ox.o
+	./rmac/rmac -fr -mtom -isrc src/stoat.gas -o src/bin/stoat.o
+	./rmac/rmac -fr -mtom -isrc src/xcamel.gas -o src/bin/xcamel.o
 	./rmac/rmac -fb -isrc src/yak.s -o src/bin/yak.cof
 	./rmac/rmac -fb -isrc src/yakgpu.s -o src/bin/yakgpu.cof
 	./rmac/rmac -fb -isrc src/vidinit.s -o src/bin/vidinit.cof
