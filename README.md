@@ -1,6 +1,7 @@
-# Tempest 2000 by Jeff Minter
+# Tempest 2000 (1994) by Jeff Minter
+<img src="https://user-images.githubusercontent.com/58846/121210319-7da9b400-c873-11eb-87c0-7a8e6f4b425b.png" height=300><img src="https://user-images.githubusercontent.com/58846/121211760-a8e0d300-c874-11eb-9fec-fe6a47e9be1d.gif" height=300>
 
-This is the source code for Tempest 2000 by Jeff Minter.
+This is the source code for Tempest 2000 by Jeff Minter originally published in 1994 for the ill-fated Atari Jaguar.
 
 The source code can be compiled into an executable that you can run in `virtual-jaguar`.
 
