@@ -1,0 +1,21 @@
+Engine Noise 1      01 428 11a0 L 0002 119e
+Player Shot Normal 202 428 08e8 -          
+Engine Noise        03 428 3378 L 0c0e 2594
+Player Death        04 214 549a -          
+Player Death 2      05 428 2458 -          
+Player Shot Normal  06 428 07a4 -          
+Player Jump         07 428 18de -          
+Crackle             08 214 4594 -          
+Cleared Level       09 428 37a2 -          
+Warp                10 568 6ec8 -          
+Large Explosion     11 428 50c2 -          
+Powered Up Shot     12 428 1976 -          
+Get Power Up        13 428 1aea -          
+Tink For Spike      14 254 040e -          
+NME At Top Of Web   15 428 001e -          
+Pulse For Pulsar    16 856 19fe -          
+Normal Explosion    17 214 2ab6 -          
+Extra Explosion     18 856 18ca -           
+Static or Pulsar    19 284 3fe4 -          
+Pulsar Pulse        20 856 0f0c -          
+Off Shielded NME    21 170 27ca -          
