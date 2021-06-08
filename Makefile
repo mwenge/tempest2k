@@ -15,7 +15,7 @@ t2000.abs:
 	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/horse.gas -o src/bin/horse.o
 	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/ox.gas -o src/bin/ox.o
 	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/stoat.gas -o src/bin/stoat.o
-	./vasm-mirror/vasmjagrisc_madmac -mgpu -L xcamel.asm -Fbin src/xcamel.gas -o src/bin/xcamel.o
+	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/xcamel.gas -o src/bin/xcamel.o
 	./rmac/rmac -fb -isrc src/yak.s -o src/bin/yak.cof
 	./rmac/rmac -fb -isrc src/yakgpu.s -o src/bin/yakgpu.cof
 	./rmac/rmac -fb -isrc src/vidinit.s -o src/bin/vidinit.cof
