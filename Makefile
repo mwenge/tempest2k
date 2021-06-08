@@ -30,3 +30,7 @@ clean:
 	-rm src/bin/*.o
 	-rm src/bin/*.cof
 	-rm t2000.abs
+	-rm T2000.DB
+	-rm T2000.TX
+	-rm T2000.DTA
+	-rm t2k.rom
