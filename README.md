@@ -13,7 +13,7 @@ sudo apt install build-essentials wine virtual-jaguar
 ```
 
 ### Build the assembler toolchain
-We use three tools to build the source code: vasm, rmac and rln. If you already have these installed you may have some
+We use three tools to build the source code: `vasm`, `rmac` and `rln`. If you already have these installed you may have some
 luck using them, if not you can build the versions included in this repository as they are known to work. 
 
 ```sh
@@ -48,3 +48,7 @@ This will create a file `t2k.rom`. You can run this as follows using `virtual-ja
 virtual-jaguar t2k.rom
 ```
 
+For an optimal Tempest 2000 experience you should run the game in 'Project Tempest` a Jaguar emulator optimize for Tempest 2000 specifically. Project Tempest is available in the `utils` folder as `PT.exe`. To use it run the following at the command line, select File->Open Rom and load `t2k.rom`:
+```sh
+wine ./utils/PT.EXE
+```
