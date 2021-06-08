@@ -13,8 +13,18 @@ sudo apt install build-essentials wine virtual-jaguar
 ```
 
 ### Build the assembler toolchain
+
 We use three tools to build the source code: `vasm`, `rmac` and `rln`. If you already have these installed you may have some
 luck using them, if not you can build the versions included in this repository as they are known to work. 
+
+First you must run the following to set up the git submodules containing the assembler toolchain:
+
+```sh
+git submodule init
+git submodule update
+```
+
+Now you can build the toolchain, as follows:
 
 ```sh
 cd vasm-mirror
