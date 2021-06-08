@@ -168,31 +168,31 @@ gpuwait: movem.l	a0/d0,-(sp)
 ;
 fastvector:
   DC.L $00f03000 , $00000a82
-	.incbin	"llama.o"
+	.incbin	"bin/llama.o"
 xvector:
 DC.L $00f03000 , $00000c46
-	.incbin 	"goat.o"
+	.incbin 	"bin/goat.o"
 demons:
 DC.L $00f03000 , $00000e48
-	.incbin	"antelope.o"
+	.incbin	"bin/antelope.o"
 parrot:
 DC.L $00f03000 , $0000068a
-	.incbin	"camel.o"
+	.incbin	"bin/camel.o"
 xparrot:
 DC.L $00f03000 , $00000d32
-	.incbin	"xcamel.o"
+	.incbin	"bin/xcamel.o"
 texter:
 DC.L $00f03000 , $000002f6
-	.incbin 	"stoat.o"
+	.incbin 	"bin/stoat.o"
 bovine:
 DC.L $00f03000 , $00000a3c
-	.incbin	"ox.o"
+	.incbin	"bin/ox.o"
 equine:
 DC.L $00f03000 , $00000b4a
-	.incbin 	"horse.o"
+	.incbin 	"bin/horse.o"
 equine2:
 DC.L $00f03000 , $000009e0
-	.incbin 	"donky.o"
+	.incbin 	"bin/donky.o"
 
 .data
 

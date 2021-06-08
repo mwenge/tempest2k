@@ -6,15 +6,21 @@ Extract the binary components from the original t2k rom
 
 import sys
 import os
-from itertools import chain
+
+if len(sys.argv) < 2:
+    print("Not enough filenames given")
+    exit()
+
+romname = sys.argv[1]
+rom = open(romname, 'wb')
+
+args = len(sys.argv)
+
+for fn in sys.argv[1:]:
+    if not os.path.isfile(fn):
+        print(fn + " does not exist")
+        exit()
+    f = open(fn, 'rb')
+    rom.write(f.read())
 
 
-
-o = open("../t2k.rom", 'wb')
-
-f = open("originalrom/romheader.bin", 'rb')
-o.write(f.read())
-f = open("../T2000.TX", 'rb')
-o.write(f.read())
-f = open("originalrom/paddingaftersamples.bin", 'rb')
-o.write(f.read())

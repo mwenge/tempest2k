@@ -1,29 +1,32 @@
-.PHONY: all clean run
+.PHONY: all clean
 
 
-all: clean
+all: clean cartridge
 
 tempest2000.jag: 
-	./rmac/rmac -v -fb -isrc src/yak.s -o bin/yak.cof
-	#./rmac/rmac -fa -mtom -isrc src/donky.gas -o src/donky.bin
-	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/donky.gas -o src/donky.o
-	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin -L camel.asm src/camel.gas -o src/camel.o
-	#./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/ians.gas -o src/ians.o
-	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin -L antelope.asm src/antelope.gas -o src/antelope.o
-	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/goat.gas -o src/goat.o
+	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/donky.gas -o src/bin/donky.o
+	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/camel.gas -o src/bin/camel.o
+	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/antelope.gas -o src/bin/antelope.o
+	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/goat.gas -o src/bin/goat.o
 	#./rmac/rmac -fa -mtom -isrc src/llama.gas -o src/llama.bin
-	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/llama.gas -o src/llama.o
-	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/horse.gas -o src/horse.o
-	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/ox.gas -o src/ox.o
-	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/stoat.gas -o src/stoat.o
-	./vasm-mirror/vasmjagrisc_madmac -mgpu -L xcamel.asm -Fbin src/xcamel.gas -o src/xcamel.o
-	./rmac/rmac -v -fb -isrc src/yakgpu.s -o bin/yakgpu.cof
-	./rmac/rmac -v -fb -isrc src/vidinit.s -o bin/vidinit.cof
-	./rmac/rmac -v -fb -Isrc src/images_sounds.s -o bin/images_sounds.o
-	rln -v -e -a 802000 4000 efa8 bin/yak.cof bin/vidinit.cof bin/yakgpu.cof bin/images_sounds.o -o t2000.abs
-	wine filefix t2000.abs
+	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/llama.gas -o src/bin/llama.o
+	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/horse.gas -o src/bin/horse.o
+	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/ox.gas -o src/bin/ox.o
+	./vasm-mirror/vasmjagrisc_madmac -mgpu -Fbin src/stoat.gas -o src/bin/stoat.o
+	./vasm-mirror/vasmjagrisc_madmac -mgpu -L xcamel.asm -Fbin src/xcamel.gas -o src/bin/xcamel.o
+	./rmac/rmac -fb -isrc src/yak.s -o src/bin/yak.cof
+	./rmac/rmac -fb -isrc src/yakgpu.s -o src/bin/yakgpu.cof
+	./rmac/rmac -fb -isrc src/vidinit.s -o src/bin/vidinit.cof
+	./rmac/rmac -fb -Isrc src/images_sounds.s -o src/bin/images_sounds.o
+	./rln/rln -e -a 802000 4000 efa8 src/bin/yak.cof src/bin/vidinit.cof src/bin/yakgpu.cof src/bin/images_sounds.o -o t2000.abs
+	echo "515c0e0fcfe9a96d24c858968c3bad72  t2000.abs" | md5sum -c
 
-
+cartridge: tempest2000.jag
+	wine ./utils/filefix t2000.abs
+	./utils/CreateCart.py t2k.rom  src/incbin/romheader.bin T2000.TX src/incbin/paddingaftersamples.bin 
+	echo "602bc9953d3737b1ba52b2a0d9932f7c  t2k.rom" | md5sum -c
 
 clean:
-	-rm bin/*.o
+	-rm src/bin/*.o
+	-rm src/bin/*.cof
+	-rm t2000.abs

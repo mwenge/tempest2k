@@ -19,10 +19,10 @@
 .DC.L $0000
 .incbin "sounds/tune12.mod"
 .DC.L $0000
-.incbin "../utils/originalrom/paddingbetweentunesandsmp.bin"
+.incbin "incbin/paddingbetweentunesandsmp.bin"
 
-.incbin "smp.bin"
-.incbin "../utils/originalrom/paddingbetweensmpandsamples.bin"
+.incbin "incbin/smp.bin"
+.incbin "incbin/paddingbetweensmpandsamples.bin"
 
 .incbin "sounds/samples/01"
 .DC.L $0000
