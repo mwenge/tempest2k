@@ -28,7 +28,7 @@ cartridge: t2000.abs
 	echo "602bc9953d3737b1ba52b2a0d9932f7c  t2k.rom" | md5sum -c
 
 run: cartridge
-	wine ./utils/PT.EXE t2k.rom
+	wine ./utils/t2k.exe t2k.rom
 
 clean:
 	-rm src/bin/*.o

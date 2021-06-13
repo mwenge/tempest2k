@@ -56,10 +56,10 @@ This will create a file `t2k.rom`. You can run this as follows using `virtual-ja
 virtual-jaguar t2k.rom
 ```
 
-For an optimal Tempest 2000 experience you should run the game in 'Project
-Tempest' a Jaguar emulator specifically optimized for Tempest 2000. Project
-Tempest is available in the `utils` folder as `PT.exe`. To use it run the
-following at the command line, select File->Open Rom and load `t2k.rom`:
+For an optimal Tempest 2000 experience you should run the game in 'Tempest
+2k' a Jaguar emulator specifically optimized for Tempest 2000. 
+Tempest 2K is available in the `utils` folder as `t2k.exe`. To use it run the
+following at the command line:
 ```sh
-wine ./utils/PT.EXE
+wine ./utils/t2k.exe t2k.rom
 ```
