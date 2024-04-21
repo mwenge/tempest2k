@@ -1,0 +1,6 @@
+*.abs
+*.DB
+*.DTA
+*.TX
+*.rom
+src/bin/
