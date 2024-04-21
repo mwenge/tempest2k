@@ -9,7 +9,7 @@ The source code can be compiled into an executable that you can run in `virtual-
 
 ### Build Requirements
 ```sh
-sudo apt install build-essentials wine virtual-jaguar
+sudo apt install build-essentials wine dosbox virtual-jaguar
 ```
 
 ### Build the assembler toolchain
