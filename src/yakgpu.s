@@ -129,7 +129,8 @@ qrts:	movem.l	(sp)+,d0-d2/a0-a1
 ;*		d0-d1
 ;*		a0
 ;*======================================================================*
-gpurun:	bsr gpuload			;load if not already loaded
+gpurun:
+  bsr gpuload			;load if not already loaded
 
 	movem.l	d0-d1/a0,-(sp)		; save GPU address for restore
 
@@ -150,7 +151,8 @@ gpurun:	bsr gpuload			;load if not already loaded
 ;*		d0
 ;*		a0
 ;*======================================================================*
-gpuwait: movem.l	a0/d0,-(sp)
+gpuwait:
+  movem.l	a0/d0,-(sp)
 
 	lea	G_CTRL,a0
 .gpuwt:				; wait for GPU to finish

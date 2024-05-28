@@ -683,7 +683,8 @@ p2_loop3: move sum5,r0
 	dsty		REGEQU r26
 	dstz		REGEQU r1
 
-crex:	movei #ycent,r0
+crex:
+  movei #ycent,r0
 	load (r0),r28
 	addq #4,r0
 	load (r0),r27
@@ -695,7 +696,8 @@ crex:	movei #ycent,r0
 	
 
 
-rex:	movei #$c00000,r27
+rex:
+  movei #$c00000,r27
 	movei #$780000,r28
 	movei #_sysflags,r0
 	load (r0),r1

@@ -2,23 +2,23 @@
 
 	Base equ $f00000
 
-		INCLUDE	"jaguar.inc"	; Jaguar General definitions
+  INCLUDE	"jaguar.inc"	; Jaguar General definitions
 
-	gpu_mode EQU (G_RAM+$ffc)	; Number defines which routine the GPU will do
-	gpu_screen EQU (G_RAM+$ff8)	; The address of the screen the GPU will draw on
-	source_flags	EQU (G_RAM+$ff4)
-	dest_flags EQU (G_RAM+$ff0)	; Blitter flags 4 source+dest
-	_sysflags EQU (G_RAM+$fd0)	;Thick vector flags etc
+	gpu_mode          EQU (G_RAM+$ffc)	; Number defines which routine the GPU will do
+	gpu_screen        EQU (G_RAM+$ff8)	; The address of the screen the GPU will draw on
+	source_flags	    EQU (G_RAM+$ff4)
+	dest_flags        EQU (G_RAM+$ff0)	; Blitter flags 4 source+dest
+	_sysflags         EQU (G_RAM+$fd0)	;Thick vector flags etc
 
-	p_sines EQU $30000		; 256-byte sine table of unsigned bytes
-	in_buf	EQU (G_RAM+$f60)	; General space for passing stuff to GPU
-	ORG $f03000
-	width EQU 384
-	height EQU 280
-	vxlo EQU 0			; Screen extents for the Cohen-Sutherland clipping algorithm
-	vxhi EQU ((384*1)-1)
-	vylo EQU 0
-	vyhi EQU ((280*1)-1)
+	p_sines           EQU $30000		; 256-byte sine table of unsigned bytes
+	in_buf	          EQU (G_RAM+$f60)	; General space for passing stuff to GPU
+	ORG               $f03000
+	width             EQU 384
+	height            EQU 280
+	vxlo              EQU 0			; Screen extents for the Cohen-Sutherland clipping algorithm
+	vxhi              EQU ((384*1)-1)
+	vylo              EQU 0
+	vyhi              EQU ((280*1)-1)
 
 	diag EQU $4000
 
@@ -200,11 +200,13 @@ noloop: storeb count,(dest)
 	nop
 
 
-StopGPU: movei #G_CTRL,r1	;point at GPU flags
+StopGPU:
+  movei #G_CTRL,r1	;point at GPU flags
 	load (r1),r0
 	bclr #0,r0
 	store r0,(r1)		;stop the GPU
-stoploop: jr stoploop
+stoploop:
+  jr stoploop
 	nop
 
 

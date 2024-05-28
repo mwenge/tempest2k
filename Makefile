@@ -4,7 +4,7 @@ DIRS=src/bin
 
 all: clean cartridge
 
-t2000.abs: 
+t2000.abs: sources 
 	$(shell mkdir -p $(DIRS))
 	./rmac/rmac -fr -mtom -isrc src/donky.gas -o src/bin/donky.o
 	./rmac/rmac -fr -mtom -isrc src/camel.gas -o src/bin/camel.o
@@ -20,12 +20,20 @@ t2000.abs:
 	./rmac/rmac -fb -isrc src/vidinit.s -o src/bin/vidinit.cof
 	./rmac/rmac -fb -Isrc src/images_sounds.s -o src/bin/images_sounds.o
 	./rln/rln -e -a 802000 4000 efa8 src/bin/yak.cof src/bin/vidinit.cof src/bin/yakgpu.cof src/bin/images_sounds.o -o t2000.abs
+
+clean_build: t2000.abs 
 	echo "515c0e0fcfe9a96d24c858968c3bad72  t2000.abs" | md5sum -c
 
-cartridge: t2000.abs
+sources: src/*.s src/*.gas
+
+cartridge: clean_build
 	wine ./utils/filefix t2000.abs
 	./utils/CreateCart.py t2k.rom  src/incbin/romheader.bin T2000.TX src/incbin/paddingaftersamples.bin 
 	echo "602bc9953d3737b1ba52b2a0d9932f7c  t2k.rom" | md5sum -c
+
+dirty: t2000.abs
+	wine ./utils/filefix t2000.abs
+	./utils/CreateCart.py t2k.rom  src/incbin/romheader.bin T2000.TX src/incbin/paddingaftersamples.bin 
 
 run: cartridge
 	wine ./utils/t2k.exe t2k.rom

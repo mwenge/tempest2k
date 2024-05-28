@@ -2,7 +2,8 @@
 *
 * Page 2 font, by Joby
 
-afont:	dc.l pic2
+afont:	
+  dc.l pic2
 	dc.l $0012000f
 
  	dc.l $b6011e	;Space

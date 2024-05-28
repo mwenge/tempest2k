@@ -2,7 +2,9 @@
 *
 * Page 1 font, 8x8, by Joby
 
-cfont:	dc.l pic
+cfont:
+  ; beasty3-trunc.cry
+  dc.l pic
 	dc.l $00080008
 
  	dc.l $b50137	;Space
