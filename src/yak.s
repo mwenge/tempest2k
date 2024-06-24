@@ -10,23 +10,23 @@
 ;  .globl ENABLETIMER
 ;  .globl DISABLETIMER
 
-  INIT_SOUND  EQU  $4040  ;jump table for the SFX/Tunes module
-  NT_VBL    EQU   $4046
-  PT_MOD_INIT  EQU  $404c
-  START_MOD  EQU  $4052
-  STOP_MOD  EQU  $4058
-  PLAYFX2    EQU  $405e
-  CHANGE_VOLUME  EQU  $4064
-  SET_VOLUME  EQU  $406a
-  NOFADE    EQU  $4070
-  FADEUP    EQU  $4076
-  FADEDOWN  EQU  $407c
-  ENABLE_FX  EQU  $4082
-  DISABLE_FX  EQU  $4088
-  CHANGEFX  EQU  $409a  ;new in syn6
-  HALT_DSP  EQU  $408e
-  RESUME_DSP  EQU  $4094
-  intmask    EQU  $40a0
+  INIT_SOUND    EQU  $4040  ;jump table for the SFX/Tunes module
+  NT_VBL        EQU   $4046
+  PT_MOD_INIT   EQU  $404c
+  START_MOD     EQU  $4052
+  STOP_MOD      EQU  $4058
+  PLAYFX2       EQU  $405e
+  CHANGE_VOLUME EQU  $4064
+  SET_VOLUME    EQU  $406a
+  NOFADE        EQU  $4070
+  FADEUP        EQU  $4076
+  FADEDOWN      EQU  $407c
+  ENABLE_FX     EQU  $4082
+  DISABLE_FX    EQU  $4088
+  CHANGEFX      EQU  $409a  ;new in syn6
+  HALT_DSP      EQU  $408e
+  RESUME_DSP    EQU  $4094
+  intmask       EQU  $40a0
 
   .extern pal    ;set =1 by VIDINIT if pal is detected
 
@@ -123,6 +123,9 @@
 
 .text
 
+; *******************************************************************
+; Initialisation starts here.
+; *******************************************************************
   move.l #$70007,G_END  ;NEW mode
   move.l #$70007,D_END  ;NEW mode
   move #$100,$f14000  ;audio on
@@ -386,7 +389,8 @@ slopt:
 notpal1: rts
 
 
-h2hover: move.l #screen3,a0
+h2hover:
+  move.l #screen3,a0
   move.l gpu_screen,a1
   move #0,d0
   move #0,d1
@@ -408,7 +412,8 @@ h2hover: move.l #screen3,a0
   clr h2h
   bra rreset
 
-nxtround: clr sync
+nxtround:
+  clr sync
   move.l #screen3,a0
   move.l a0,gpu_screen
   jsr clrscreen
@@ -610,8 +615,10 @@ echck:
   move #-1,attime
   bra dop
 
-clearee: move.l #rrts,routine
-dbonce: move.l pad_now,d0
+clearee:
+  move.l #rrts,routine
+dbonce:
+  move.l pad_now,d0
   and.l #bigreset,d0
   bne dbonce
   clr z
@@ -752,6 +759,9 @@ lvlset:
 
 
 
+; *******************************************************************
+; Select Level screen
+; *******************************************************************
 getlvl:
   clr pawsed
   clr.l paws
@@ -768,7 +778,8 @@ getlvl:
   cmp #15,d0
   bgt keepset
   move #0,d0
-keepset: tst t2k
+keepset:
+  tst t2k
   bne not2k
 
   tst h2h
@@ -780,7 +791,8 @@ keepset: tst t2k
   move #0,d0 
   bra not2k
 
-sh2h: move #15,topsel
+sh2h:
+  move #15,topsel
   clr d0
 
 not2k:
@@ -874,7 +886,8 @@ alrzero:
   jsr mainloop
   jmp fade
 
-draw_oo: bsr draw_o
+draw_oo:
+  bsr draw_o
   btst.b #2,sysflags
   beq rrrts
   tst h2h
@@ -923,7 +936,11 @@ do_2:
   move #20,d0
   jmp centext
 
-setcsmsg: lea csmsg1,a0
+; *******************************************************************
+; Populate the bonus score, e.g. BONUS 00001000
+; *******************************************************************
+setcsmsg:
+  lea csmsg1,a0
   move.l score,a1
   move #7,d0
 sstb:
@@ -935,7 +952,8 @@ sstb:
   move.l a0,csmsg
   move.b #'n',(a0)
   rts
-gotadig: move.l a0,csmsg
+gotadig:
+  move.l a0,csmsg
 gadig:
    add.b #'0',d1
   move.b d1,(a0)+
@@ -944,7 +962,8 @@ gadig:
   rts
 
 
-zoomto: lea _web,a0
+zoomto:
+  lea _web,a0
   add #2,30(a0)
   add #1,32(a0)
   sub #1,12(a0)
@@ -954,7 +973,8 @@ zoomto: lea _web,a0
 rrrts:
   rts
 
-waitfor: lea _web,a0
+waitfor:
+  lea _web,a0
   add #1,28(a0)
   btst.b #3,sysflags
   beq ojoj
@@ -977,7 +997,7 @@ ojoj:
   btst.b #4,pad_now+1
   bne zbackward
 not2p:
- btst.b #2,sysflags
+  btst.b #2,sysflags
   beq nobeastyy
   tst h2h
   bne nobeastyy
@@ -1022,7 +1042,8 @@ oro2:
   sub #1,30(a0)
   rts
 
-zforward: move cwave,d0
+zforward:
+  move cwave,d0
   move #2,d1
   sub h2h,d1
   sub d1,d0
@@ -1032,7 +1053,8 @@ zff:
    move.l #zprev,routine
   clr 24(a0)
   rts
-zbackward: move cwave,d0
+zbackward:
+  move cwave,d0
   move #2,d1
   sub h2h,d1
   add d1,d0
@@ -1070,7 +1092,7 @@ zprev_1: bsr sweb
   rts
 
 znext:
-   lea _web,a0
+  lea _web,a0
   bsr ccent
   sub.l #$40000,12(a0)
   sub #2,28(a0)
@@ -1146,7 +1168,8 @@ fxsel:
 
 settrue3:
   move #TOP,d1
-settrue33: lea beasties+64,a0
+settrue33:
+  lea beasties+64,a0
   move.l #screen3,d2
   move #SIDE,d0
   sub palside,d0
@@ -1161,7 +1184,8 @@ settrue33: lea beasties+64,a0
   move.l #rrts,fx
   rts
 
-settrue: lea beasties,a0    ;set main screen to 16-bit
+settrue:
+  lea beasties,a0    ;set main screen to 16-bit
   move.l #screen2,d2
   move.l d2,gpu_screen
 strue:
@@ -1738,6 +1762,9 @@ drawsolidxy:
   jsr gpuwait
   rts
 
+; *******************************************************************
+; Game Over sequence.
+; *******************************************************************
 gameover:
 ;
 ; The game over graphical effect.
@@ -1906,6 +1933,9 @@ clearfeed:
   move #1,x_end
   rts
 
+; *******************************************************************
+; Draws the main title screen.
+; *******************************************************************
 TitleScreen:
 versionscreen:
   move.l #rrts,routine
@@ -2032,6 +2062,9 @@ versiondraw:
 
 
 
+; *******************************************************************
+;
+; *******************************************************************
 dopyr:
   move #64,d0      ;glowing pyramid (selector?)
   move #80,d1  
@@ -2058,6 +2091,9 @@ ppyr:
   jmp gpuwait
 
 
+; *******************************************************************
+; Display centred text on the screen.
+; *******************************************************************
 centext:
   move.l a0,d2
   lea in_buf,a0
@@ -2208,6 +2244,9 @@ sintoff:
 
 
 
+; *******************************************************************
+; Select game type screen, e.g. classic, duel, etc.
+; *******************************************************************
 optionscreen:
   move.l #rrts,routine
 ;  move #-1,db_on
@@ -2265,6 +2304,9 @@ fago:
   move #1,entities
   bra xsel1      ;go start up with h2h asserted...
 
+; *******************************************************************
+; Display the Game Options, Select Dude Menu.
+; *******************************************************************
 gameopt:
   clr selected      ;this does game option menu
   move #1,selectable
@@ -2430,6 +2472,7 @@ selsa:
   bne xsel1
   move #0,view
   rts
+
 xsel1:
   move #-1,blanka
   move #0,view
@@ -2563,6 +2606,9 @@ optiondraw:
   jsr gpurun      ;do horizontal ripple warp
   jsr gpuwait
 
+; *******************************************************************
+; Show 'Press option for game options'
+; *******************************************************************
 opts:
   cmp.l #option1,the_option  ;see if other options are available
   bne ntarnt      ;no they arent
@@ -2770,6 +2816,9 @@ _tunn:
   move.l #$ffffffff,warp_flash
   rts
  
+; *******************************************************************
+; Is this for managing a player doing a full roll of the tunnel in some way?
+; *******************************************************************
 tunrun:
   btst.b #3,sysflags  ;look for ro-con
   beq sjoycon
@@ -3358,6 +3407,9 @@ todr1:
 
   rts
 
+; *******************************************************************
+; Do a bonus game?
+; *******************************************************************
 m7test2:
   move #1,psycho
   move.l #$ff0000,delta_i
@@ -3368,6 +3420,9 @@ m7test2:
   add #1,bolev3
   bra m7go
 
+; *******************************************************************
+; Do a bonus game?
+; *******************************************************************
 m7scr:
   clr psycho
   move #1,pongz
@@ -3522,6 +3577,9 @@ sttoat2:
   move.l #2,warp_count
   rts
 
+; *******************************************************************
+; Display the victory bonus?
+; *******************************************************************
 vicbon:
   move frames,d7
   lsr #2,d7
@@ -3573,6 +3631,9 @@ vicrun:
   rts
 
 
+; *******************************************************************
+; Control the movement in some way
+; *******************************************************************
 m7run:
   btst.b #3,sysflags    ;are we on the rotary controller?
   beq wjoy
@@ -4788,6 +4849,9 @@ hisettrue3:
   move #TOP-16,d1
   bra settrue33
 
+; *******************************************************************
+; Display the high score table
+; *******************************************************************
 ShowHighScoreTable:
 showscores:
   move.l #rrts,routine
@@ -4867,7 +4931,11 @@ ctl:
   move #1,sf_on
   bra fade
 
+; *******************************************************************
+; Display the rotating web behind the high score table.
+; *******************************************************************
 swebby:
+  ; This just clears the screen I think.
   move.l #0,gpu_mode
   move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
   move.l #$0,backg
@@ -4876,11 +4944,16 @@ swebby:
   jsr gpuwait
   bsr WaitBlit
 
+  ; This actually draws the web.
   lea _web,a0
   add #3,28(a0)
   add #1,30(a0)
   jsr draw_objects      ;draw rotatey-Web
 
+; *******************************************************************
+; Do the 'falling star' plane behind the rotating web.
+; We fall through here from above.
+; *******************************************************************
 starri:
   lea in_buf,a0
   move.l #32,(a0)      ;no. of stars
@@ -4919,6 +4992,9 @@ stlp:
   dbra d6,stlp
   rts  
 
+;********************************************************
+; Display the credits screen
+;********************************************************
 yakscreen:
   move.l #rrts,routine
 ;  move #-1,db_on
@@ -4927,9 +5003,9 @@ yakscreen:
   and #3,joby
   bsr InitBeasties
   bsr hisettrue
-  move.l #yakhead,demo_routine
-  move #32,pongx
-  move #3,pongy
+  move.l #yakhead,demo_routine       ; Used by 'attract'.
+  move #32,pongx                     ; Used by 'attract'.
+  move #3,pongy                      ; Used by 'attract'.
   clr pongxv
   move.l #$400000,pongz
   move.l #$1c000,vp_sfs
@@ -4941,22 +5017,22 @@ yakscreen:
 
   move.l #screen3,gpu_screen
   jsr clearscreen
-  move.l #dudes,a0
-  move.l #cfont,a1
+  move.l #dudes,a0                   ; The credits header: "Tempest Dudes".
+  move.l #cfont,a1                   ; The font used.
   move #6+12,d0
   tst pal
   beq snopal
   add #10,d0
 snopal:
   jsr centext
-  lea testpage,a5
+  lea testpage,a5                   ; The full list of credits
   move #46,d0
   move #20+16,d1
   tst pal
   beq snopal2
   add palfix2,d1
 snopal2:
-  jsr pager
+  jsr pager                         ;Write the credits text to screen.
   move d7,-(a7)
   jsr hisettrue3
 ;  move #$7fff,attime
@@ -4964,6 +5040,10 @@ snopal2:
   move (a7)+,d7
   bra fade
 
+; *******************************************************************
+; The routine responsible for drawing a rotating and expanding Yak Head
+; in the background of the credits screen.
+; *******************************************************************
 yakhead:
   sub #1,pongx
   cmp #1,pongx
@@ -5106,6 +5186,10 @@ xane:
   rts
 
   
+; *******************************************************************
+; Calls the 'rex' shader in camel.gas (i.e. gpu_mode 4).
+; Used by the victory bonus screen.
+; *******************************************************************
 yh:
   move.l #4,gpu_mode  ;Multiple images stretching towards you in Z
   lea in_buf,a0
@@ -5125,6 +5209,9 @@ yh:
   jmp gpuwait
 
 
+; *******************************************************************
+; Appears to be unused.
+; *******************************************************************
 rexdemo:
   bsr settrue
   move.l #rxdemo,demo_routine
@@ -5145,6 +5232,9 @@ rxdemo:
   bsr WaitBlit
 
 
+; *******************************************************************
+; Display an 'Excellent' message
+; *******************************************************************
 Excellent:
 rexfb:
   move.l #4,gpu_mode
@@ -5213,6 +5303,9 @@ nopaldude:
   add.l #$e8d2,pongxv
   rts  
 
+; *******************************************************************
+; Display the One-Up graphic
+; *******************************************************************
 draw_oneup:
   move.l #4,gpu_mode  ;Multiple images stretching towards you in Z
   move #0,d7
@@ -6706,6 +6799,11 @@ mp_scapa:
   bra mp_scapa    
 
 
+; *******************************************************************
+; Called periodically during attract mode to detect button presses
+; and run whatever background attract mode is active, e.g. the yak head,
+; specified by demo_routine. 
+; *******************************************************************
 attract:
   move #500,attime
 attr:
@@ -7400,6 +7498,9 @@ sfc_routine:
 bonies:
   dc.l m7scr,_tunn,m7test2,_tunn
 
+; *******************************************************************
+;
+; *******************************************************************
 sweb0:
   move.l #rrts,routine
 ;  move #-1,db_on
@@ -7413,7 +7514,7 @@ sweb0:
   move #1,gb
   rts  
 wwoo:
-   tst warpy
+  tst warpy
   bpl swip1
   move #2,warpy
   move.l #screen3,a0
@@ -7475,6 +7576,9 @@ sweb00:
   move #250,msgtim1
   rts
 
+; *******************************************************************
+; Set the color of the web
+; *******************************************************************
 swebcol:
   lea _web,a0    ;set all the web to current colour
   move.l (a0),a1
@@ -7496,6 +7600,9 @@ pvers:
 paintd:
   rts
 
+; *******************************************************************
+; Set the web to psychedelic colors
+; *******************************************************************
 swebpsych:
   lea _web,a0    ;set all the web to psychedelic colours
   move.l (a0),a1
@@ -9000,6 +9107,9 @@ sass2:
   move.l d0,shotspeed
   rts
 
+; *******************************************************************
+; Say 'Excellent', e.g. when the user naviates to an option.
+; *******************************************************************
 sayex:
   move #21,sfx
   move #101,sfx_pri
@@ -11243,7 +11353,7 @@ iclaw:
   move #248,l_soltarg
 ;  move camroll,g_load    ;get appropriate GPU modules
 znazm:
-   lea _web,a0
+  lea _web,a0
   move.l (a0),a1
   move.l #0,(a1)    ;set web XY only
 ;  move #28,sfx
@@ -11626,6 +11736,9 @@ c_rgt:
 a_ok:
    move.l d1,20(a6)
 
+; *******************************************************************
+; Actually move the claw along the web.
+; *******************************************************************
 domove:
   move.l lanes,a1
   move 16(a6),d0
@@ -12227,6 +12340,9 @@ makeit_rmw:
   move #0,20(a0)
   rts
 
+; *******************************************************************
+; Make a GPU object from the d0-d5 registers.
+; *******************************************************************
 makeit_trans:
   bsr makeit
   move #1,20(a0)
@@ -12320,6 +12436,9 @@ rax:
 ;  bra fade
 
 
+; *******************************************************************
+; Sync with the GPU
+; *******************************************************************
 db:
   move #1,sync      ;request sync
 dboo:
@@ -12329,7 +12448,11 @@ dboo:
   rts
 
 
-IServ:  btst.b #2,INT1+1
+; *******************************************************************
+;
+; *******************************************************************
+IServ:
+  btst.b #2,INT1+1
   beq Frame    ;if not stopobj must be Frame
 
 ; stop object code can go here
@@ -12339,6 +12462,9 @@ IServ:  btst.b #2,INT1+1
   rte
 
 
+; *******************************************************************
+; Is this called on every frame or something?
+; *******************************************************************
 Frame:
 ;  add #1,frames
 
@@ -12487,6 +12613,9 @@ exxit:
 ;  move.w  #0,INT2
   rte
 
+; *******************************************************************
+; The unused rotary controller code. 
+; *******************************************************************
 readrotary:
 ;
 ; read a Rotary Controller
@@ -12779,6 +12908,9 @@ mclut:
   rts
 
 
+; *******************************************************************
+; Pause play if requested.
+; *******************************************************************
 checkpause:
   move.l pad_now,d0
   tst h2h
@@ -12839,6 +12971,9 @@ beastiesoff:
   rts
 
 
+; *******************************************************************
+; Pause and wait for input.
+; *******************************************************************
 paustuff:
   jsr text2_setup
 ;  move.l #$400040,32(a0)
@@ -14265,6 +14400,9 @@ draw_vex:
 
 
 
+; *******************************************************************
+; Draw Objects
+; *******************************************************************
 draw_objects:
 
   tst h2h
@@ -14918,6 +15056,9 @@ r_podraw:
   jmp (a0)    ;draw specific polyobject
 
 
+; *******************************************************************
+; Actually draw the web.
+; *******************************************************************
 drawweb:
   move.l a6,oopss
   move.l (a6),d0
@@ -15213,12 +15354,20 @@ clearscreen:
   jmp gpuwait
 
 
+; *******************************************************************
+; Unused function for reading the rotary controller before the pad.
+; *******************************************************************
 readpad:
 ;
 ; read joypad keys
 
   tst roconon
   bne rrts      ;Pad read is done by rocon routine, if enabled
+
+; *******************************************************************
+; Check for input from the controller pad. This is the one actually
+; used by the game. 
+; *******************************************************************
 dopad:
   movem.l  d0-d2,-(sp)
 
@@ -15334,6 +15483,9 @@ dopad:
   movem.l  (sp)+,d0-d2
   rts
 
+; *******************************************************************
+; Part of the GPU object management system.
+; *******************************************************************
 MoveLink:
 ;
 ; Linked-list transfer entry from list a4 to list a3
@@ -16060,6 +16212,9 @@ sscore2:
   dbra d6,sscore2
   
 
+; *******************************************************************
+; Update the displayed lives left
+; *******************************************************************
 setlives:
   move #148,d0
   move #111,d1
@@ -16085,6 +16240,9 @@ lstliv:
   add #32,d4
   jmp CopyBlock    ;allows for the possibility of losing 2 lives at once (2pl mode)
 
+; *******************************************************************
+; Unused and commented out function for initialising the sound system.
+; *******************************************************************
 initjerry:
 ;
 ; load the synth module into the DSP and initialise the vtable
@@ -16124,6 +16282,9 @@ playsample:
 loopsample:
   rts
 
+; *******************************************************************
+; Recalculate the score.
+; *******************************************************************
 doscore:
   tst h2h
   bne rrts
@@ -16829,6 +16990,9 @@ stetoff:
   move.l #0,(a5)
   rts
 
+; *******************************************************************
+; Play a tune
+; *******************************************************************
 playtune:
   jsr STOP_MOD
   lsl #2,d0
@@ -16843,8 +17007,11 @@ playtune:
   jsr NOFADE
   jmp START_MOD
 
+; *******************************************************************
+; Play a selected sound sample.
+; *******************************************************************
 fox:
-   movem.l d0-d3/a0,-(a7)  ;play a SFX sample
+  movem.l d0-d3/a0,-(a7)  ;play a SFX sample
   move sfx,d0
   lsl #3,d0
   move d0,d1    ;copy 8x
@@ -19778,13 +19945,22 @@ romend: dc.l 0
 
 copstart:
   dc.l 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-       .include "moomoo.dat"
+
+; *******************************************************************
+; This contains the object code from syn6.o, which is the Imagitec
+; 'mod' player for the Jaguar, adapted for Tempest 2K. 
+; 'Mod' is a sound file format. All of the T2K tunes use the format.
+; The Sound FX do not used the 'mod' format.
+; The Imagitec Mod player is basically a 4 channel protrack mod player and 4 channels for sfx.
+; https://forums.atariage.com/topic/157184-imagitec-designs-mod-player-informations/
+; *******************************************************************
+.include "moomoo.dat"
 
 
-       .include "obj2d.s"
-  .include "afont.s"
-  .include "bfont.s"
-  .include "cfont.s"
+.include "obj2d.s"
+.include "afont.s"
+.include "bfont.s"
+.include "cfont.s"
 
 
 
