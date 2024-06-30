@@ -3,8 +3,37 @@
 .incbin "images/beasty5.cry"
 .incbin "images/beasty6.cry"
 .incbin "images/beasty7.cry"
-.incbin "images/beasty8-xtra.cry"
+.incbin "images/beasty8.cry"
 
+modbase      EQU $8d6800
+
+modtable:
+.dc.l modbase + $100   ; tune13.mod
+.dc.l modbase + $18d2c ; tune7.mod
+.dc.l modbase + $37a04 ; tune1.mod
+.dc.l modbase + $5bd7c ; tune3.mod
+.dc.l modbase + $80b22 ; rave4.mod
+.dc.l modbase + $99d72 ; tune5.mod
+.dc.l modbase + $b0a50 ; tune12.mod
+.dc.l 0
+
+; Unused data?
+.dc.l $e37b0000, $e37b0f1b, $f953fa63, $fa63fd5b
+.dc.l $fd4ff943, $f053f047, $f03ff03f, $f03ff033
+.dc.l $f033f033, $f027f027, $f027f01f, $f01ff943
+.dc.l $fd4ffc57, $fc57fd5b, $fc3f0f1b, $00000000
+.dc.l $00000000, $0000e37b, $0000e37b, $fbabfb97
+.dc.l $f05ff053, $f053f053, $f047f047, $f047f03f
+.dc.l $f03ff03f, $f033f033, $f033f027, $f027f027
+.dc.l $f01ff01f, $f01ff013, $f013f013, $f00bfcbb
+.dc.l $ebcb0000, $00000000, $00000000, $e37b0000
+.dc.l $00000000, $00000000, $00000000, $00000000
+.dc.l $00000000, $00000000, $00000000, $00000000
+.dc.l $00000000, $00000000, $00000000, $00000000
+.dc.l $00000000, $00000000, $00000000, $00000000
+.dc.l $00000000, $00000000, $00000000, $00000000
+
+; modbase starts here.
 .incbin "sounds/tune13.mod"
 .DC.L $0000
 .incbin "sounds/tune7.mod"
@@ -19,6 +48,7 @@
 .DC.L $0000
 .incbin "sounds/tune12.mod"
 .DC.L $0000
+
 ; Wait is this a sample too?
 .incbin "incbin/paddingbetweentunesandsmp.bin"
 
