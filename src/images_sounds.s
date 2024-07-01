@@ -17,7 +17,21 @@ modtable:
 .dc.l modbase + $b0a50 ; tune12.mod
 .dc.l 0
 
-; Unused data?
+; This is a fragment of data from beasty8.cry.
+; It must have ended up here and not been overwritten somehow.
+; This is what it looks like in beasty8.cry, starting at position
+; 0xf466 in that file:
+; 0000f460: 0000 0000 0000 e37b 0000 e37b fbab fb97  .......{...{....
+; 0000f470: f05f f053 f053 f053 f047 f047 f047 f03f  ._.S.S.S.G.G.G.?
+; 0000f480: f03f f03f f033 f033 f033 f027 f027 f027  .?.?.3.3.3.'.'.'
+; 0000f490: f01f f01f f01f f013 f013 f013 f00b fcbb  ................
+; 0000f4a0: ebcb 0000 0000 0000 0000 0000 e37b 0000  .............{..
+; 0000f4b0: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+; 0000f4c0: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+; 0000f4d0: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+; 0000f4e0: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+; 0000f4f0: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+
 .dc.l $e37b0000, $e37b0f1b, $f953fa63, $fa63fd5b
 .dc.l $fd4ff943, $f053f047, $f03ff03f, $f03ff033
 .dc.l $f033f033, $f027f027, $f027f01f, $f01ff943
@@ -49,9 +63,16 @@ modtable:
 .incbin "sounds/tune12.mod"
 .DC.L $0000
 
-; Wait is this a sample too?
+; This contains fragments of tune12.mod, tune7.mod, and tune6.mod.
+; The data is the 'sample' date from each mod file since that tends to take
+; up most of each file and appear towards the end. It tells us that at one
+; time tune6.mod was included in the build.
+; Bytes 0     - 3192   tune12.mod
+; Bytes 3192  - 23176  tune7.mod
+; Bytes 23176 - end    tune6.mod
 .incbin "incbin/paddingbetweentunesandsmp.bin"
 
+; This is a table containing metadata for the samples. Pseucode representation below:
 ;                              Prio-                             Ze   Repeat     Repeat
 ;      Name                    rity   Period Start      Length   ro   Start      Length      
 ;      ----------------------  -----  ------ ---------  -------  --   ---------  ---------
@@ -146,3 +167,4 @@ modtable:
 .DC.L $0000
 .incbin "sounds/samples/15"
 
+.incbin "incbin/paddingaftersamples.bin"

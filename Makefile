@@ -22,18 +22,18 @@ t2000.abs: sources
 	./rln/rln -e -a 802000 4000 efa8 src/bin/yak.cof src/bin/vidinit.cof src/bin/yakgpu.cof src/bin/images_sounds.o -o t2000.abs
 
 clean_build: t2000.abs 
-	echo "515c0e0fcfe9a96d24c858968c3bad72  t2000.abs" | md5sum -c
+	echo "44e71799ee06615a59ff57b2c8a1ef52  t2000.abs" | md5sum -c
 
 sources: src/*.s src/*.gas
 
 cartridge: clean_build
 	wine ./utils/filefix t2000.abs
-	./utils/CreateCart.py t2k.rom  src/incbin/romheader.bin T2000.TX src/incbin/paddingaftersamples.bin 
+	./utils/CreateCart.py t2k.rom  src/incbin/romheader.bin T2000.TX
 	echo "602bc9953d3737b1ba52b2a0d9932f7c  t2k.rom" | md5sum -c
 
 dirty: t2000.abs
 	wine ./utils/filefix t2000.abs
-	./utils/CreateCart.py t2k.rom  src/incbin/romheader.bin T2000.TX src/incbin/paddingaftersamples.bin 
+	./utils/CreateCart.py t2k.rom  src/incbin/romheader.bin T2000.TX
 
 run: cartridge
 	wine ./utils/t2k.exe t2k.rom
