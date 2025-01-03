@@ -203,7 +203,8 @@ vend:	movei #StopGPU,r0		;go shut off gpu
 ; *******************************************************************
 ; Draw a 3D vector. Used for drawing webs for example.
 ; *******************************************************************
-vect3d:	movei #_sysflags,r0
+vect3d:	
+  movei #_sysflags,r0
 	load (r0),r1
 	moveta r1,r1			;stash sysflags
 

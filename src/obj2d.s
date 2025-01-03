@@ -1,4 +1,5 @@
-s_flipper: dc.l 4		;4 faces in this object, a shaded solid Flipper
+s_flipper: 
+  dc.l 4		;4 faces in this object, a shaded solid Flipper
 
 	dc.w $f0		;Face colour - RED
 	dc.w 3,$8000		;vertex ptr and i
