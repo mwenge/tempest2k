@@ -5071,7 +5071,7 @@ yakhead3:
 
 
 yhead:
-         move.l #0,gpu_mode
+        move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
         lea fastvector,a0
@@ -7955,15 +7955,15 @@ makemirr:
         clr d0
         move.l freeobjects,a0
         move.l #-13,(a0)
-        clr.l 4(a0)
-        clr.l 8(a0)
-        move.l d0,12(a0)
-        clr.l 16(a0)
-        clr 20(a0)
-        clr 28(a0)
-        move #0,34(a0)
-        clr.l 50(a0)
-        move #31,54(a0)
+        clr.l 4(a0)       ; Clear X position
+        clr.l 8(a0)       ; Clear Y position
+        move.l d0,12(a0)  ; Clear Z position.
+        clr.l 16(a0)      ; Clear position on web.
+        clr 20(a0)        ; Clear velocity.
+        clr 28(a0)        ; Clear XZ orientation.
+        move #0,34(a0)    ; Clear draw routine.
+        clr.l 50(a0)      ; Make sure not marked for deletion.
+        move #31,54(a0)   ; Set object type to claw.
         jmp insertobject
 
 
@@ -8262,9 +8262,9 @@ hgoaty:
         bra hgoaty      ;find 1
 hfreeslot:
         add #4,bully
-        move.l a0,(a2)      ;store address of this bull
-        move.l a2,24(a0)    ;store slot addr. in bull
-        move.l #-14,(a0)    ;header of shot data
+        move.l a0,(a2)          ;store address of this bull
+        move.l a2,24(a0)        ;store slot addr. in bull
+        move.l #-14,(a0)        ;header of shot data
         move.l 4(a1),4(a0)
         move.l 8(A1),8(a0)
         move.l 12(a1),12(a0)    ;XYZ same as claw
@@ -14357,8 +14357,9 @@ r_nxt:
         bra r_ob
 
 
+        ; Our first pass through the activeobjects list.
 dob:
-         move.l activeobjects,a6
+        move.l activeobjects,a6
 d_ob:
         cmpa.l #-1,a6
         beq dobend
@@ -14587,18 +14588,23 @@ nxt_ob:
 oooend:
         rts
 
-
+        ; We've finished our first pass of activeobjects.
 odend:
-         bsr showscore
-        tst blanka
-        beq odvec
-        bsr drawpolyos    ;draw pri-list full of poly objects
+        bsr showscore     ; Show the score.
+        ; In Tempest Classic mode we don't need solid polygons.
+        tst blanka        ; Are we doing solid polygons?
+        beq odvec         ; If not, skip.
+        bsr drawpolyos    ; if we are, draw them.
 odvec:
         bsr drawmsg    ;draw Messager thang if needed
-        tst auto
-        beq namsg
-        cmp.l #vecoptdraw,demo_routine
-        beq namsg
+
+        
+        tst auto      ; Check if we're in demo-mode.
+        beq namsg     ; If we're not, skip.
+        cmp.l #vecoptdraw,demo_routine ; Check if drawing is active in demo mode.
+        beq namsg     ; If not, skip.
+
+        ; Draw the demo text.
         lea bfont,a1
         lea autom1,a0  
         move #50,d0
@@ -14610,7 +14616,7 @@ odvec:
         beq dunfirst
         add palfix2,d0
 dunfirst:
-        jsr centext
+        jsr centext   ; Draw the text in the centre.
 
 namsg:
          tst blanka
@@ -14705,7 +14711,7 @@ gp1smart:
 
 
 xox1:
-         tst evon
+        tst evon
         beq nevon
 
 nevon:
@@ -14723,25 +14729,32 @@ nodraw:
         bsr clearscreen
 
 
-        move.b sysflags,d0
-        and.l #$ff,d0
-        move.l d0,_sysflags    ;pass sys flags to GPU
-        move.l #3,gpu_mode  ;mode 3 is starfield1
-        move.l vp_x,in_buf+4
-        move.l vp_y,in_buf+8
-        move.l vp_z,d0
-        add.l vp_sf,d0
-        move.l d0,in_buf+12    ;pass viewpoint to GPU
-        move.l #field1,d0
-        move.l d0,in_buf+16  ;address off the starfield data structure
-        move.l warp_count,in_buf+20
-        move.l warp_add,in_buf+24
-        lea fastvector,a0
-        jsr gpurun    ;do *field routine
-        jsr gpuwait
+        ;
+        ; Draw the starfield.
+        ; 
+        move.b sysflags,d0   ; Get the sysflags
+        and.l #$ff,d0        ; Just the first byte.
+        move.l d0,_sysflags  ; pass sys flags to GPU
+        move.l #3,gpu_mode   ; mode 3 is starfield1
+        move.l vp_x,in_buf+4 ; Put the camera x pos in the gpu buffer.
+        move.l vp_y,in_buf+8 ; Put the camera y pos in the gpu buffer.
+        move.l vp_z,d0       ; Get the camera z viewpoint
+        add.l vp_sf,d0       ; Add the starfield offset.
+        move.l d0,in_buf+12  ; Put the z pos in the gpu buffer.
+        move.l #field1,d0    ; Get the starfield data structure.
+        move.l d0,in_buf+16  ; Put it in the gpu buffer.
+        move.l warp_count,in_buf+20 ; Add warp count to gpu buffer.
+        move.l warp_add,in_buf+24   ; Add warp address to gpu buffer.
+        lea fastvector,a0    ; Load the 'fastvector' routine for drawing starfields.
+        jsr gpurun           ; Run the routine.
+        jsr gpuwait          ; Wait for it to finish.
 
-        move.l #4,gpu_mode
-        lea vpang,a0
+        ;
+        ; Prepare the viewer's orientation transformation matrix.
+        ; https://en.wikipedia.org/wiki/Transformation_matrix
+        ; 
+        move.l #4,gpu_mode ; Mode 4 is the 'viewer orientation transformation matrix (otm)'.
+        lea vpang,a0       ; Get the viewpoint angle.
         move #0,d0
         and.l #$ff,d0
         move.l d0,(a0)+
@@ -14754,29 +14767,32 @@ nodraw:
         lea _web,a1
         move.l 12(a1),d0
         move.l d0,(a0)+
-        lea xvector,a0
-        jsr gpurun    ;do set viewer-OTM
-        jsr gpuwait
+        lea xvector,a0    ; Load the gpu shader.
+        jsr gpurun        ; Run it.
+        jsr gpuwait       ; Wait.
 
 
-        move.l #96+32,xcent
-        move.l #120,d6
-        add palfix2,d6
-        move.l d6,ycent  ;co-ord centre for web #1
+        ; Set up X and y centre pos for web #1.
+        move.l #96+32,xcent  ; X centre.
+        move.l #120,d6       ; Y centre.
+        add palfix2,d6       ; Adjust for PAL if required.
+        move.l d6,ycent      ; Set as Y centre.
 
-        move.l vp_x,d3
-        move.l vp_y,d4
-        move.l vp_z,d5
-        move.l #2,gpu_mode  ;Mode 2 is do-the-vectors-in-3d-thang
-        lea _web,a6
-        tst 34(A6)
-        beq noo_wb
-        bsr drawweb    ;draw th' Web
+        move.l vp_x,d3       ; Get the viewer's X pos.
+        move.l vp_y,d4       ; Get the viewer's Y pos.
+        move.l vp_z,d5       ; Get the viewer's Z pos.
+        move.l #2,gpu_mode   ; Mode 2 is do-the-vectors-in-3d-thang
+        lea _web,a6          ; Get the web data structure.
+        tst 34(A6)           ; Check there's a web.
+        beq noo_wb           ; If zero, there's no web, so skip drawing.
 
-        add #128,32(a6)
-        move.l #288-32,xcent
-        bsr drawweb    ;draw player 2's Web
-        sub #128,32(a6)
+        bsr drawweb          ; Draw th' Web
+
+        ; Draw Player 2's web.
+        add #128,32(a6)      ; Adjust player 2's rotation.
+        move.l #288-32,xcent ; Move the center over for player 2.
+        bsr drawweb          ; Draw player 2's Web
+        sub #128,32(a6)      ; Restore the previous rotation.
         
 noo_wb:
         move.l activeobjects,a6
@@ -14870,80 +14886,93 @@ zoopy2:
         rts
 
 
-draw_spike:
 ;
 ; Special case of draw, for a spike.
+;
+draw_spike:
 
-        move.l (a6),a0    ;Point to spike header
-        clr.l 20(a0)    ;Spikes are not centered in Z.
-        move.l 36(a0),a1  ;Pointer to vertex table
-        clr.l 8(a1)    ;Always starts at z=bottom of web
-        move 36(a6),d1
-        neg d1
-        ext.l d1
-        asr.l #1,d1
-        move.l d1,20(a1)  ;Stretch spike towards player
-;  sub.l #4,d1
-;  move.l d1,32(a1)  ;(Spike tip)
-        bra draw
+        move.l (a6),a0    ; Get object and put in a0.
+        clr.l 20(a0)      ; Spikes are not centered in Z.
+        move.l 36(a0),a1  ; Pointer to vertex table
+        clr.l 8(a1)       ; Set Y to 0. Always starts at z=bottom of web
+        move 36(a6),d1    ; Get the Delta Z
+        neg d1            ; Negate
+        ext.l d1          ; Make it a long.
+        asr.l #1,d1       ; Shift right.
+        move.l d1,20(a1)  ; Stretch spike towards player
+        bra draw          ; Draw.
 
-draw_vxc:
 ;
 ; Draw, with a variable x-centre
+;
+draw_vxc:
 
-        move.l (a6),d0
-        bmi draw    ;go if vector mode else do pri draw
+        move.l (a6),d0       ; Check if vector or solid.
+        bmi draw             ; Skip to 'draw' immediately if it's a solid.
 
+        ; It's a vector.
 vvxc:
-        move #9,d4
-        sub 36(a6),d4
-        ext.l d4    ;get x-centre
-        move.l d0,a0
-        move.l 12(a0),-(a7)
-        move.l d4,12(a0)  ;centre is an offset from 9, the default Tempest thaang
-        move.l a0,-(a7)
-        bsr draw
-        move.l (a7)+,a0
-        move.l (a7)+,12(a0)  ;restore old centre
+        move #9,d4           ; Set 9 as X offset, the default for Tempest.
+        sub 36(a6),d4        ; Subtract from object's Z.
+        ext.l d4             ; Extend to a long.
+        move.l d0,a0         ; Copy object to a0.
+        move.l 12(a0),-(a7)  ; Stash Z pos.
+        move.l d4,12(a0)     ; Store offset Z pos to copied object.
+        move.l a0,-(a7)      ; Stash copied object.
+        bsr draw             ; Draw it.
+        move.l (a7)+,a0      ; Restore stash object.
+        move.l (a7)+,12(a0)  ; Restore old centre
         rts
 
-
+;
+; Draw  with a number of incrementally coloured layers.
+; Used for vector objects in the activeobjects list.
+;
 draw_z:
-        bsr draw    ;draw original object
-        move 40(a6),-(a7)  ;save orignal colour
+        bsr draw           ; draw original object
+        move 40(a6),-(a7)  ; save orignal colour
 ;  move 44(a6),d0    ;z images counter
-        move #2,d0
-        move 36(a6),d1    ;delta z
-        ext.l d1
-        asl.l #8,d1    ;.. as 16:16
-        move 38(a6),d2    ;delta c
-        move.l 12(a6),d3
+        move #2,d0        ; Z images counter
+        move 36(a6),d1    ; delta z
+        ext.l d1          ; Extend 
+        asl.l #8,d1       ; Convert to 16:16
+        move 38(a6),d2    ; Delta for colour
+        move.l 12(a6),d3  ; Z position
 dr_z:
-        add d2,40(a6)
-        add.l d1,d3
-        movem.l d0-d3,-(a7)
+        add d2,40(a6)     ; Add the delta to the colour
+        add.l d1,d3       ; Add the z delta to the z position. 
+        movem.l d0-d3,-(a7) ; Stash the difference between z positions.
 
-        move.l (a6),a1    ;Get object header
-        lea in_buf+4,a0
-        move.l 4(a6),d0
-        sub.l vp_x,d0
-        move.l d0,(a0)+    ;Co-ordinates as X, Y, Z 16:16 frax
-        move.l 8(a6),d0    ;Combine with camera viewpoint
-        sub.l vp_y,d0
-        move.l d0,(a0)+
-        move.l d3,d0
-        bsr dra
-        movem.l (a7)+,d0-d3
-skint:
-        dbra d0,dr_z
-        move (a7)+,40(a6)  ;get old colour back
+        move.l (a6),a1    ; Get object header
+        lea in_buf+4,a0   ; Get GPU buffer
+        move.l 4(a6),d0   ; Get the X pos
+        sub.l vp_x,d0     ; Subtract the viewpoint
+        move.l d0,(a0)+   ; Add to GPU buffer
+        move.l 8(a6),d0   ; Get the Y pos
+        sub.l vp_y,d0     ; Subtract the viewpoint
+        move.l d0,(a0)+   ; Add to tGPU buffer
+        move.l d3,d0      ; Get the z position
+        bsr dra           ; Run the GPU routine to draw the vectors.
+        movem.l (a7)+,d0-d3 ; Retrieve the difference between z positions
+        dbra d0,dr_z      ; Loop until we've done for all diferences.
+
+        move (a7)+,40(a6) ; Get old colour back
         rts
 
+; The 'base' draw routine when processing 'activeobjects'. If a 'vector'
+; draw is good enough, we just do that. Otherwise we add the object to the
+; 'apriority' list for processing by 'drawpolyos'. 
 draw:
-        move.l a6,oopss
-        move.l (a6),d0
-        bpl vector    ;+ve, it is an address for vector objects..
+        move.l a6,oopss   ; Stash the header.
+        move.l (a6),d0    ; Is the header value greater than zero?
+        bpl vector        ; If yes, then a vector draw will suffice.
 
+        ; Otherwise we need to do add this object to the 'apriority'
+        ; list so that it can be drawn as a solid polygon.
+
+        ; The 'apriority' list stores objects in the descending order
+        ; of their Z co-ordinate. This ensures that nearer objects are
+        ; painted in front of objects that are further away or 'behind' them.
         move.l fpriority,a0  ;get a free priority object
         move.l a6,(a0)
         move.l 12(a6),d0  ;get 'z'
@@ -14951,13 +14980,13 @@ draw:
         move.l apriority,a1
         move.l a1,a2
 chklp:
-        cmp.l #-1,a1    ;no objects active?
+        cmp.l #-1,a1       ;no objects active?
         bne prio1
         bra insertprior    ;we are at top of list then, if we are first a1=a2=-1
 
 prio1:
         cmp.l 12(a1),d0    ;check against stored 'z'
-          bge insertprior    ;behind, insert on to list
+        bge insertprior    ;behind, insert on to list
         move.l a1,a2
         move.l 8(a1),a1    ;get next object
         bra chklp    ;loop until list end or next object in front of us
@@ -14965,48 +14994,49 @@ prio1:
 
 
 
+; Routine for drawing all solid polygons.
+; Process each object in the 'apriority' list. We remove each item after
+; processing.The draw routine for each item is given by its index into
+; the 'solids' array.
 drawpolyos:
-;
-; traverse the priority list, draw the objects and free their priority objects off of the pri list
-
-        move.l #192,xcent
-        move.l #120,d6
-        add palfix2,d6
-        move.l d6,ycent
-        move.l apriority,a0
+        move.l #192,xcent   ; Set 192 as X centre.
+        move.l #120,d6      ; Set 120 as Y centre.
+        add palfix2,d6      ; Adjust for PAL if necessary.
+        move.l d6,ycent     ; Store it as Y centre.
+        move.l apriority,a0 ; Get our 'apriority' list.
 dpoloop:
         cmp.l #-1,a0
-        beq rrts    ;End of list was reached
-        move.l (a0),a6    ;Get object handle
-        move.l (a6),d0
-        move.l a0,-(a7)
-        bsr podraw    ;Go do object type draw
-        jsr gpuwait
-        move.l (a7)+,a0
-        move.l 8(a0),-(a7)  ;next object or -1
-        bsr unlinkprior    ;kill this object
-        move.l (a7)+,a0
-        bra dpoloop    ;loop until all objects drawn and unlinked
+        beq rrts            ; End of list was reached
+        move.l (a0),a6      ; Get the index to 'solids'
+        move.l (a6),d0      ; Store it in d0.
+        move.l a0,-(a7)     ; Stash our current position in the list.
+        bsr podraw          ; Go do object type draw
+        jsr gpuwait         ; wait for gpu
+        move.l (a7)+,a0     ; Get our current position in the list
+        move.l 8(a0),-(a7)  ; Get the next position in the list
+        bsr unlinkprior     ; Delete the current object.
+        move.l (a7)+,a0     ; Move to the next position in the list.
+        bra dpoloop         ; Loop until all objects drawn and unlinked
  
 podraw:
-        move.l #9,d4
-        move.l #9,d5    ;default xy-centre
+        move.l #9,d4        ; Set X centre as 9.
+        move.l #9,d5        ; Set Y centre as 9.
 soldraw:
         neg d0
-        lea solids,a4
-        lsl #2,d0
-        move.l 0(a4,d0.w),a0  ;polyobject draw routine address
-        move.l 4(a6),d2
-        sub.l vp_x,d2
-        move.l 8(a6),d3
-        sub.l vp_y,d3
-        move.l 12(a6),d1
-        sub.l vp_z,d1
-        bmi rrts    ;-ve no go
-        move 28(a6),d0
-        and.l #$ff,d0
-        jmp (a0)    ;draw specific polyobject
-
+        lea solids,a4       ; Get the 'solids' list.
+        lsl #2,d0           ; Multiply our index by 2.
+        move.l 0(a4,d0.w),a0  ; Get the draw routine address from 'solids'.
+        move.l 4(a6),d2     ; Get the X position from our object.
+        sub.l vp_x,d2       ; Subtract our X viewpoint.
+        move.l 8(a6),d3     ; Get the Y position from our object.
+        sub.l vp_y,d3       ; Subtract our Y viewpoint.
+        move.l 12(a6),d1    ; Get the Z position from our object.
+        sub.l vp_z,d1       ; Subtract our X viewpoint.
+        bmi rrts            ; Skip if not visible.
+        move 28(a6),d0      ; Get orientation of object.
+        and.l #$ff,d0       ; Use only the least significant bytes.
+        jmp (a0)            ; Call the objects draw routine.
+                            ; The draw routine returns to 'dpoloop'.
 draw2polyos:
 ;
 ; traverse the priority list, draw the objects on p1's web, then traverse it backwards to draw the objects on p2's web
@@ -15100,6 +15130,7 @@ swebbo:
         lea xvector,a2
         bra draaa  
 
+; Draw a vector
 vector:
         move.l d0,a1    ;Get object header
         lea in_buf+4,a0
@@ -15110,43 +15141,44 @@ vector:
         sub.l vp_y,d0
         move.l d0,(a0)+
         move.l 12(a6),d0
-dra:
-        sub.l vp_z,d0
-        move.l d0,(a0)+
-dragg:
-        lea fastvector,a2
-draaa:
-        move 28(a6),d0
-druuu:
-        and.l #$ff,d0
-        move.l d0,24(a1)  ;XY orientation
-        move 30(a6),d0
-        and.l #$ff,d0
-        move.l d0,28(a1)  ;XZ orientation
-        move 32(a6),d0
-        and.l #$ff,d0
-        move.l d0,32(a1)  ;YZ orientation
 
+; Draw a vector without the above header information.
+dra:
+        sub.l vp_z,d0     ; Subtract the camera viewpoint.
+        move.l d0,(a0)+   ; Add to the GPU buffer.
+dragg:
+        lea fastvector,a2 ; Get the fastvector shader.
+draaa:
+        move 28(a6),d0    ; Get the XZ orientation
+druuu:
+        and.l #$ff,d0     ; Only first byte.
+        move.l d0,24(a1)  ; Copy to XY orientation
+        move 30(a6),d0    ; Get Y rotation of object.
+        and.l #$ff,d0     ; Only first byte.
+        move.l d0,28(a1)  ; Copy to XZ orientation
+        move 32(a6),d0    ; Get Z rotation
+        and.l #$ff,d0     ; Only first byte.
+        move.l d0,32(a1)  ; Copy to YZ orientation
+
+        ; Copy the first 48 bytes of object to GPU buffer.
         move #11,d0    ;copy 48 bytes
 xhead:
         move.l (a1)+,(a0)+  ;copy the header to GPU input ram
         dbra d0,xhead
 
-        move 40(a6),d0
-        and.l #$ff,d0
-        move.l d0,(a0)+    ;colour
-        move 42(a6),d0
-        ext.l d0
-        move.l d0,scaler
-; bsr gpu      ;go and draw the cube  
-        move.l a1,oopss+4
-        move.l (a6),oopss+8
+        move 40(a6),d0    ; Get the colour
+        and.l #$ff,d0     ; Only first byte
+        move.l d0,(a0)+   ; Add to the GPU buffer.
+        move 42(a6),d0    ; Get the scale factor.
+        ext.l d0          ; Make it a long.
+        move.l d0,scaler  ; Move to scaler.
+        move.l a1,oopss+4 ; Stash the updated object.
+        move.l (a6),oopss+8 ; Stash the original object.
 godraa:
-        move.l #2,gpu_mode
-;  lea fastvector,a0
-        move.l a2,a0
-        jsr gpurun    ;do gpu routine
-        jsr gpuwait
+        move.l #2,gpu_mode; Set the GPU mode
+        move.l a2,a0      ; Load the fastvector shader.
+        jsr gpurun        ; Run the gpu routine
+        jsr gpuwait       ; Wait until finished.
         rts
 
 
