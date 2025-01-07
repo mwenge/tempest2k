@@ -130,7 +130,7 @@ qrts:	movem.l	(sp)+,d0-d2/a0-a1
 ;*		a0
 ;*======================================================================*
 gpurun:
-  bsr gpuload			;load if not already loaded
+        bsr gpuload			;load if not already loaded
 
 	movem.l	d0-d1/a0,-(sp)		; save GPU address for restore
 

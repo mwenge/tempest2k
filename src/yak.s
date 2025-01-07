@@ -1,3 +1,8 @@
+; *******************************************************************
+; yak.s
+; This is a cleaned-up and commented version of the main source code
+; file for Tempest 2000.
+; *******************************************************************
         .include  'jaguar.inc'
         .extern  VideoIni
 
@@ -54,7 +59,6 @@
         samtab       EQU $9ac800
         modbase      EQU $8d6800
         tune1        EQU $8e6900
-;  eeprom EQU $980000 
         allbutts     EQU $22002000
         allkeys      EQU $000f00ff
         acheat       EQU $000a000a
@@ -112,7 +116,6 @@
         webz         EQU 110
         in_buf       equ G_RAM+$f60
         INTPOS       equ (260*2)+11
-;  INTPOS equ 1
         TOP          equ 60    ;top of screen in halflines  (60=NTSC)
         SIDE         equ -8
         source_flags EQU (G_RAM+$ff4)
@@ -122,7 +125,6 @@
 
 
 .text
-
 ; *******************************************************************
 ; Initialisation starts here.
 ; *******************************************************************
@@ -178,8 +180,7 @@ cram:
         move.l #rrts,routine
         move.l #rrts,fx
 
-
-;*****int setup
+        ; Set up interupts
         jsr scint    ;set intmask according to controller prefs
         move.l #Frame,$100
         move.w n_vde,d0
@@ -192,7 +193,6 @@ cram:
         move.w  sr,d0
         and.w  #$f8ff,d0
         move.w  d0,sr    ;interrupts on
-;*****
 
         jsr eepromload    ;get eeprom settings
         jsr scint
@@ -209,6 +209,7 @@ mpstab:
         add #$80,d1
         move.b d1,(a1)+
         dbra d0,mpstab
+
         tst.b vols
         bne mu_on
         move #1,modstop
@@ -219,8 +220,6 @@ mu_on:
         jsr zscore
         jsr setlives
         jsr iv      ;initialise vector ram pointers 
-
-
 
         clr CLUT
         clr CLUT+8
@@ -237,11 +236,6 @@ mu_on:
         move.l #screen3,a0
         jsr clrscreen
 
-;  move.l #$7f,d0
-;  clr d1
-;  jsr SET_VOLUME
-;  move.l d0,vset
-
         jsr iv
         bsr make_claws
         bsr make_webs
@@ -257,6 +251,9 @@ mu_on:
         move.l #$ff00,z_top    ;top intensity (z=1) **16 bits**
         move.l #1300,z_max
 
+; *******************************************************************
+; rreset
+; *******************************************************************
 rreset:
         tst wson
         beq nnnn
@@ -314,7 +311,6 @@ brdb:
         clr _pauen
         clr pauen
         clr pawsed
-;  clr auto
         clr.l s_routine
         clr.l msg
         clr inf_zap
@@ -328,11 +324,14 @@ brdb:
         move #15,t2k_high
         move #15,trad_max
         move #15,trad_high  
-dntrstl: move #-1,keyplay
+
+        ; Manage title screen, attract mode, version screen.
+dntrstl:move #-1,keyplay
         bsr lsel    ;do attract/demo/lselect
         tst z
         bne rreset
 
+        ; Start a game
         move.l #skore,score
         move.l score,a0
         clr.l (a0)+
@@ -343,9 +342,10 @@ dntrstl: move #-1,keyplay
         clr bolev1
         clr bolev2
         clr bolev3
-;   move.l #screen3,gpu_screen
-;  jsr clearscreen
 
+; *******************************************************************
+; dloop
+; *******************************************************************
 dloop:
         clr.l vp_x
         clr.l vp_y
@@ -355,8 +355,7 @@ ego:
         move #1,pauen
         clr finished
         jsr (a0)
-;  tst finished
-;  bne treset
+
         clr _pauen
         tst gb
         bne dobeastly
@@ -370,6 +369,9 @@ ego:
         bne treset
         bra dloop
 
+; *******************************************************************
+; Set up the NTSC/PAL options.
+; *******************************************************************
 spall:
         btst.b #6,sysflags
         beq slopt
@@ -388,7 +390,10 @@ slopt:
         bset.b #5,sysflags  ;gpu can use bit 5 as a pal flag
 notpal1: rts
 
-
+; *******************************************************************
+; h2hover
+; Head to Head game is over
+; *******************************************************************
 h2hover:
         move.l #screen3,a0
         move.l gpu_screen,a1
@@ -481,7 +486,11 @@ z2:
         move.l #gamefx,fx
         bra ego
 
-dobeastly: move.l #screen3,a0
+; *******************************************************************
+; dobeastly
+; *******************************************************************
+dobeastly: 
+        move.l #screen3,a0
         move.l a0,gpu_screen
         jsr clrscreen
         lea conm1,a0
@@ -507,7 +516,6 @@ stvpa:
         move #0,pongphase
         move #0,pongphase2
         move #0,pongscale
-;  move #0,pongzv
         move #160,d4
         move #88,d5
         tst pal
@@ -524,6 +532,10 @@ certnotpal: move #63,d0
         clr gb
         bra dloop
 
+; *******************************************************************
+; glocube
+; A 'demo_routine' routine
+; *******************************************************************
 glocube:
         move #7000,attime
         move.l #(PITCH1|PIXEL16|WID384),d0
@@ -558,10 +570,17 @@ glocube:
         move d0,polspd2
         jmp ppolydemo2
 
+; *******************************************************************
+; dumint
+; *******************************************************************
 dumint: move #$0101,INT1
         move #$0101,INT2
         rte
 
+; *******************************************************************
+; glopyr
+; A 'demo_routine' routine
+; *******************************************************************
 glopyr:
         lea sines,a0
         move frames,d0
@@ -615,6 +634,9 @@ echck:
         move #-1,attime
         bra dop
 
+; *******************************************************************
+; clearee
+; *******************************************************************
 clearee:
         move.l #rrts,routine
 dbonce:
@@ -664,9 +686,11 @@ eeek:
         bra eeek
 
 
+; *******************************************************************
+; lsel
+; Manage title screen, attract mode, version screen.
+; *******************************************************************
 lsel:
-;  move #0,d0
-;  jsr playtune
         clr _auto
         clr dnt
         tst misstit
@@ -677,8 +701,6 @@ lsel:
 dtiti:
         bsr spall
         bsr versionscreen
-;  add #8,beasties+4
-;  add #8,beasties+64
         move #1,auto
         tst z
         bmi atra1
@@ -698,10 +720,6 @@ atra2:
         bmi setauto
         bne rrrts
         beq stropt
-;   bsr text_o_screen  ; info screen thang
-;  tst z
-;  bne rrrts
-;  clr z
 stropt:
         jsr DISABLE_FX    ;any SFX to off
         jsr ENABLE_FX
@@ -712,6 +730,7 @@ stropt:
         beq gselg
         bmi setauto
         bra rrrts
+
 setauto: clr z
         clr cwave
         clr cweb
@@ -760,13 +779,13 @@ lvlset:
 
 
 ; *******************************************************************
+; getlvl
 ; Select Level screen
 ; *******************************************************************
 getlvl:
         clr pawsed
         clr.l paws
         clr noxtra
-;  move #-1,db_on
         move.l #rrts,routine
         clr sync
         move #1,screen_ready
@@ -817,11 +836,7 @@ not2k:
 
         tst h2h
         bne nbmsg
-;  bsr setcsmsg      ;set the CS message
         lea afont,a1
-;  move.l csmsg,a0  
-;  move #20,d0
-;  jsr centext
         clr.l csmsg
 nbmsg:
         lea cfont,a1
@@ -900,6 +915,9 @@ draw_oo:
         add palfix2,d0
 gnopal2: jmp centext
 
+; *******************************************************************
+; draw_o
+; *******************************************************************
 draw_o: cmp #1,webcol
         bne do_2
         add #1,wpt
@@ -962,6 +980,10 @@ gadig:
         rts
 
 
+; *******************************************************************
+; zoomto
+; A 'routine' routine.
+; *******************************************************************
 zoomto:
         lea _web,a0
         add #2,30(a0)
@@ -973,6 +995,10 @@ zoomto:
 rrrts:
         rts
 
+; *******************************************************************
+; waitfor
+; A 'routine' routine.
+; *******************************************************************
 waitfor:
         lea _web,a0
         add #1,28(a0)
@@ -1065,8 +1091,12 @@ gzn:
          move.l #znext,routine
         clr 24(a0)
         rts
-zprev:
-         lea _web,a0
+
+; *******************************************************************
+; zprev
+; A 'routine' routine.
+; *******************************************************************
+zprev:  lea _web,a0
         bsr ccent
         add.l #$40000,12(a0)
         add #2,28(a0)
@@ -1091,6 +1121,10 @@ zprev_1: bsr sweb
         move.l #zshow,routine
         rts
 
+; *******************************************************************
+; znext
+; A 'routine' routine.
+; *******************************************************************
 znext:
         lea _web,a0
         bsr ccent
@@ -1114,6 +1148,10 @@ znext:
         move.l #zshow,routine
         rts
 
+; *******************************************************************
+; zshow
+; A 'routine' routine.
+; *******************************************************************
 zshow:
         lea _web,a0
         move 26(a0),d0
@@ -1125,6 +1163,10 @@ zshow:
         move.l #waitfor,routine
         rts
 
+; *******************************************************************
+; dowf
+; Do warp flash
+; *******************************************************************
 dowf:
         move.l warp_flash,BG
         tst.l warp_flash
@@ -1133,7 +1175,9 @@ dowf:
 zsho1:
         rts
 
-
+; *******************************************************************
+; ccent
+; *******************************************************************
 ccent:
          move 30(a0),d0
         and #$fc,d0
@@ -1158,14 +1202,12 @@ ccnt3: sub #4,d0
         move d0,vp_x
         rts
 
-mandy:
+; *******************************************************************
+; mandy
 ;
 ; do Mandelbrot-sets and stuff; the Pause Mode demos
-
-
-fxsel:
-
-
+; *******************************************************************
+mandy:
 settrue3:
         move #TOP,d1
 settrue33:
@@ -1184,6 +1226,10 @@ settrue33:
         move.l #rrts,fx
         rts
 
+; *******************************************************************
+; settrue
+; Unused code
+; *******************************************************************
 settrue:
         lea beasties,a0    ;set main screen to 16-bit
         move.l #screen2,d2
@@ -1203,6 +1249,11 @@ stru:
         jsr makeit_trans
         move.l #rrts,fx
         rts
+
+; *******************************************************************
+; sthang
+; Unused code
+; *******************************************************************
 
 sthang:
 ;  lea parrot,a0
@@ -1260,10 +1311,11 @@ sthng: move d7,-(a7)
         lea bdec,a3
         bra gjoy
 
-
+; *******************************************************************
+; stunnel
+; Unused code
+; *******************************************************************
 stunnel:
-; lea parrot,a0
-;  jsr gpuload  
         bsr settrue
         clr pongx
         clr pongy
@@ -1272,6 +1324,11 @@ stunnel:
         move ranptr,rpcopy
         bra mp_demorun
 
+; *******************************************************************
+; stunl
+; A 'demo_routine' routine
+; Unused code
+; *******************************************************************
 stunl:
          move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
@@ -1350,10 +1407,11 @@ notar:
         rts
 
 
+; *******************************************************************
+; sflipper
+; Unused code
+; *******************************************************************
 sflipper:
-; lea parrot,a0
-;  jsr gpuload    ;load the GPU code for the demos
-
         lea beasties,a0    ;set main screen to 16-bit
         move.l #screen2,d2
         move.l d2,gpu_screen
@@ -1374,6 +1432,10 @@ sflipper:
         bra mp_demorun
 
 
+; *******************************************************************
+; sflip
+; A 'demo_routine' routine
+; *******************************************************************
 sflip:
          move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
@@ -1417,12 +1479,20 @@ shok:
 shapes: dc.l draw_sflipper,draw_sfliptank,draw_sfuseball,draw_spulsar,draw_sfusetank,draw_spulstank,s_shot,draw_spshot,s_sattest
         dc.l -1
 
+; *******************************************************************
+; draw_h2hgen
+; A member of the solids list.
+; *******************************************************************
 draw_h2hgen:
         lea leaf,a1
         move #7,d7
         move #$20,d6
         bra s_multi
 
+; *******************************************************************
+; s_shot
+; A member of the solids list.
+; *******************************************************************
 s_shot:
         lea chevron,a1
         move #2,d7
@@ -1454,6 +1524,10 @@ towards:
         rts
 
 
+; *******************************************************************
+; draw_h2hshot
+; A member of the solids list.
+; *******************************************************************
 draw_h2hshot:
         tst 36(a6)
         bpl cringbull
@@ -1471,6 +1545,10 @@ draw_blueflip:
         lea blueflipper,a1
         bra ccdraw
 
+; *******************************************************************
+; draw_adroid
+; A member of the solids list.
+; *******************************************************************
 draw_adroid:
         cmp #2,20(a6)  ;check for are we zapping someone
         bne dadr
@@ -1517,6 +1595,10 @@ dr_beast2:
         lea hornm2,a1
         bra drawsolidxy
 
+; *******************************************************************
+; draw_beast
+; A member of the solids list.
+; *******************************************************************
 draw_beast:
         move #0,d6
         move 46(a6),d7
@@ -1540,6 +1622,10 @@ drbeast:
 beastybits:
         dc.l hornm1,hornm2,hornm3,hornm3
 
+; *******************************************************************
+; cdraw_sflipper
+; A member of the solids list.
+; *******************************************************************
 cdraw_sflipper:
         lea s_flipper,a1
 ccdraw:
@@ -1555,20 +1641,36 @@ cntdne:
         move.l #9,d5
         bra drawsolidxy
 
+; *******************************************************************
+; draw_sflipper
+; A member of the 'shapes' list
+; *******************************************************************
 draw_sflipper:
         lea s_flipper,a1
         bra drawsolidxy
 
 
+; *******************************************************************
+; draw_mirr
+; A member of the solids list.
+; *******************************************************************
 draw_mirr:
         lea mirr,a1
         bra drawsolidxy
 
 
+; *******************************************************************
+; draw_spshot
+; A member of the 'shapes' list
+; *******************************************************************
 draw_spshot:
         lea pshot,a1
         bra drawsolidxy
 
+; *******************************************************************
+; draw_pup1
+; A member of the solids list.
+; *******************************************************************
 draw_pup1:
         tst 48(a6)
         bpl opupring
@@ -1584,6 +1686,10 @@ draw_pup1:
         movem.l (a7)+,d1-d3
         bra pupring
 
+; *******************************************************************
+; draw_spulsar
+; A member of the solids list.
+; *******************************************************************
 draw_spulsar:
         cmp #3,34(a6)  ;check for flipper-mode
         bne upulsa
@@ -1599,6 +1705,10 @@ upulsa:
         move.l 0(a0,d6.w),a1
         bra drawsolidxy
 
+; *******************************************************************
+; draw_spulstank
+; A member of the solids list.
+; *******************************************************************
 draw_spulstank:
         move pucnt,d2
         move frames,d6
@@ -1614,6 +1724,10 @@ draw_spulstank:
         add.b #$80,d0
         bra drawsolidxy
 
+; *******************************************************************
+; draw_sfuseball
+; A member of the solids list.
+; *******************************************************************
 draw_sfuseball:
         move ranptr,-(a7)
         move frames,d7
@@ -1643,7 +1757,10 @@ dsfb1:
         move (a7)+,ranptr
         rts
 
-
+; *******************************************************************
+; draw_sfusetank
+; A member of the solids list.
+; *******************************************************************
 draw_sfusetank:
         lea fbcols,a6
         move #4,d7
@@ -1701,6 +1818,10 @@ ssat:
         rts
 
 
+; *******************************************************************
+; draw_sfliptank
+; A member of the solids list.
+; *******************************************************************
 draw_sfliptank:
         lea s_fliptank2,a1
         move frames,d7
@@ -1715,9 +1836,12 @@ draw_sfliptank:
         move d6,52(a1)
         bra drawsolidxy
 
-pulser:
+; *******************************************************************
+; pulser
 ;
 ; enter with d7=counter, return pulse colour in d6, uses d5-7 and a2
+; *******************************************************************
+pulser:
 
         and #$ff,d7
         lea sines,a2
@@ -1735,18 +1859,22 @@ pulser:
         or d5,d6
         rts
 
-
-
-
-drawsolid:
+; *******************************************************************
+; drawsolid
 ;
 ; draw a solid Tempest enemy, enter with a1=poly shape address, d0=angle, d1=Z-position
 ; d2-d3=XY, d4-d5=Centre position
+; *******************************************************************
+drawsolid:
  
         clr.l d2
         clr.l d3
         move.l #9,d4
         move.l #9,d5
+
+; *******************************************************************
+; drawsolidxy
+; *******************************************************************
 drawsolidxy:
         lea in_buf,a0
         move.l a1,(a0)+
@@ -1764,12 +1892,13 @@ drawsolidxy:
         rts
 
 ; *******************************************************************
+; gameover
 ; Game Over sequence.
-; *******************************************************************
-gameover:
 ;
 ; The game over graphical effect.
 ;
+; *******************************************************************
+gameover:
         move.l #rrts,routine
         clr _pauen
         clr pauen
@@ -1803,10 +1932,13 @@ ddthis:
         bsr gogame
         cmp #1,z
         beq rrrts
-        jsr display_high_scores
+        jsr dohiscores
         jmp eepromsave
 
-GameOverFeed:
+; *******************************************************************
+; gofeed
+; A 'demo_routine' routine
+; *******************************************************************
 gofeed:
         move.l #(PITCH1|PIXEL16|WID384),d0
         move.l d0,source_flags
@@ -1888,6 +2020,10 @@ babb:
         move.l #$1f4,pongx
         rts
 
+; *******************************************************************
+; clearfeed
+; A 'demo_routine' routine
+; *******************************************************************
 clearfeed:
         move.l #(PITCH1|PIXEL16|WID384),d0
         move.l d0,source_flags
@@ -1935,12 +2071,11 @@ clearfeed:
         rts
 
 ; *******************************************************************
+; versionscreen
 ; Draws the main title screen.
 ; *******************************************************************
-TitleScreen:
 versionscreen:
         move.l #rrts,routine
-;  move #-1,db_on
         jsr InitBeasties
         lea beasties,a0    ;set main screen to 16-bit
         move.l #screen2,d2
@@ -2002,6 +2137,9 @@ mypal:
         bsr attr
         bra fade
 
+; *******************************************************************
+; v_ersion
+; *******************************************************************
 v_ersion:
  move pongxv,d0
         and #$ff,d0
@@ -2010,7 +2148,10 @@ v_ersion:
         ext d7
         ext.l d7
         asr.l #5,d7
-;  clr.l d7
+
+; *******************************************************************
+; versiondraw
+; *******************************************************************
 versiondraw:
         move.l cscreen,a5
         move.l #(PITCH1|PIXEL16|WID384),d0    ;Feedback
@@ -2061,21 +2202,22 @@ versiondraw:
         bsr ssys
         jmp rexfb
 
-
-
-; *******************************************************************
-;
-; *******************************************************************
 dopyr:
         move #64,d0      ;glowing pyramid (selector?)
         move #80,d1  
         move #192,d6
         move #120,d7
+; *******************************************************************
+; dop
+; *******************************************************************
 dop:
         add.l #$40000,pc_1
         add.l #$60100,pc_2
         bsr makepyr
 
+; *******************************************************************
+; ppyr
+; *******************************************************************
 ppyr:
         move.l #2,gpu_mode
         move.l #pypoly1,in_buf
@@ -2093,6 +2235,7 @@ ppyr:
 
 
 ; *******************************************************************
+; centext
 ; Display centred text on the screen.
 ; *******************************************************************
 centext:
@@ -2118,6 +2261,9 @@ centext:
         jsr gpurun
         jmp gpuwait
 
+; *******************************************************************
+; setfires
+; *******************************************************************
 setfires:
         lea fire_2,a0
         lea firea,a1
@@ -2135,6 +2281,9 @@ sfres:
         dbra d0,sfres
         rts
 
+; *******************************************************************
+; firesel
+; *******************************************************************
 firesel:
         bsr setfires
         move.l #option4,the_option
@@ -2182,6 +2331,9 @@ firsend:
         jmp eepromsave
 
 
+; *******************************************************************
+; rotset
+; *******************************************************************
 rotset:
         move.l #option5,the_option
 
@@ -2207,6 +2359,9 @@ con2chg:
         bra bglp
 
 
+; *******************************************************************
+; sconopt
+; *******************************************************************
 sconopt:
         move.l #o5s10,d0
         btst.b #3,sysflags
@@ -2222,13 +2377,9 @@ scono2:
         move.l d0,option5+12
 scint:
 
-;  bclr.b #4,sysflags
-;  bclr.b #3,sysflags
-
         move.b sysflags,d0
         and #$18,d0
         beq sintoff
-;  move.b #3,intmask    ;enable rocon interrupt
         move pit1,d0
         lsr #3,d0
         move d0,PIT1
@@ -2236,16 +2387,13 @@ scint:
         move #1,roconon
         rts
 sintoff:
-; move.b #1,intmask
         move pit1,PIT1
         move pit1,ppit1
         clr roconon
         rts
-            
-
-
 
 ; *******************************************************************
+; optionscreen
 ; Select game type screen, e.g. classic, duel, etc.
 ; *******************************************************************
 optionscreen:
@@ -2376,6 +2524,10 @@ dcc3:
         move (a7)+,cweb
         bra optionscreen
 
+; *******************************************************************
+; vecoptdraw
+; A 'demo_routine' routine
+; *******************************************************************
 vecoptdraw:
         lea _web,a0
         add #3,28(a0)
@@ -2384,6 +2536,9 @@ vecoptdraw:
         bra opts
 
 
+; *******************************************************************
+; sopt3
+; *******************************************************************
 sopt3:
         move.l #o3s10,d0    ;set correct optionlist for screen params
         btst.b #0,sysflags
@@ -2399,6 +2554,9 @@ dweeb2:
         move.l d0,option3+12
         rts
         
+; *******************************************************************
+; selse
+; *******************************************************************
 selse:
         move #1,players
         move #$1c,bulland
@@ -2467,6 +2625,9 @@ nonkey:
 
 opling:
         bsr fade
+; *******************************************************************
+; selsa
+; *******************************************************************
 selsa:
         clr blanka
         tst selected
@@ -2474,6 +2635,9 @@ selsa:
         move #0,view
         rts
 
+; *******************************************************************
+; xsel1
+; *******************************************************************
 xsel1:
         move #-1,blanka
         move #0,view
@@ -2485,6 +2649,9 @@ xsel1:
         move #$1f,weband
         rts
 
+; *******************************************************************
+; do_choose
+; *******************************************************************
 do_choose:
         move.l #oselector,routine
         clr.l rot_cum
@@ -2492,23 +2659,26 @@ do_choose:
         move #27,sfx
         move #101,sfx_pri
         jmp fox
-;do_choose: move.l #selector,routine
-;  bra attract
 
+; *******************************************************************
+; oselector
+; Process selection of options in the option screen.
+; A 'routine' routine.
+; *******************************************************************
 oselector:
         cmp.l #option1,the_option
         bne selector      ;from the main game screen you get to the options screen..
 
-        move.l pad_now,d0
-        and.l #a147,d0
-        cmp.l #a147,d0
-        bne nchen  
-        tst chenable
-        bne nchen
-        move #1,chenable
+        move.l pad_now,d0 ; Get pressed buttons.
+        and.l #a147,d0    ; Check for cheat combo.
+        cmp.l #a147,d0    ; Cheat combo selected?
+        bne nchen         ; No, skip.
+        tst chenable      ; Is cheating enabled?
+        bne nchen         ; No, skip.
+        move #1,chenable  ; Enable cheating!
         jsr sayex    ;say Excellent for cheat-enable
-nchen:
-         btst.b #1,pad_now+2  ;loop for Option pressed
+
+nchen:  btst.b #1,pad_now+2  ;loop for Option pressed
         beq selector
         move #1,optpress
         move.l #rrts,routine
@@ -2572,6 +2742,9 @@ decsel1:
         sub #1,selected
         bra selend
 
+; *******************************************************************
+; seldb
+; *******************************************************************
 seldb:
         move.l pad_now,d0
         or.l pad_now+4,d0
@@ -2580,11 +2753,17 @@ seldb:
         move.l #oselector,routine
         rts
 
+; *******************************************************************
+; ssys
+; *******************************************************************
 ssys:
         move.b sysflags,d0
         and.l #$ff,d0
         move.l d0,_sysflags
         rts
+; *******************************************************************
+; optiondraw
+; *******************************************************************
 optiondraw:
         move.l #1,gpu_mode
         bsr ssys
@@ -2608,6 +2787,7 @@ optiondraw:
         jsr gpuwait
 
 ; *******************************************************************
+; opts
 ; Show 'Press option for game options'
 ; *******************************************************************
 opts:
@@ -2682,11 +2862,17 @@ dropts2:
         dbra d7,dropts2
         rts  
 
+; *******************************************************************
+; text2_setup
+; *******************************************************************
 text2_setup:
         lea in_buf,a0
         move.l #bfont,4(a0)
         bra tsu
 
+; *******************************************************************
+; text_setup
+; *******************************************************************
 text_setup:
         lea in_buf,a0
         move.l #afont,4(a0)    ;font data structure
@@ -2701,6 +2887,9 @@ tsu:
         move.l #0,36(a0)    ;text mode 1 (With Dropshadow)
         rts
 
+; *******************************************************************
+; textlength
+; *******************************************************************
 textlength:
         move.l a3,a2
         move #0,d0
@@ -2710,6 +2899,9 @@ tlengt:
         add #17,d0
         bra tlengt
 
+; *******************************************************************
+; g_textlength
+; *******************************************************************
 g_textlength:
         move.l d2,a2  ;d2.l points to 0term text
         move #0,d7
@@ -2725,9 +2917,12 @@ g_otit:
         sub d6,d7
         rts
 
-init_tbb:
+; *******************************************************************
+; init_tbb
 ;
 ; init 16-position circular trailback buffer. Store x.l, y.l, z.l, ang.l.
+; *******************************************************************
+init_tbb:
 
         lea screen5,a0    ;use it, spare ram is all
         move #31,d0
@@ -2740,6 +2935,9 @@ itbb:
         clr tbbptr    ;trailback buffer ptr
         rts
 
+; *******************************************************************
+; run_tbb
+; *******************************************************************
 run_tbb:
         tst pawsed
         bne rrrts
@@ -2752,6 +2950,9 @@ run_tbb:
         add #1,tbbptr
         rts
 
+; *******************************************************************
+; get_tbb
+; *******************************************************************
 get_tbb:
         and #$1f,d0
         asl #4,d0
@@ -2759,17 +2960,22 @@ get_tbb:
         lea 0(a3,d0.w),a3
         rts
 
-
-
-
+; *******************************************************************
+; tuntest
+; Unused code
+; *******************************************************************
 tuntest:
         move.l #rrts,routine
         jsr InitBeasties
         bsr settrue
+
+; *******************************************************************
+; _tunn
+; Initialize and run the bonus level where we fly through space with a
+; crosshair and navigating through wormholes/tunnels.
+; *******************************************************************
 _tunn:
-;  move #-1,db_on
         clr sync
-;_tunn:
         clr.l iacon+4
         clr.l rot_cum
         move #200,psmsgtim
@@ -2818,6 +3024,8 @@ _tunn:
         rts
  
 ; *******************************************************************
+; tunrun
+; A 'routine' routine.
 ; Is this for managing a player doing a full roll of the tunnel in some way?
 ; *******************************************************************
 tunrun:
@@ -2825,14 +3033,9 @@ tunrun:
         beq sjoycon
         move.l rot_cum,d0
         clr.l rot_cum
-;  lsl.l #2,d0
         add.l d0,iacon+4
         move.l iacon+4,d0
         add.l d0,iacon
-;  clr.l rot_cum
-;  lea iacon,a0
-;  add.l d0,4(a0)
-;  jsr iii
         bra weewee
         
 sjoycon:
@@ -2922,6 +3125,10 @@ nbnc2:
         rts
 
 
+; *******************************************************************
+; tundraw
+; Draw the bonus level tunnel and crosshair.
+; *******************************************************************
 
 tundraw:
         move.l #0,gpu_mode
@@ -3074,7 +3281,6 @@ dingy:
         move.l (a7)+,d0
         move.l d0,gpu_screen
         movem.l (a7)+,d0-d7/a0-a6
-
 
 sttoat:
         move.b d1,2(a1)
@@ -3316,7 +3522,10 @@ ddonki:
         jmp donki
 
 
-
+; *******************************************************************
+; nxtpage
+; Unused code
+; *******************************************************************
 nxtpage:
         move.l #screen3,gpu_screen
         jsr clearscreen
@@ -3331,6 +3540,9 @@ nxtpage:
         move (a7)+,d7
         rts
 
+; *******************************************************************
+; premess
+; *******************************************************************
 premess:
         lea premes1,a0
         lea cfont,a1
@@ -3344,6 +3556,10 @@ defnotpal:
         lea premes2,a0
         jmp centext
 
+; *******************************************************************
+; text_o_run
+; A 'routine' routine.
+; *******************************************************************
 text_o_run:
         move.l grndvel,d0
         add.l d0,grnd
@@ -3357,6 +3573,10 @@ text_o_run:
 
 
 
+; *******************************************************************
+; text_o_draw
+; Unused code
+; *******************************************************************
 text_o_draw:
         move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
@@ -3633,6 +3853,8 @@ vicrun:
 
 
 ; *******************************************************************
+; m7run
+; A 'routine' routine.
 ; Control the movement in some way
 ; *******************************************************************
 m7run:
@@ -3716,6 +3938,9 @@ do_yy:
         move.l d0,delta_i
         rts
 
+; *******************************************************************
+; cg
+; *******************************************************************
 cg:
         move.l grndvel,d0
         sub.l d0,cg_cnt
@@ -3745,9 +3970,6 @@ nflippit:
         clr d1    ;make signed 16:16 XY co-ordinates
         move.b (a5)+,d2  ;get type in d2
         bpl slegg
-;  move.l #course1,cg_ptr
-;  clr cg_tim
-;  rts
         move #-1,cg_tim  ;shutdown; end of wave
         rts
 slegg:
@@ -3762,7 +3984,6 @@ slegg:
         move #1,34(a6)
         clr 50(a6)
         move #27,54(a6)    ;type is run-gate
-;  clr 56(a6)
         clr 20(a6)
         move.l a6,a0
         sub #1,tunc
@@ -3772,6 +3993,10 @@ slegg:
 isso:
         jmp insertobject  ;make it
 
+; *******************************************************************
+; run_gate
+; A member of the draw_vex list.
+; *******************************************************************
 run_gate:
         add #1,28(a6)
         move.l grndvel,d0
@@ -3872,9 +4097,12 @@ ennd:
         rts
 
 
-fade:
+; *******************************************************************
+; fade
 ;
 ; go into FADE after merging screen3 to current screen and turning off BEASTIES+64
+; *******************************************************************
+fade:
 
         tst beasties+76
         bmi ofade
@@ -3899,7 +4127,9 @@ pmf2:
         jsr MergeBlock
         move #-1,beasties+76
 
-
+; *******************************************************************
+; ofade
+; *******************************************************************
 ofade:
 ;  move pauen,-(a7)
         clr _pauen      ;can't pause in fade
@@ -3959,6 +4189,10 @@ vicend:
         rts
 
 
+; *******************************************************************
+; draw_gate
+; A member of the solids list.
+; *******************************************************************
 draw_gate:
         tst psycho
         bne dopsy
@@ -4005,6 +4239,10 @@ pyrri:
         clr.l d0
         bra zqz  
 
+; *******************************************************************
+; dsclaw
+; A member of the draw_vex list.
+; *******************************************************************
 dsclaw:
         move.l 4(a6),d2
         sub.l vp_x,d2
@@ -4027,6 +4265,9 @@ snop2:
         move.l 0(a1,d6.w),a1
         bra zqz
 
+; *******************************************************************
+; noicon
+; *******************************************************************
 noicon:
         tst psycho
         beq polygate
@@ -4073,6 +4314,10 @@ gibbits:
         dc.l g1,g2  
 
 
+; *******************************************************************
+; viccount
+; A 'routine' routine
+; *******************************************************************
 viccount:
         sub #1,pongx
         bpl rrrts
@@ -4080,6 +4325,10 @@ viccount:
         move #1,screen_ready
         rts
 
+; *******************************************************************
+; failcount
+; A 'routine' routine
+; *******************************************************************
 failcount:
         sub #1,pongx
         bpl rrrts
@@ -4087,6 +4336,10 @@ failcount:
         move #1,screen_ready
         rts
 
+; *******************************************************************
+; ffade
+; A demo_routine
+; *******************************************************************
 ffade:
         add #1,pongy
         move pongy,d0
@@ -4124,9 +4377,9 @@ failfade:
         jsr gpurun      ;do it
         jmp gpuwait
 
-
-
-
+; *******************************************************************
+; m7test
+; *******************************************************************
 m7test:
         tst psycho
         beq npsu1
@@ -4198,6 +4451,9 @@ wwear:
         jmp dob
         
         
+; *******************************************************************
+; npsu1
+; *******************************************************************
 npsu1:
          move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
@@ -4248,6 +4504,9 @@ npsu1:
 
         rts
 
+; *******************************************************************
+; Unused code
+; *******************************************************************
 ;  move #$FF,d0
 ;  sub grnd,d0
 ;  and.l #$ff,d0
@@ -4343,6 +4602,10 @@ m7zdec:
         sub #4,m7z
         rts
 
+; *******************************************************************
+; rndbox
+; Unused code
+; *******************************************************************
 rndbox:
         move #300,d1
         jsr rand
@@ -4378,9 +4641,11 @@ swebtest:
 ; Check the current score for a HS, do text entries as necessary and display HST
 
 
-dohiscores:
-display_high_scores:
+; *******************************************************************
+; dohiscores
 ; Do the hight scores.
+; *******************************************************************
+dohiscores:
         clr ud_score
         tst t2k
         beq showscores    ;only t2k gets here
@@ -4556,6 +4821,9 @@ lfbop1:
         bra setkey    ;Got one, enter me in the Table O dudey
 
 
+; *******************************************************************
+; fplace
+; *******************************************************************
 fplace:
         lea keys,a0    ;Happy, happy, joy, joy.  You got an easy Key.
         lea entxt,a1
@@ -4579,6 +4847,9 @@ lkey1:
         lea 4(a0),a0
         bra lkey0
 
+; *******************************************************************
+; getbrag
+; *******************************************************************
 getbrag:
         move #5,ennum
         move #2,fw_sphere
@@ -4586,6 +4857,10 @@ getbrag:
         move.l #conm5,enl2
         move.l #conm6,enl3
 
+; *******************************************************************
+; txenter
+; Enter some text
+; *******************************************************************
 txenter:
         move.l #rrts,routine
 ;  move #-1,db_on
@@ -4675,7 +4950,6 @@ flann:
         move.b #0,(a0)
         bra xxen
 
-
 doolete:
         move ennum,d0
         cmp enmax,d0
@@ -4685,8 +4959,6 @@ doolete:
         sub.l #1,pongxv
         add #1,ennum
         bra ddb
-
-        
 
 ischaa:
         sub #1,ennum
@@ -4702,7 +4974,7 @@ ddb:
         bra inc_aa
 
 jtxen:
-         move.l #rrts,a0
+        move.l #rrts,a0
         move.l a0,a1
         move.l #inchar,a2
         move.l #dechar,a3
@@ -4714,18 +4986,12 @@ up2e:
         bra ggjj
 
 inchar:
-; move.l pongx,d0
-;  lsr #6,d0
-;  cmp #31,d0
-;  bge rrts
         move #4,pongy
 inc_aa:
         move #16,pongz
         move.l #tgoto,routine
         rts
 dechar:
-; tst.l pongx
-;  beq rrts
         move #-4,pongy
         bra inc_aa
 tgoto:
@@ -4740,9 +5006,9 @@ tgoto:
         move.l #txen,routine
         rts
 
-
-
-
+; *******************************************************************
+; txendraw
+; *******************************************************************
 txendraw:
         move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
@@ -4754,7 +5020,6 @@ txendraw:
 
         jsr dob      ;draw Objects
 
-;  clr d5
         move #$1c,d5
         lea legal,a2    ;get legal chars
         move.l #192,d7
@@ -4788,7 +5053,6 @@ slet01:
         move.l d0,4(a0)    ;start pixel
         move.l d1,8(a0)    ;size
         move.l #$10000,12(a0)  ;xscale
-;  move.l d3,12(a0)  ;xscale
         move.l d3,16(a0)  ;yscale
         move.l #0,20(a0)  ;xshear
         move.l #0,24(a0)  ;yshear
@@ -4827,18 +5091,22 @@ stettin:
         move #150,d0
         jmp centext
 
-;  bra starri
-
+; *******************************************************************
+; clvp
+; *******************************************************************
 clvp:
         clr.l vp_z
         clr.l vp_ztarg
 clvpx:
-         clr.l vp_x
+        clr.l vp_x
         clr.l vp_y
         clr.l vp_xtarg
         clr.l vp_ytarg
         rts
 
+; *******************************************************************
+; hisettrue
+; *******************************************************************
 hisettrue:
         lea beasties,a0    ;set main screen to 16-bit
         move.l #screen2,d2
@@ -4851,12 +5119,11 @@ hisettrue3:
         bra settrue33
 
 ; *******************************************************************
+; showscores
 ; Display the high score table
 ; *******************************************************************
-ShowHighScoreTable:
 showscores:
         move.l #rrts,routine
-;  move #-1,db_on
         clr sync
         bsr InitBeasties
         bsr hisettrue
@@ -4877,10 +5144,6 @@ showscores:
 
         ; The high score table template
         lea hstab1,a4      ;get HS table to display
-;  lea bfont,a1
-;  lea 80(a4),a0      ;point at winners msg
-;  move #110,d0
-;  jsr centext
 
         lea cfont,a1
         move.l a4,a0      ;point at winners msg
@@ -4933,6 +5196,7 @@ ctl:
         bra fade
 
 ; *******************************************************************
+; swebby
 ; Display the rotating web behind the high score table.
 ; *******************************************************************
 swebby:
@@ -4951,10 +5215,7 @@ swebby:
         add #1,30(a0)
         jsr draw_objects      ;draw rotatey-Web
 
-; *******************************************************************
-; Do the 'falling star' plane behind the rotating web.
-; We fall through here from above.
-; *******************************************************************
+        ; Do the 'falling star' plane behind the rotating web.
 starri:
         lea in_buf,a0
         move.l #32,(a0)      ;no. of stars
@@ -4994,6 +5255,7 @@ stlp:
         rts  
 
 ;********************************************************
+; yakscreen
 ; Display the credits screen
 ;********************************************************
 yakscreen:
@@ -5042,6 +5304,7 @@ snopal2:
         bra fade
 
 ; *******************************************************************
+; yakhead
 ; The routine responsible for drawing a rotating and expanding Yak Head
 ; in the background of the credits screen.
 ; *******************************************************************
@@ -5068,7 +5331,6 @@ yakhead3:
         add.b #2,pongxv
         add.b #3,pongxv+1
         bra yhead
-
 
 yhead:
         move.l #0,gpu_mode
@@ -5107,7 +5369,6 @@ yhead:
         jsr gpurun    ;do gpu routine
         jsr gpuwait
 
-
         ; Paint the Yak head.
         lea pic2,a2
         move.l #$030007,d0  ;srce start pixel address
@@ -5130,7 +5391,6 @@ notatari:
         move.l pongz,d6
         move pongx,d5
         and #$ff,d5
-;  lsr #2,d5
         swap d5
         clr d5
         move frames,d4
@@ -5146,7 +5406,6 @@ dyakhead:
         asr.l #2,d0
         move.l d0,(a0)+    ;x-scale
         move.l d0,(a0)+    ;y-scale
-;  move.l #$40000,(a0)+
         lea sines,a4
         move.b pongxv,d1
         and #$ff,d1
@@ -5164,17 +5423,12 @@ dyakhead:
         asr.l #6,d0
         move.l d0,(a0)+
         move.l #1,(a0)+    ;Mode 1 = Centered
-;  move.l 4(a6),d0
-;  sub.l vp_x,d0
         move.l #0,(a0)+
-;  move.l 8(a6),d0
-;  sub.l vp_y,d0
         move.l #0,(a0)+
         move.l d6,d0
         add.l #$200000,d6
         tst.l d0
         bmi xane      ;no point in drawing -ves
-;  sub.l vp_z,d0
         move.l d0,(a0)+  ;Dest x,y,z
         lea parrot,a0
         jsr gpurun      ;do clear screen
@@ -5182,12 +5436,10 @@ dyakhead:
 xane:
         movem.l (a7)+,d0-d1
         dbra d7,dyakhead
-
-
         rts
-
         
 ; *******************************************************************
+; yh
 ; Calls the 'rex' shader in camel.gas (i.e. gpu_mode 4).
 ; Used by the victory bonus screen.
 ; *******************************************************************
@@ -5211,7 +5463,9 @@ yh:
 
 
 ; *******************************************************************
+; rexdemo
 ; Appears to be unused.
+; Unused code
 ; *******************************************************************
 rexdemo:
         bsr settrue
@@ -5236,7 +5490,6 @@ rxdemo:
 ; *******************************************************************
 ; Display an 'Excellent' message
 ; *******************************************************************
-Excellent:
 rexfb:
         move.l #4,gpu_mode
         lea in_buf,a0
@@ -5306,6 +5559,7 @@ nopaldude:
 
 ; *******************************************************************
 ; Display the One-Up graphic
+; A member of the draw_vex list.
 ; *******************************************************************
 draw_oneup:
         move.l #4,gpu_mode  ;Multiple images stretching towards you in Z
@@ -5376,6 +5630,10 @@ doneup2:
         dbra d7,doneup2
         rts
 
+; *******************************************************************
+; drawsphere
+; A member of the draw_vex list.
+; *******************************************************************
 drawsphere:
 
         lea in_buf,a0
@@ -5392,7 +5650,6 @@ drawsphere:
         and.l #$ff,d0
         move.l d0,d1
         move.l d0,d2
-;  lsl.l #1,d2    ;was 2
         lsr.l #2,d1
         neg.l d1
         add.l #$ff,d1
@@ -5429,6 +5686,10 @@ sphertypes:
         dc.l $08,$02,32,61
 
 
+; *******************************************************************
+; draw_pixex
+; A member of the draw_vex and solids list.
+; *******************************************************************
 draw_pixex:
         move.l #4,gpu_mode
         lea in_buf,a0
@@ -5455,6 +5716,10 @@ draw_pixex:
         jsr gpurun      ;do clear screen
         jmp gpuwait
 
+; *******************************************************************
+; dxshot
+; A member of the draw_vex and solids list.
+; *******************************************************************
 dxshot:
         move 30(a6),d4
         and.l #$ff,d4
@@ -5466,6 +5731,10 @@ dxshot:
         lea xbit,a1
         bra s_multi
 
+; *******************************************************************
+; draw_pring
+; A member of the draw_vex list.
+; *******************************************************************
 draw_pring:
         move.l #$80000,d4
         move.l #4,d3
@@ -5496,8 +5765,9 @@ dprdpr:
         jsr gpurun      ;do clear screen
         jmp gpuwait
 
-
-
+; *******************************************************************
+; pupring
+; *******************************************************************
 pupring:
         move.l #6,gpu_mode
         move #3,d4
@@ -5526,6 +5796,9 @@ prloo:
         dbra d4,prloo
         rts
 
+; *******************************************************************
+; opupring
+; *******************************************************************
 opupring:
         movem.l d0-d3,-(a7)
         move.l #6,gpu_mode
@@ -5552,7 +5825,6 @@ opupring:
         move #3,d4
         move 48(a6),d7
         move.l #7,gpu_mode
-;  move.l #6,gpu_mode
 prloo4:
         lea in_buf,a0
         move.l #24,(a0)+    ;# pixels per ring
@@ -5570,17 +5842,17 @@ prloo4:
         swap d0
         clr d0
         move.l d0,(a0)+  ;radius 16:16
-;  jsr gpuwait
         move.l #0,(a0)+    ;phase
         lea xparrot,a0
         jsr gpurun      ;do clear screen
         jsr gpuwait
         dbra d4,prloo4
         rts
-        
 
-
-
+; *******************************************************************
+; draw_prex
+; A mamber of the draw_vex list.
+; *******************************************************************
 draw_prex:
         move.l 4(a6),d0
         move.l 8(a6),d1
@@ -5595,7 +5867,6 @@ draw_prex:
         move 46(a6),d4
         move #2,d5
         move.l #7,gpu_mode
-;  move.l #6,gpu_mode
 
 prexloop:
         movem.l d0-d5,-(a7)
@@ -5613,9 +5884,7 @@ prexloop:
         move.l d3,(a0)+  ;radius 16:16
         move frames,d0
         and.l #$ff,d0
-;  clr.l d0
         move.l d0,(a0)+    ;phase
-;  jsr gpuwait
         lea xparrot,a0
         jsr gpurun      ;do clear screen
         jsr gpuwait
@@ -5626,7 +5895,9 @@ prexloop:
         dbra d5,prexloop
         rts
 
-
+; *******************************************************************
+; draw_pprex
+; *******************************************************************
 draw_pprex:
         clr.l d0
         clr.l d4
@@ -5664,6 +5935,9 @@ pprexloop:
         rts
 
 
+; *******************************************************************
+; dmpix
+; *******************************************************************
 dmpix:
         move.l 16(a6),a2
         move.l #4,gpu_mode  ;Multiple images stretching towards you in Z
@@ -5703,6 +5977,9 @@ dmup:
         dbra d7,dmup
         rts
 
+; *******************************************************************
+; draw_mpixex
+; *******************************************************************
 draw_mpixex:
         move.l #pic,a2
 giff:
@@ -5739,6 +6016,9 @@ mpixex:
         dbra d7,mpixex
         rts 
 
+; *******************************************************************
+; gringbull
+; *******************************************************************
 gringbull:
         move.l #3,gpu_mode  ;Multiple images stretching towards you in Z
         lea in_buf,a0
@@ -5746,6 +6026,9 @@ gringbull:
         move.l #$8300d7,(a0)+  ;srce start pixel address
         bra ringa2
 
+; *******************************************************************
+; cringbull
+; *******************************************************************
 cringbull:
         move.l #3,gpu_mode
         bra ringa  
@@ -5771,6 +6054,10 @@ ringa2:
         jsr gpurun      ;do clear screen
         jmp gpuwait
 
+; *******************************************************************
+; polyr
+; Unused code
+; *******************************************************************
 polyr:
         move.l #testpoly,in_buf
         bsr itpoly
@@ -5796,6 +6083,10 @@ polyr:
         bra mp_demorun  
 
 
+; *******************************************************************
+; polydemo
+; Unused code
+; *******************************************************************
 polydemo:
         move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
@@ -5816,6 +6107,10 @@ pollies:
         dbra d0,pollies
         rts
 
+; *******************************************************************
+; ppolyr
+; Unused code
+; *******************************************************************
 ppolyr:
         move.l #testppoly,in_buf
         bsr itppoly
@@ -5842,6 +6137,10 @@ ppolyr:
         bra mp_demorun  
 
 
+; *******************************************************************
+; ppolyr2
+; Unused code
+; *******************************************************************
 ppolyr2:
 ; lea parrot,a0
 ;  jsr gpuload    ;load the GPU code for the demos
@@ -5880,8 +6179,10 @@ ppolyr2:
         bsr ppolysize
         bra mp_demorun  
 
-
-
+; *******************************************************************
+; polyr2
+; Unused code
+; *******************************************************************
 polyr2:
 ; lea parrot,a0
 ;  jsr gpuload    ;load the GPU code for the demos
@@ -5941,6 +6242,9 @@ psize:
         dbra d4,psize
         rts
 
+; *******************************************************************
+; ppolysize
+; *******************************************************************
 ppolysize:
         move #1,d4
         move #1,d5
@@ -5973,6 +6277,9 @@ ppsize:
         dbra d4,ppsize
         rts
 
+; *******************************************************************
+; makepyr
+; *******************************************************************
 makepyr:
         movem d6-d7,-(a7)
         move pc_1,d7
@@ -6054,6 +6361,9 @@ makepyr:
 
         rts
 
+; *******************************************************************
+; ppolydemo2
+; *******************************************************************
 ppolydemo2:
         move.l #2,gpu_mode
         move.l #ppoly1,in_buf
@@ -6135,6 +6445,9 @@ sintens:
         bra jj
 
 
+; *******************************************************************
+; polydemo2
+; *******************************************************************
 polydemo2:
         move.l #poly1,in_buf
         lea xparrot,a0
@@ -6212,6 +6525,9 @@ sintens2:
         move d1,poly3+16
         move d1,poly4+16
 
+; *******************************************************************
+; jj
+; *******************************************************************
 jj:
         move.l pad_now,d0
         and.l #allbutts,d0
@@ -6271,6 +6587,9 @@ xinc:
         move #383,polsizx
         rts
 
+; *******************************************************************
+; ppolydemo
+; *******************************************************************
 ppolydemo:
         move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
@@ -6293,6 +6612,9 @@ ppollies:
         dbra d0,ppollies
         rts
 
+; *******************************************************************
+; itppoly
+; *******************************************************************
 itppoly:
         move ranptr,rpcopy    ;so sequence is always the same
 rtppoly:
@@ -6343,6 +6665,9 @@ rtpp:
         dbra d7,rtpp
         rts
 
+; *******************************************************************
+; itpoly
+; *******************************************************************
 itpoly:
         move ranptr,rpcopy    ;so sequence is always the same
 rtpoly:
@@ -6387,6 +6712,10 @@ rtp:
 
 
 
+; *******************************************************************
+; feedme3
+; Unused code?
+; *******************************************************************
 
 feedme3:
         move.l #testppoly,in_buf
@@ -6424,9 +6753,10 @@ feedme5:
 tilfb:
         bra ppolydemo2
 
-
-
-
+; *******************************************************************
+; pyrfb
+; Unused?
+; *******************************************************************
 pyrfb:
         move.l #0,gpu_mode
         move.l #192,xcent
@@ -6513,10 +6843,13 @@ doofb1:
         move #130,d7
         bra dop
 
-
 feedme:
         move.l #polyfb,feedline
         clr pongx
+
+; *******************************************************************
+; feed
+; *******************************************************************
 feed:
         bsr settrue
         move.l #feedback,demo_routine
@@ -6528,6 +6861,9 @@ feed:
         move #120,pongzv
         bra mp_demorun
 
+; *******************************************************************
+; feedback
+; *******************************************************************
 feedback:
         move.l #(PITCH1|PIXEL16|WID384),d0
         move.l d0,source_flags
@@ -6687,10 +7023,11 @@ ddelta:
         and.l #$ffffff,delta_i
         rts
 
-
-
+; *******************************************************************
+; rotate
+; Unused?
+; *******************************************************************
 rotate:
-
 rorota:
         add #$01,d0
         move d0,d1
@@ -6703,8 +7040,11 @@ rorota:
         move.l d1,in_buf+16    ;change scales
         rts        ;do it again
         
+; *******************************************************************
+; scarper
+; Unused code?
+; *******************************************************************
 scarper:
-
 scarp:
         bsr pingpong
 scarp0:
@@ -6714,6 +7054,10 @@ scarp0:
         rts
 
 
+; *******************************************************************
+; siner
+; Unused code?
+; *******************************************************************
 siner:
          move.l #screen3,gpu_screen
 sner:
@@ -6761,8 +7105,10 @@ voxel:
         rts
 
 
-
-
+; *******************************************************************
+; demorun
+; Unused?
+; *******************************************************************
 demorun:
         move.l #demons,demobank
 drun:
@@ -6784,6 +7130,9 @@ scapa:
         bne mandy
         bra scapa    
 
+; *******************************************************************
+; mp_demorun
+; *******************************************************************
 mp_demorun:
         move #1,screen_ready    ;as above, but a multi-pass-capable version that lets you start
         clr db_on                ;the gpu in demo_routine
@@ -6801,6 +7150,7 @@ mp_scapa:
 
 
 ; *******************************************************************
+; attract
 ; Called periodically during attract mode to detect button presses
 ; and run whatever background attract mode is active, e.g. the yak head,
 ; specified by demo_routine. 
@@ -6860,13 +7210,13 @@ nunpa:
          move #1,screen_ready
         rts
 
-
-
+; *******************************************************************
+; gogame
+; *******************************************************************
 gogame:
         move #1,screen_ready    ;as above, attract mode version
         clr db_on
         clr x_end
-;  move pauen,_pauen
 gog:
         bsr thang
         tst z
@@ -6879,6 +7229,10 @@ gogx:
 ;  move #-1,db_on
         rts
 
+; *******************************************************************
+; drive
+; Unused code
+; *******************************************************************
 drive:
         move.l #drxinc,a0
         move.l #drxdec,a1
@@ -6946,6 +7300,9 @@ ppong:
         add.l d0,pongy
         bra pingzz
 
+; *******************************************************************
+; pingpong
+; *******************************************************************
 pingpong:
         move.l pongx,d0
         add.l pongxv,d0
@@ -6968,13 +7325,6 @@ bouncey:
 pingz:
         move.l d0,pongy
 pingzz:
-;  move.l pongz,d0
-;  sub.l pongzv,d0
-;  bpl pingj
-;  add.l pongzv,d0
-;  neg.l pongzv
-;pingj:  move.l d0,pongz
-;  add.l #$400,pongzv
         move.l #iscal,a0    ;for UP
         move.l #dscal,a1    ;for DOWN
         move.l #dang,a2    ;for LEFT
@@ -7009,6 +7359,9 @@ sscal0:
         rts
 
 
+; *******************************************************************
+; iang
+; *******************************************************************
 iang:
         btst.b #5,pad_now+2
         beq aang2
@@ -7080,6 +7433,11 @@ curset:
         rts
 
 
+; *******************************************************************
+; it
+; Invoked as '_demo'.
+; Start a demo game in attract mode
+; *******************************************************************
 it:
         move.l #$ff00,z_top    ;top intensity (z=1) **16 bits**
         move.l #1300,z_max    ;(distance to 0-intensity)*4
@@ -7088,11 +7446,6 @@ it:
         move #0,warp_add  ;Set stuff unique to this Mode
         move.l #0,warp_count
         move.l #$20000,vp_sfs
-;  lea beasties+64,a0  ;score object #1
-;  move #32,(a0)
-;  move #TOP+20,4(a0)
-;  lea beasties+128,a0
-;  move #TOP+80,4(a0)
 
         move #1,mfudj
         tst lives
@@ -7156,6 +7509,9 @@ h2hin:
         bra go_in      ;go do H2H mode
         
 
+; *******************************************************************
+; stdinit
+; *******************************************************************
 stdinit:
 
         lea beasties+64,a0
@@ -7189,6 +7545,9 @@ go_in:
         clr db_on
         bra mainloop
 
+; *******************************************************************
+; setweb
+; *******************************************************************
 setweb:
         lea _web,a0
         lea 4(a0),a0    ;object #0 is the Web
@@ -7221,9 +7580,7 @@ stdwebsel:
         clr dnt
 sweboo:
 
-;*****
-; Load a web to _web
-;****
+        ; Load a web to _web
         move cweb,d0
         and weband,d0
         add webbase,d0    ;<<<
@@ -7269,9 +7626,8 @@ clbulls:
         tst t2k
         beq clokay
         move #21,noclog
-clokay:
-        
-        move.l #$70007,shots
+
+clokay: move.l #$70007,shots
         move #32,afree
         move #1,szap_avail  ;Nuevo Superzapper!
         clr szap_on
@@ -7301,24 +7657,19 @@ rsetw:
         swap d2
         clr d2
         lsr.l #7,d2
-        
         bra iwo   
 
-
 dontwrap:
-        lea waves,a0
-        asl #2,d0
-        move.l 0(a0,d0.w),d0
-        bne iw
+        lea waves,a0         ; Store the waves array in a0.
+        asl #2,d0            ; d0 is cwave, multiply by 2.
+        move.l 0(a0,d0.w),d0 ; Use as index into waves to get the wave data structure.
+        bne iw               ; If we have one, go to iw to initialize it.
         clr cwave
         bra rsetw
-iw:
-         move.l d0,a0
-iwo:
-        bsr init_wave    ;initialise the wave generator
+
+iw:     move.l d0,a0         ; Move the data structure to a0.
+iwo:    bsr init_wave        ; Use it to initialize the wave.
         clr pucnt
-;  move cwave,d0
-;  move d0,d1
 
         move d1,d3
         tst t2k
@@ -7483,6 +7834,9 @@ sass:
 nt2k_reset:
         rts
 
+; *******************************************************************
+; palme
+; *******************************************************************
 palme:
         tst pal
         beq rrrts
@@ -7491,6 +7845,9 @@ palme:
         add.l d7,d3
         rts
 
+; *******************************************************************
+; sfc_routine
+; *******************************************************************
 sfc_routine:
         move d0,4(a0)
         move d0,52(a0)
@@ -7500,14 +7857,13 @@ sfc_routine:
         rts
 
 bonies:
-        dc.l m7scr,_tunn,m7test2,_tunn
+        dc.l m7scr, _tunn, m7test2, _tunn
 
 ; *******************************************************************
-;
+; sweb0
 ; *******************************************************************
 sweb0:
         move.l #rrts,routine
-;  move #-1,db_on
         tst t2k
         beq swip1
         cmp #99,cwave
@@ -7581,6 +7937,7 @@ sweb00:
         rts
 
 ; *******************************************************************
+; swebcol
 ; Set the color of the web
 ; *******************************************************************
 swebcol:
@@ -7605,6 +7962,7 @@ paintd:
         rts
 
 ; *******************************************************************
+; swebpsych
 ; Set the web to psychedelic colors
 ; *******************************************************************
 swebpsych:
@@ -7643,6 +8001,9 @@ pintd:
 fields:
         dc.l siney,siney
 
+; *******************************************************************
+; circa
+; *******************************************************************
 circa:
         bsr slebon    ;set level bonus
 
@@ -7708,9 +8069,12 @@ dlebon:
         rts
 ;  bra ashowscore    ;show level bonus as score
 
-siney:
+; *******************************************************************
+; siney
 ;
 ; make a siney star field
+; *******************************************************************
+siney:
 
         move cwave,d0
         cmp #31,d0
@@ -7739,6 +8103,9 @@ ips:
         bra initpstarfield
         
 
+; *******************************************************************
+; makedroid
+; *******************************************************************
 makedroid:
         cmp #2,players
         beq rrts    ;no Droid in 2p mode
@@ -7769,6 +8136,9 @@ mkdroid:
         bsr set_rezclaw
         bra insertobject
 
+; *******************************************************************
+; rundroid
+; *******************************************************************
 rundroid:
         clr whichclaw
         add #1,28(a6)      ;Universal stuff; flash and rotate the cube
@@ -7818,9 +8188,12 @@ movedroid:
         move 48(a6),16(a6)    ;do that very Thang
         rts
 
-droidright:
+; *******************************************************************
+; droidright
 ;
 ; init Droid motion to the right.
+; *******************************************************************
+droidright:
 
         bsr webinfo
         move d4,d6
@@ -7828,9 +8201,12 @@ droidright:
         bsr r_webinfo
         bra droim
 
-droidleft:
+; *******************************************************************
+; droidleft
 ;
 ; Init droid motion to the left along the Web.
+; *******************************************************************
+droidleft:
 
         bsr webinfo      ;get info on our lane
         move d4,d6
@@ -7855,9 +8231,12 @@ droim:
         move #16,44(a6)      ;# steps
         rts  
         
-lor:
-;
+; *******************************************************************
+; lor
+; left or right
 ; enter with d0=web column # of target. For any web, returns d1=0 for go left, 1 for go right, based on a6 object's position.
+; *******************************************************************
+lor:
 
         move 16(a6),d1      ;Flipper current pos
         cmp d0,d1
@@ -7897,9 +8276,9 @@ lor1:
         move #1,d1
         rts
 
-
-
-
+; *******************************************************************
+; h2hclaws
+; *******************************************************************
 h2hclaws:
         move.l freeobjects,a6
         move.l a6,_claw
@@ -7966,11 +8345,9 @@ makemirr:
         move #31,54(a0)   ; Set object type to claw.
         jmp insertobject
 
-
-
-
-        
-
+; *******************************************************************
+; setclaw
+; *******************************************************************
 setclaw:
         move.l a6,a0
         move.l claws,(a6)    ;claw header
@@ -8013,6 +8390,10 @@ set_rezclaw:
         move #0,52(a6)
         rts
 
+; *******************************************************************
+; make_bits
+; Make the vector based objects.
+; *******************************************************************
 make_bits:
         move.l #$00,d0      ;parameters for object - XYZ scale...
         move.l #$01,d1
@@ -8143,6 +8524,9 @@ mkpus:
         rts
 
 
+; *******************************************************************
+; make_claws
+; *******************************************************************
 make_claws:
         lea uclaws,a6
         lea claws,a5
@@ -8158,7 +8542,6 @@ mclaws:
         move d7,-(a7)
         clr d7
         move.l (a6)+,a1
-;  move.l #flipper,a1
         movem.l d0-d6,-(a7)
         bsr make_vo3d  
         movem.l (a7)+,d0-d6
@@ -8167,6 +8550,9 @@ mclaws:
         dbra d7,mclaws
         rts
 
+; *******************************************************************
+; make_webs
+; *******************************************************************
 make_webs:
         lea raw_webs,a6
         lea webs,a5
@@ -8198,9 +8584,12 @@ mk_webs:
         bne mk_webs
         rts
 
-fire:
+; *******************************************************************
+; fire
 ;
 ; check for firebutton 2 and do superzapper.
+; *******************************************************************
+fire:
 
 ;  btst.b #1,pad_now    ;check for Superzapper request
         move.l fire_3,d0
@@ -8243,6 +8632,9 @@ nmsg:
         rts  
 
 
+; *******************************************************************
+; h2hfrab
+; *******************************************************************
 h2hfrab:
         
         move.l d0,-(a7)  
@@ -8279,6 +8671,9 @@ hfreeslot:
         bra insertobject
 
 
+; *******************************************************************
+; run_h2hshot
+; *******************************************************************
 run_h2hshot:
         add #3,28(a6)    ;make it flicker
 moomoomoo:
@@ -8385,23 +8780,16 @@ p2_prac:
         bra showwin
 
 
-frab:
+; *******************************************************************
+; frab
 ;
 ; fire a bullet
-
-;  tst blanka
-;  beq sfrab
-
-;  move.l #-7,d5
-;  bra frab0
-sfrab:
+; *******************************************************************
+frab:
         move.l _shot,d5
         
 frab0:
-
         move.l freeobjects,a0    ;address of new shot
-
-
         lea bulls,a3
 goaty:
         move bully,d0
@@ -8463,9 +8851,10 @@ oaafire2:
         move #1,sfx_pri
         jsr fox
         bra insertobject    ;Do it!
-        
 
-
+; *******************************************************************
+; make_h2hball
+; *******************************************************************
 make_h2hball:
         move.l freeobjects,a0
         move web_max,d1
@@ -8491,6 +8880,9 @@ make_h2hball:
         jsr toweb
         jmp insertobject
 
+; *******************************************************************
+; run_h2hball
+; *******************************************************************
 run_h2hball:
         add #3,30(a6)
         add #1,32(a6)
@@ -8540,10 +8932,16 @@ h2hballmodes:
         dc.l gstartmove,gmove,breset
 
 
+; *******************************************************************
+; breset
+; *******************************************************************
 breset:
         clr 20(a6)
         rts
 
+; *******************************************************************
+; make_h2hgen
+; *******************************************************************
 make_h2hgen:
         move.l freeobjects,a0
         move.l #-15,(a0)
@@ -8566,6 +8964,9 @@ make_h2hgen:
         bsr toweb  
         bra insertobject
 
+; *******************************************************************
+; run_h2hgen
+; *******************************************************************
 run_h2hgen:
         add #1,28(a6)
 
@@ -8594,6 +8995,9 @@ hupweb:
 h2hgenmode:
         dc.l gstartmove,gmove,ggen
 
+; *******************************************************************
+; gstartmove
+; *******************************************************************
 gstartmove:
          bsr webinfo      ;get info on our lane
         move d4,d6
@@ -8632,6 +9036,9 @@ nuchan:
         move #1,20(a6)      ;mode to Do Motion
         rts  
 
+; *******************************************************************
+; gmove
+; *******************************************************************
 gmove:
         sub.b #1,24(a6)
         bpl rrts      ;motion delay
@@ -8649,6 +9056,9 @@ gmove1:
         move #2,20(A6)      ;Mode to generate enemies
         rts
 
+; *******************************************************************
+; ggen
+; *******************************************************************
 ggen:
         clr 20(A6)
         tst _won
@@ -8680,8 +9090,9 @@ arse:
         move.l a5,a6
         rts
 
-
-
+; *******************************************************************
+; player_shot
+; *******************************************************************
 player_shot:
 ;
 ; move a standard Tempest player's shot
@@ -8706,9 +9117,12 @@ xshot:
         bgt kill_shot
         rts
 
-alienfire:
+; *******************************************************************
+; alienfire
 ;
 ; try and shoot from the current alien
+; *******************************************************************
+alienfire:
 
         sub.b #1,a_firerate
         bpl rrts
@@ -8751,6 +9165,9 @@ vfyre:
         move #8,54(a0)      ;type is alien-shot
         bra insertobject    ;Do it!
 
+; *******************************************************************
+; run_ashot
+; *******************************************************************
 run_ashot:
         add #4,28(a6)    ;spin the shot
         add.b #$30,41(a6)    ;make it flash
@@ -8800,15 +9217,11 @@ ouch:
         beq ouch1p
         cmp #2,players
         bne ouch1p
-;  add #1,dying
         move #20,54(a0)      ;blow up one claw while allowing play to proceed with the other
         move #0,52(a0)
         bra ow
-        
 
 ouch1p:
-; tst lives
-;  beq xquick
         move.l #zap_player,routine
 ow:
         move.l _zap,(a0)    ;Claw shape to zap
@@ -8836,12 +9249,13 @@ ospher:
         move d0,46(a6)
         bra kime
 
-killme:
+; *******************************************************************
+; killme
 ;
 ; Start the current object exploding.
+; *******************************************************************
+killme:
 
-;  bsr rannum
-;  and #1,d0
         move #$10,d0
         move d0,sfx
         move #2,sfx_pri
@@ -8861,6 +9275,9 @@ kime:
         rts
 
 
+; *******************************************************************
+; changex
+; *******************************************************************
 changex:
         bsr webinfo
 
@@ -8883,7 +9300,6 @@ dpring:
         move #1,34(a6)
         move.l #-17,(a6)
         rts
-        
 
 nobobo:
         sub.b #1,pupcount
@@ -8918,7 +9334,6 @@ badd:
         add #1,bonum
         rts
 
-
 nopup:
         cmp #2,48(a6)
         beq setsphk
@@ -8936,6 +9351,10 @@ setsphk:
         move.l d4,46(a6)
         move #13,34(a6)
         rts
+
+; *******************************************************************
+; xpixex
+; *******************************************************************
 xpixex:
         move #5,34(a6)    ;pixex draw
         clr 52(a6)
@@ -8946,6 +9365,9 @@ xpixex:
         move.l d2,20(a6)
         rts
 
+; *******************************************************************
+; run_pup
+; *******************************************************************
 run_pup:
         tst 48(a6)
         bmi domopup
@@ -8962,18 +9384,10 @@ domopup:
         cmp #32,d0
         bgt notonl
 
-
-
-doita:
-
-        move #9,sfx
+doita:  move #9,sfx
         move #3,sfx_pri
         move.l #428,sfx_pitch
         jsr fox
-;  move #$09,sfx
-;  move #3,sfx_pri
-;  move.l #224,sfx_pitch
-;  jsr fox
 
         cmp #-2,wave_tim
         beq stdpu1    ;NEVER if zooming!!!
@@ -9060,6 +9474,9 @@ xtoend:
 pupvex:
         dc.l hilaser,suprise,jenab,suprise,addroid,sprzap,suprise,suprise
 
+; *******************************************************************
+; suprise
+; *******************************************************************
 suprise:
         tst startbonus
         bne bonnk
@@ -9068,32 +9485,38 @@ suprise:
         bgt bonnk
         move #1,szap_on
         move #1,inf_zap    ;Infinite zapper yeah!
-douttah:
-        lea ohtxt,a0
-        clr.l d0
-        move.l #$8000,d1
-        bsr setmsg
-        move #1,outah
-        move #13,d0
-        jsr doscore
-        move.l #pic,a2
-        move.l #$6e0089,d0
-        move.l #$2a00b2,d1
-        jsr any_pixex    ;an Excellent occurrence
-;  move #21,sfx
-;  move #4,sfx_pri
-;  jsr fox
-        jmp szoom    ;go get us away....
 
-bonnk:
-         move.l #pic5,a2
+; *******************************************************************
+; "Get outtah here!" Skips to the next level? 
+; Only called when cheat is enabled.
+; *******************************************************************
+douttah:
+        lea ohtxt,a0     ; Set message to "Outtah here!"
+        clr.l d0         ; Set message x position. 
+        move.l #$8000,d1 ; Set message y position.
+        bsr setmsg       ; Set message.
+        move #1,outah    ; 
+        move #13,d0      ; Give 3,000 points.
+        jsr doscore      ; Update score.
+        move.l #pic,a2      ; Select beasty3.cry
+        move.l #$6e0089,d0  ; Snip out the x pos for the 'Excellent' graphic
+        move.l #$2a00b2,d1  ; Snip out the y pos for the 'Excellent' graphic
+        jsr any_pixex       ; Display the 'Excellent' graphic.
+        jmp szoom           ; Go get us away....
+
+; *******************************************************************
+; bonnk
+; *******************************************************************
+bonnk:  move.l #pic5,a2
         move.l #$540004,d0
         move.l #$4100c5,d1
         jsr any_pixex
         move #12,d0
         jmp doscore    ;give 2,000 points 
-        
 
+; *******************************************************************
+; hilaser
+; *******************************************************************
 hilaser:
         move #1,laser_type
         move.l _claw,a0
@@ -9101,14 +9524,15 @@ hilaser:
         tst pal
         beq onopal
         move.l #$56666,d0  
+
 onopal:
         move #$0202,48(a0)
         tst beastly
         beq sass2
         lsr.l #1,d0
         move #$0404,48(a0)
-sass2:
-        move.l d0,shotspeed
+
+sass2:  move.l d0,shotspeed
         rts
 
 ; *******************************************************************
@@ -9125,10 +9549,16 @@ sayex:
         move.l #$162,sfx_pitch
         jmp fox
 
+; *******************************************************************
+; jenab
+; *******************************************************************
 jenab:
         move #1,jenable
         rts
 
+; *******************************************************************
+; addroid
+; *******************************************************************
 addroid:
         tst dnt
         bmi suprise    ;already had a droid
@@ -9140,6 +9570,9 @@ adenoid:
         move.l (a7)+,a6
         rts
 
+; *******************************************************************
+; sprzap
+; *******************************************************************
 sprzap:
         tst warpy
         bmi knibble
@@ -9161,6 +9594,9 @@ knibble:
         clr szap_avail
         rts
 
+; *******************************************************************
+; xr_pixex
+; *******************************************************************
 xr_pixex:
         sub.l #$8000,24(a6)
         bmi run_pixex
@@ -9170,6 +9606,9 @@ xr_pixex:
         add.l d0,12(a6)
         rts
         
+; *******************************************************************
+; run_pixex
+; *******************************************************************
 run_pixex:
         move.l 20(a6),d0
         lsl.l #1,d0
@@ -9180,6 +9619,9 @@ run_pixex:
         move #1,50(a6)    ;unlink
         rts
 
+; *******************************************************************
+; run_prex
+; *******************************************************************
 run_prex:
         add #1,44(a6)
         cmp #13,34(a6)
@@ -9192,6 +9634,9 @@ biggrx:
         bgt kikik
         rts
 
+; *******************************************************************
+; vectorzap
+; *******************************************************************
 vectorzap:
         move.l _zap,(a6)    ;Explosion header frame
         move #$c8,40(a6)    ;Explo colour
@@ -9202,16 +9647,25 @@ vectorzap:
         move d0,28(a6)      ;random orientation
         rts
 
+; *******************************************************************
+; run_zap
+; *******************************************************************
 run_zap:
         sub #1,42(a6)      ;expand it
         add #10,28(a6)      ;spin it too, why not
         cmp #-2,42(a6)
         bge rrts
+
+; *******************************************************************
+; kikik
+; *******************************************************************
 kikik:
         move #1,50(a6)      ;tell FG to unlink
         rts
 
-
+; *******************************************************************
+; make_adroid
+; *******************************************************************
 make_adroid:
         tst afree
         bmi rrts
@@ -9245,6 +9699,9 @@ make_adroid:
         clr d0
         rts
 
+; *******************************************************************
+; run_adroid
+; *******************************************************************
 run_adroid:
         sub #2,28(a6)    ;rotate the adroid
         lea adroidmodes,a0
@@ -9300,7 +9757,9 @@ arab:
         clr 20(a6)
         rts
 
-
+; *******************************************************************
+; make_beast
+; *******************************************************************
 make_beast:
         bsr maflip
         bmi rrts
@@ -9311,9 +9770,9 @@ make_beast:
         clr 48(a6)
         rts
 
-
-
-
+; *******************************************************************
+; make_sflip3
+; *******************************************************************
 make_sflip3:
         bsr maflip
         bmi rrts
@@ -9334,13 +9793,12 @@ make_sflip2:
         clr 48(a6)
         rts
 
-make_flipper:
+; *******************************************************************
+; make_flipper
 ;
 ; Make an enemy of type FLIPPER
-
-;  bra make_adroid
-;  bra make_beast
-;  bra make_mirr
+; *******************************************************************
+make_flipper:
 
         tst t2k
         beq maflip
@@ -9537,10 +9995,13 @@ ucolyou:
         beq gotu      ;catch player if he moves to your Lane
         rts
 
-checlane:
+; *******************************************************************
+; checlane
 ;
 ; check to see if a claw is on your lane, for one or two player modes
 ; returns EQ and a0=clawbase if yeah, NE if not.
+; *******************************************************************
+checlane:
 
 
         tst h2h
@@ -9606,7 +10067,9 @@ oclan2:
         clr d2
         rts
 
-
+; *******************************************************************
+; fkillme
+; *******************************************************************
 fkillme:
         clr d0
 fkm:
@@ -9696,9 +10159,12 @@ singl_snatch:
 ;  bra zapson
         rts
 
-flip_set:
+; *******************************************************************
+; flip_set
 ;
 ; try and flip towards the player's position
+; *******************************************************************
+flip_set:
 
         tst h2h
         beq ufpset
@@ -9802,9 +10268,12 @@ fsr:
         lea flip_set_left,a1
         bra abs
 
-flip_set_left:
+; *******************************************************************
+; flip_set_left
 ;
 ; Start a Flipper turning anticlokkers
+; *******************************************************************
+flip_set_left:
 
 
         tst 16(a6)      ;are we in lane zero?
@@ -9854,9 +10323,12 @@ xflip:
         move.l d1,8(a6)
         rts
 
-flip_set_right:
+; *******************************************************************
+; flip_set_right
 ;
 ; start a Flipper turning clockwise
+; *******************************************************************
+flip_set_right:
 
         move web_max,d0
         sub #1,d0
@@ -9906,21 +10378,13 @@ rNrts:
         move #-1,d0
         rts
 
-make_putanker:
+; *******************************************************************
+; make_putanker
 ;
 ; Make a PULSAR-TANKER
-
-;  move pucnt,d0
-;  and #$0f,d0
-;  cmp #3,d0      ;Make sure that a pulsar is not created in a dangerous phase
-;  blt m_ptank
-;  move #-1,d0
-;  rts
-
+; *******************************************************************
+make_putanker:
 m_ptank:
-; sub.b #1,ptank_freq
-;  bpl m_puls
-;  move.b ptank_freq+1,ptank_freq
         move #2,d3      ;tanker-type
         tst blanka
         beq upvt
@@ -9930,9 +10394,12 @@ upvt:
         move.l _pulstank,d2
         bra maketank
 
-make_futanker:
+; *******************************************************************
+; make_futanker
 ;
 ; Make a FUSEBALL-TANKER
+; *******************************************************************
+make_futanker:
 
         move #1,d3      ;tanker-type
         tst blanka
@@ -9943,6 +10410,9 @@ vft:
         move.l _fusetank,d2
         bra maketank
 
+; *******************************************************************
+; make_tanker
+; *******************************************************************
 make_tanker:
 ;
 ; Make an enemy of type FLIPPER TANKER
@@ -9982,6 +10452,9 @@ maketank:
 ;  bra insertobject
         bra ipix
 
+; *******************************************************************
+; run_tanker
+; *******************************************************************
 run_tanker:
         bsr collie      ;Coll det
         bne opentanker    ;I'm dead! Go spawn 2 meanies.
@@ -10147,8 +10620,9 @@ vop:
         move.l a5,a6
         bra tsphkillme
 
-
-
+; *******************************************************************
+; flipping_heck
+; *******************************************************************
 flipping_heck:
 ;
 ; make the current object behave as a Flipper
@@ -10167,9 +10641,12 @@ zrts:
         move #0,d0
         rts
 
-make_spike:
+; *******************************************************************
+; make_spike
 ;
 ; make a spike, in lane d0; uses a0/a1; ASSUMES SPIKE TABLE ADDRESS IN A1!
+; *******************************************************************
+make_spike:
 
         tst afree
         bmi rrts
@@ -10275,9 +10752,12 @@ decspike:
         move #2,d0
         bra fkm
 
-make_spiker:
+; *******************************************************************
+; make_spiker
 ;
 ; make a spiker, in a random Lane
+; *******************************************************************
+make_spiker:
 
         tst afree
         bmi rrts
@@ -10306,6 +10786,9 @@ make_spiker:
 spiker_vex:
         dc.l newspike,climbspike,descendspike
 
+; *******************************************************************
+; run_spiker
+; *******************************************************************
 run_spiker:
         add #4,28(a6)    ;He spins
         bsr collie
@@ -10419,9 +10902,12 @@ descendspike:
         clr 44(a6)    ;mode back to seek new spike
         rts   
 
-make_mirr:
+; *******************************************************************
+; make_mirr
 ;
 ; make a Mirror
+; *******************************************************************
+make_mirr:
 
         tst afree
         bmi rrts
@@ -10442,6 +10928,9 @@ make_mirr:
         jsr toweb
         jmp ipix
 
+; *******************************************************************
+; rumirr
+; *******************************************************************
 rumirr:
         add #1,28(a6)
         cmp #webz-40,12(a6)  ;check nearest approach
@@ -10469,8 +10958,6 @@ gomirr:
 
         move #$13,sfx
         move #3,sfx_pri
-;  move.l #900,sfx_pitch
-;  move #255,sfx_vol
         jsr fox
 
         move #1,34(a4)
@@ -10498,9 +10985,9 @@ reshh:
         move #3,50(a6)    ;give player back his shot
         rts
 
-
-
-
+; *******************************************************************
+; make_fuseball
+; *******************************************************************
 make_fuseball:
 ;
 ; make a Fuseball, in a random Lane
@@ -10546,13 +11033,16 @@ mfusb:
 fuse_vex:
         dc.l climbrail,crossrail,blowaway
 
+; *******************************************************************
+; run_fuseball
+; *******************************************************************
 run_fuseball:
         tst _sz
         beq rfb
         bsr collie    ;so they will always smart bomb
         bne blowmeaway
 rfb:
-         add #2,28(a6)    ;make 'em spin
+        add #2,28(a6)    ;make 'em spin
         move.l _fuse1,d1
         bsr rannum
         and #1,d0
@@ -10570,6 +11060,9 @@ r_fuse2:
         move.l 0(a0,d0.w),a0
         jmp (a0)
 
+; *******************************************************************
+; climbrail
+; *******************************************************************
 climbrail:
         cmp #webz-80,12(a6)
         blt crail1      ;check for top of Web
@@ -10609,6 +11102,9 @@ frrr:
         bra set_fuseleft
         
 
+; *******************************************************************
+; set_fuseleft
+; *******************************************************************
 set_fuseleft:
         tst 16(a6)    ;are we in lane zero?
         bne fuset0
@@ -10640,11 +11136,12 @@ fuset:
         move #1,44(a6)      ;set mode to cross rail
         rts
 
-
-
+; *******************************************************************
+; set_fuseright
+; *******************************************************************
 set_fuseright:
         bsr webinfo
-          sub d0,d2
+        sub d0,d2
         sub d1,d3      ;vector to left endpoint
         swap d2
         clr d2
@@ -10659,6 +11156,9 @@ set_fuseright:
         move #1,38(a6)      ;change lanes after crossing! 
         rts
 
+; *******************************************************************
+; crossrail
+; *******************************************************************
 crossrail:
         cmp #4,36(a6)    ;only kill if in lane centre
         blt nokll
@@ -10673,9 +11173,6 @@ nokll:
         bgt nopkll
         cmp #-2,wave_tim
         beq nopkll      ;(not if we are already zooming)
-;  move.l _claw,a0
-;  move 16(a0),d0
-;  cmp 16(a6),d0
         bsr checlane
         beq frouch
 
@@ -10716,18 +11213,15 @@ crail0:
         rts
 
 
-make_pulsar:
+; *******************************************************************
+; make_pulsar
 ;
 ; make a Pulsar, in a random Lane
+; *******************************************************************
+make_pulsar:
 
         tst afree
         bmi rrts
-;  move pucnt,d0
-;  and #$0f,d0
-;  cmp #3,d0      ;Make sure that a pulsar is not created in a dangerous phase
-;  bra m_puls      ;was blt
-;  move #-1,d0
-;  rts        ;-1 return tells wave generator to wait
 m_puls:
         sub #1,afree
         move.l freeobjects,a0
@@ -10750,18 +11244,23 @@ vop2:
         move #11,54(a0)      ;Type=RUN_PULSAR
         move.l a0,a6
         bsr toweb
-;  bra insertobject
         bra ipix
 
-topulsar:
+; *******************************************************************
+; topulsar
 ;
 ; transform a Flipper that looks like a pulsar into a real pulsar
+; *******************************************************************
+topulsar:
 
         move #1,34(a6)      ;to std. draw
         clr 38(a6)
         move #11,54(a6)      ;mode to PULSAR
         bra toweb      ;fix in centre of lane
 
+; *******************************************************************
+; run_pulsar
+; *******************************************************************
 run_pulsar:
         lea _pus,a0
         tst blanka
@@ -10807,7 +11306,6 @@ vop3:
         move #$07,sfx
         move #51,sfx_pri
         move.l #500,sfx_pitch
-;  move #255,sfx_vol
         jsr fox
 
 zd0:
@@ -10821,9 +11319,6 @@ zd0:
         move.l 4(a1,d0.w),a2
         move.b d7,2(a2)    ;Set this line to yellow
         move.b d6,4(a2)
-;  move 16(a6),d0
-;  move.l _claw,a0
-;  cmp 16(a0),d0
         bsr checlane_only
         beq frouch    ;Kill player if we are in his Lane
         rts
@@ -10867,6 +11362,9 @@ lanetop:
         move.l (a7)+,a6    ;get back original object header
         rts
 
+; *******************************************************************
+; run_pspark
+; *******************************************************************
 run_pspark:
         bsr checlane
         beq frouch    ;check for hit player
@@ -10901,11 +11399,14 @@ wwrap2:
         move d0,16(a6)
         bra toweb
 
+; *******************************************************************
+; blowmeaway
+; *******************************************************************
 blowmeaway:
         tst blanka
         beq vecbons
 xbonx:
-         move #3,d1
+        move #3,d1
         bsr rand
 xbon:
         move d0,-(a7)
@@ -10916,8 +11417,7 @@ xbon:
         move #8,sfx
         move #3,sfx_pri
         jsr fox
-ntfx:
-        move (a7)+,d0
+ntfx:   move (a7)+,d0
         asl #3,d0
         lea px_bons,a0
         move.l 4(a0,d0.w),d1
@@ -10930,6 +11430,9 @@ ntfx:
         move #6,34(a6)
         rts
 
+; *******************************************************************
+; any_pixex
+; *******************************************************************
 any_pixex:
         tst ofree
         bmi rrts
@@ -10957,6 +11460,9 @@ any_pixex:
         rts
         
 
+; *******************************************************************
+; vecbons
+; *******************************************************************
 vecbons:
         move.l vp_xtarg,d0
         move.l vp_ytarg,d1    ;position of our viewpoint
@@ -10991,56 +11497,66 @@ vecbons:
         rts
 
 
+; *******************************************************************
+; do_oneup
+; Give the player an additional life!
+; *******************************************************************
 do_oneup:
-        add #1,lives
-        add #1,lastlives
-        move #24,sfx
-        move #3,sfx_pri
-;  move #$ff,sfx_vol
-        jsr fox      ;say, OneUp
-        tst noxtra
-        bne rrts
-        move #50,holiday
-        move #1,ud_score
-        tst ofree
-        bmi rrts
-        move.l freeobjects,a0
-        move.l vp_xtarg,d0
-        move.l vp_ytarg,d1    ;position of our viewpoint
-        asr.l #5,d0
-        asr.l #5,d1      ;/128
-        clr.l 4(a0)
-        clr.l 8(a0)      ;start at 0,0
-        move #webz+100,12(a0)
-        move.l d0,20(a0)
-        move.l d1,24(a0)    ;save it
-        move.l _oneup,(a0)    ;header to srandom bonus-points
-        clr 36(a0)
-        move #30,38(a0)
-        move #-1,42(a0)      ;double rez
-        move #4,44(a0)
-        move #2,34(a0)      ;set up ztrail
-        clr 28(a0)      ;clear rotate
-        move #12,54(a0)      ;oblow
-        clr 52(a0)      ;not an enemy
-        move #150,46(a0)    ;duration
+        add #1,lives      ; Add a life
+        add #1,lastlives  ; Add a life.
+        move #24,sfx      ; Get the one up sound effect.
+        move #3,sfx_pri   ; Set priority.
+        jsr fox           ; Run the sound effect.
 
-        tst blanka
-        beq veconeup
-        move #7,34(a0)      ;type DRaw Oneup
+        tst noxtra        ; Extra points?
+        bne rrts          ; No, return.
+        move #50,holiday  ; Is this a temporar invulnerability to bullets? 
+        move #1,ud_score  ; Prevent score from being updated for a short time?
+        tst ofree         ; Free object?
+        bmi rrts          ; No, return.
+
+        ; Create a 'One Up' object. This is an effect where the extra life
+        ; is added to the player's lives count.
+        move.l freeobjects,a0  ; Get a free object from the freeobjects list.
+        move.l vp_xtarg,d0     ; Get our x viewpoint pos.
+        move.l vp_ytarg,d1     ; Get our y viewpoint pos.
+        asr.l #5,d0            ; Divide by 128
+        asr.l #5,d1            ; Divide by 128
+        clr.l 4(a0)            ; Set X pos of object to 0
+        clr.l 8(a0)            ; Set Y pos of object to 0
+        move #webz+100,12(a0)  ; Set Z pos relative to web.
+        move.l d0,20(a0)       ; Set X viewpoint.
+        move.l d1,24(a0)       ; Set Y viewpoint
+        move.l _oneup,(a0)     ; Set the header to _oneup
+        clr 36(a0)             ; Clear the pixel data address.
+        move #30,38(a0)        ; Set the colour.
+        move #-1,42(a0)        ; Set the scale.
+        move #4,44(a0)         ; Set climb mode.
+        move #2,34(a0)         ; Set the index into draw_vex (draw_z).
+        clr 28(a0)             ; Clear the orientation/rotation.
+        move #12,54(a0)        ; Set the object type to oblow
+        clr 52(a0)             ; Set it not be an enemy
+        move #150,46(a0)       ; Set the duration
+
+        tst blanka             ; 
+        beq veconeup           ; Insert it as object type oblow.
+        move #7,34(a0)         ; Set the object type to draw_oneup.
 
 veconeup:
-        bsr insertobject
+        bsr insertobject       ; Insert the object.
         rts
 
+; *******************************************************************
+; oblow
+; *******************************************************************
+oblow:  add.b #$10,41(a6)    ;Makes oneups flash
 
-oblow:
-        add.b #$10,41(a6)    ;Makes oneups flash
-
+; *******************************************************************
+; blowaway
+; *******************************************************************
 blowaway:
         sub #$40,36(a6)
-oblow2:
-        sub #1,12(a6)
+oblow2: sub #1,12(a6)
         move.l 20(a6),d0
         add.l d0,4(a6)
         move.l 24(a6),d0
@@ -11048,18 +11564,19 @@ oblow2:
 
         sub #1,46(a6)
         bpl rrts
-;  add #1,afree
         move #1,50(a6)      ;tell FG to unlink
         rts
-;  move.l a6,a0
-;  bra unlinkobject
 
-bum:
-        illegal
+; *******************************************************************
+; Unused code
+; *******************************************************************
+bum:    illegal
 
-go_downc:
-;
+; *******************************************************************
+; go_downc
 ; two player Claw going down
+; *******************************************************************
+go_downc:
 
         bsr go_down
         blt rrts    ;go_down return >0 if we are at the btm
@@ -11069,6 +11586,9 @@ llost:
         clr 34(a6)    ;set to Not Displayed
         rts
 
+; *******************************************************************
+; loiter
+; *******************************************************************
 loiter:
         tst dying
         bne rrts
@@ -11083,6 +11603,9 @@ killp2:
         clr 34(a6)    ;make him Not Drawn
         bra setsnatch
 
+; *******************************************************************
+; go_downf
+; *******************************************************************
 go_downf:
 ;
 ; Flipper go-down
@@ -11092,14 +11615,17 @@ go_downf:
         move #1,50(a6)    ;Unlink in FG
         rts
 
- 
-
+; *******************************************************************
+; go_down
+; *******************************************************************
 go_down:
         add #2,12(a6)
         cmp #webz+80,12(a6)
         rts   
 
-
+; *******************************************************************
+; take_me_to_your_leader
+; *******************************************************************
 take_me_to_your_leader:
         move.l tmtyl,a0
         move.l _claw,a1
@@ -11113,11 +11639,11 @@ setsnatch:
         clr l_soltarg
         rts
 
+; *******************************************************************
+; snatch_it_away
+; *******************************************************************
 snatch_it_away:
-; tst lives
-;  beq xquick
         bsr rightit
-;  jsr zoomdown
         sub #8,vp_z
         clr evon
         cmp #-400,vp_z
@@ -11130,9 +11656,11 @@ xquick:
         move #1,term
         rts
 
-pzap:
-;
+; *******************************************************************
+; pzap
 ; Multi-player version of ZAP_PLAYER as intrinsic routine for a single claw
+; *******************************************************************
+pzap:
 
         add #12,28(a6)
         sub #$80,36(A6)
@@ -11141,6 +11669,9 @@ pzap:
         blt llost    ;rez new ship (or not); uses code from go_down
         rts
 
+; *******************************************************************
+; zap_player
+; *******************************************************************
 zap_player:
         bsr rightit
         move.l _claw,a0
@@ -11260,10 +11791,13 @@ xle3:
         beq xle2    ;not Super
         bra dxle    ;go kill-and-spatter, that was Super
 
-toweb:
+; *******************************************************************
+; toweb
 ;
 ; Fix an object in the Web according to its web position in 16(a6), and return useful
 ; stuff about the lane it is on.
+; *******************************************************************
+toweb:
 
         bsr webinfo
         swap d4
@@ -11279,6 +11813,9 @@ toweb:
         rts
 
 
+; *******************************************************************
+; l_webinfo
+; *******************************************************************
 l_webinfo:
         move 16(a6),d0    ;current lane
         sub #1,d0
@@ -11288,6 +11825,9 @@ l_webinfo:
         add web_max,d0      ;wrap it
         bra webinf
 
+; *******************************************************************
+; r_webinfo
+; *******************************************************************
 r_webinfo:
         move 16(a6),d0
         add #1,d0
@@ -11307,11 +11847,12 @@ webinf:
         move (a7)+,d0
         rts
 
-
+; *******************************************************************
+; webinfo
+; *******************************************************************
 webinfo:
         move 16(a6),d0
-webi:
-        move.l web_ptab,a1      ;point to XY lane ends
+webi:   move.l web_ptab,a1      ;point to XY lane ends
         asl #2,d0
         lea 0(a1,d0.w),a1
         move (a1)+,d0
@@ -11338,38 +11879,37 @@ webi:
         add d1,d5      ;(d4,d5) is the midpoint
         rts
 
-
-
+; *******************************************************************
+; rotate_web:
+; A 'Frame' routine called during vsync interrupt to update the state
+; of the web.
+; A 'routine' routine.
+; *******************************************************************
 rotate_web:
-        lea _web,a6
-        sub.l #$10000,12(a6)    ;move towards viewer
-        add #1,30(a6)      ;rotate until angle xz is zero
+        lea _web,a6          ; Load the web data structure.
+        sub.l #$10000,12(a6) ; move towards viewer
+        add #1,30(a6)        ; rotate until angle xz is zero
         move 30(a6),d0
         asr #1,d0
         add #$80,d0
         move d0,32(a6)
         and #$ff,30(a6)  
         bne rrts
-iclaw:
-        move.l #moveclaw,routine    ;rotate-in finished
-        tst solidweb
-        beq znazm
+
+iclaw:  move.l #moveclaw,routine ; Next routine in state is moveclaw.
+        tst solidweb             ; Is it a solid or transparent web?
+        beq znazm                ; If transparent, skip.
         move #248,l_soltarg
-;  move camroll,g_load    ;get appropriate GPU modules
-znazm:
-        lea _web,a0
+
+znazm:  lea _web,a0              ; Load the web data structure.
         move.l (a0),a1
-        move.l #0,(a1)    ;set web XY only
-;  move #28,sfx
-;  move #2,sfx_pri
-;  move.l #15,sfx_pitch
-;  jsr fox
-;  move #28,sfx
-;  move #2,sfx_pri
-;  move.l #13,sfx_pitch  ;make the Rehbock noise
-;  jsr fox
+        move.l #0,(a1)           ;set web XY only
         rts
 
+; *******************************************************************
+; rez_claw
+; A member of the run_vex list.
+; *******************************************************************
 rez_claw:
         tst h2h
         beq srezclaw
@@ -11414,9 +11954,7 @@ noball:
         move.l (a7)+,a6
         rts
 
-
 srezclaw:
-; move #2,34(a6)  ;make sure we are displayed
         move #17,34(a6)
         add #$40,36(A6)  ;close rez spacing
         bne go_con
@@ -11452,30 +11990,46 @@ dsclaw2:
 droidyo:
         jmp draw_z
 
+; *******************************************************************
+; Despite its name this routine updates the state of most active game
+; objects in addition to just the claw.
+; Move the claw, generate waves, update some objects.
+; run_wave: Manages all enemies for this frame, including generating
+;           new ones.
+; A 'routine' routine.
+; *******************************************************************
 moveclaw:
         bsr vp_xform      ;do dynamic vp
         tst h2h
         bne h2hrun
-        bsr run_wave      ;run the wave generator
-        tst chenable
+        bsr run_wave      ; Run the wave generator!
+        tst chenable      ; Is cheating enabled?
         beq nofire
         cmp #-2,wave_tim
         beq nofire
         btst.b #1,pad_now+2    ;look for Option
         beq noptcheat
-        jsr douttah
+        jsr douttah       ; Cheat, get more points and go to next level.
         bra nofire
+
 noptcheat:
+        ; Another cheat, lets us warp.
         move.l pad_now,d0
         and.l #six,d0
         beq nofire      ;needs this on pad 1 too!
-        jsr swarp
+        jsr swarp       ; Warp!
 nofire:
-        bsr fire
-        bsr run_objects      ;control active objects
-        bsr vp_set
+        bsr fire        ; Fire a bullet if necessary.
+        ; The main routine for updating the state of all the active
+        ; objects in the game and the overall game state.
+        bsr run_objects ; Update active objects
+        bsr vp_set      ; Update camera viewpoint.
         rts
 
+; *******************************************************************
+; h2hrun
+; Update all objects in a h2h game.
+; *******************************************************************
 h2hrun:
         bsr run_objects
         bsr vp_set2
@@ -11490,6 +12044,9 @@ h2hrun:
         move #1,term
         rts
 
+; *******************************************************************
+; run_h2hclaw
+; *******************************************************************
 run_h2hclaw:
         tst 48(a6)
         beq clawrunn
@@ -11557,14 +12114,19 @@ nomirr1:
         bra h2hfrab
         
 
+; *******************************************************************
+; run_mirr
+; *******************************************************************
 run_mirr:
         add #1,28(A6)
         rts
 
 
+; *******************************************************************
+; claw_con1
+; A member of the run_vex  list.
+; *******************************************************************
 claw_con1:
- ;  btst.b #5,pad_now+2
-
         move #1,whichclaw
         tst auto
         beq sclawr
@@ -11612,18 +12174,15 @@ cc2:
         beq cce      ;T2K not on.
         move.l cjump,d0    ;check for jump running...
         beq chek4jump
-          add.l d0,12(a6)
+        add.l d0,12(a6)
         move.l 12(a6),d1
         move #webz-80,d2
         swap d2
         clr d2
         sub.l d2,d1
-;  asr.l #1,d1
         add.l vp_zbase,d1
         move.l d1,vp_z
         move.l d1,vp_ztarg
-;  move.l 4(a6),vp_xtarg
-;  move.l 8(a6),vp_ytarg
         add.l #$c11,cjump
         tst.l d0
         bmi cce
@@ -11650,8 +12209,11 @@ cce:
         move.l pad_now,d0
         bra clawcon
 
+; *******************************************************************
+; claw_con2
+; A member of the run_vex list.
+; *******************************************************************
 claw_con2:
-; btst.b #3,pad_2
         move #2,whichclaw
         move.l pad_now+4,d0
         and.l fire_1,d0
@@ -11666,7 +12228,6 @@ claw_con2:
         move #$80,d7      ;marker for bullets to distinguish pl. 1 and pl 2 shots
         bsr frab
 cc3:
-;   move.l pad_2,d0
         move.l pad_now+4,d0
 
 clawcon:
@@ -11677,7 +12238,6 @@ clawcon:
         swap d0
         and #$c0,d0      ;check for pad left or right
         bne pad_pressed      ;go do action if pressed
-;  bra pad_pressed
 stopclaw:
         clr.l 20(a6)
         bra domove    ;stop the claw
@@ -11698,7 +12258,6 @@ pad_pressed:
         clr.l 24(a6)
         bra domove      ;Use absolute speed value if we are on the rotary controller
 
-
 notc1:
         cmp #2,whichclaw
         bne joyconn      ;must be the droid or a demo
@@ -11711,7 +12270,6 @@ notc1:
         beq domove
         neg.l 20(a6)      ;reverse p2 controls in h2h mode
         bra domove
-
 
 joyconn:
         btst #7,d0
@@ -11824,6 +12382,9 @@ spdone:
         bne nutargg
         rts
         
+; *******************************************************************
+; nutargg
+; *******************************************************************
 nutargg:
         move.l 16(a6),d0
         lsl.l #6,d0
@@ -11848,19 +12409,18 @@ noflipme:
         move.l d2,4(a0)      ;scale (-ve to flip frame)
         rts
 
+; *******************************************************************
+; vp_set
+; Update the camera's viewpoint for one or both players. 
+; *******************************************************************
 vp_set:
         cmp #1,players
         bne vp_set2
         move.l _claw,a0
         move 4(a0),d2
         move 8(a0),d3
-dood:
-        asr #1,d2
+dood:   asr #1,d2
         asr #1,d3
-;  tst blanka
-;  bne dshrnk
-;  asr #1,d2
-;  asr #1,d3
 dshrnk:
         move view,d0
         asl #3,d0
@@ -11893,14 +12453,11 @@ vp_set2:
         bra dood
 
 
+; *******************************************************************
+; vp_xform
+; Transform the player's viewpoint if necessary
+; *******************************************************************
 vp_xform:
-; tst s_db
-;  beq kcon
-;  move.l pad_now,d0
-;  and.l #allkeys,d0
-;  bne rrts
-;  clr s_db
-;  rts
         move camroll,d0
         add d0,camrx
         move.l vp_x,d0
@@ -11956,6 +12513,10 @@ ztar1:
 ztargr:
         rts
 
+; *******************************************************************
+; donkeys
+; check VP shift select and music F/X on/off toggle
+; *******************************************************************
 donkeys:
         tst s_db
         beq kcon
@@ -12010,28 +12571,31 @@ intune:
         sub #1,d0
         move #1,unpaused
         jmp playtune
-;  jmp START_MOD
         
-        
-cpad33:
-        move #1,modstop    ;stop any tune module
+cpad33: move #1,modstop    ;stop any tune module
         move.b vols,oldvol
         clr.b vols
         move #10,s_db
         move #1,unpaused
         jmp STOP_MOD
 
-cpad6:
-        btst.b #2,pad_now+3    ;check 6
+cpad6:  btst.b #2,pad_now+3    ;check 6
         beq rrts
+
+; *******************************************************************
+; Display 'warp enabled' message and set warp on.
+; *******************************************************************
 swarp:
-        move #-1,warpy
-        lea wtxt3,a0
-        clr.l d0
-        move.l #$8000,d1
-        bsr setmsg
+        move #-1,warpy    ; Set warp on.
+        lea wtxt3,a0      ; Get "warp enabled" string and stash in a0.
+        clr.l d0          ; Set x pos.
+        move.l #$8000,d1  ; Set y pos.
+        bsr setmsg        ; Initialize message for display.
         rts  
 
+; *******************************************************************
+; rightit
+; *******************************************************************
 rightit:
         move camrx,d0      ;zero roll during warp down if roll is happening
         and #$fe,d0
@@ -12044,12 +12608,14 @@ zdec:
         move d0,camrx
         rts
 zoo1:
-;  clr g_load
         rts
 
-czoom1:
-;
+; *******************************************************************
+; czoom1
 ; intrinsic routine for claw-object to do zoom1-type stuff
+; A member of the run_vex list.
+; *******************************************************************
+czoom1:
 
         bsr zoomup
         lea _web,a0
@@ -12064,9 +12630,11 @@ czoom1:
         clr.l claud
         rts
 
-czoom2:
-;
+; *******************************************************************
+; czoom2
 ; same thing for zoom 2
+; *******************************************************************
+czoom2:
 
         cmp #2,34(a6)
         beq zinit
@@ -12105,15 +12673,10 @@ zoo2off:
         jsr flushfx      ;have to do this, in case 6-channel FX are on
         move #9,sfx    ;was 9
         move #400,sfx_pri
-;  move #$ff,sfx_vol
-;  move.l #10,sfx_pitch
         jsr fox
         move handl,handl1
         move #9,sfx
-;  move #$ff,sfx_vol
         move #400,sfx_pri
-;  move.l #10,sfx_pitch
-;  move.l #10,zoopitch
         jsr fox  
         move handl,handl2
         move #80,wason
@@ -12123,9 +12686,12 @@ zoo2off:
         move.l d0,zoopitch
         move #-1,d0
 
-sclawt:
+; *******************************************************************
+; sclawt
 ;
 ; set claw type d0 to one or bothj claws only if they are 'alive'
+; *******************************************************************
+sclawt:
         move entities,plc+2
         move.l _claw,a1
 scloop:
@@ -12138,6 +12704,9 @@ isded:
         bne scloop
         rts
 
+; *******************************************************************
+; zoomup
+; *******************************************************************
 zoomup:
         add.l #1,zoopitch
         movem.l d0-d5,-(a7)
@@ -12180,8 +12749,10 @@ chv2:
         movem.l (a7)+,d0-d5
         rts
 
+; *******************************************************************
+; zoomdown
+; *******************************************************************
 zoomdown:
-; sub.l #1,zoopitch
         movem.l d0-d3,-(a7)
         move.l #$08,d0    ;8=change pitch
         move handl1,d1
@@ -12211,6 +12782,9 @@ modzon:
         movem.l (a7)+,d0-d3
         rts
 
+; *******************************************************************
+; flushfx
+; *******************************************************************
 flushfx:
         clr wson
 pflushfx:
@@ -12225,16 +12799,17 @@ flshfx:
         rts
         
 
-zoom1:
-        bsr rightit
+; *******************************************************************
+; zoom1
+; A 'routine' routine.
+; *******************************************************************
+zoom1:  bsr rightit
         lea _web,a0      ;get web
         move.l #3,warp_count
-;  bsr fminc
         add.l #$4000,warp_add
         move.l 20(a0),d0
         add.l d0,vp_z      ;move web past yer ears
         add.l d0,24(a0)      ;clock distance zoomed
-;  add.l #$400,20(a0)    ;accelerate
         move.l zoomspeed,d4
         add.l d4,20(a0)
         cmp #260,vp_z      ;by web Z=40 it will be off of the screen
@@ -12242,31 +12817,30 @@ zoom1:
         cmp #webz+80,claud
         blt nofire
         rts
-z1stop:
-        move.l #zoom2,routine    ;get ready to zoom off claw
+z1stop: move.l #zoom2,routine    ;get ready to zoom off claw
         clr 34(a0)      ;Web off for hyperspace
-;  clr evon
-
         rts
 
-zoom2:
-        bsr run_objects
+; *******************************************************************
+; zoom2
+; *******************************************************************
+zoom2:  bsr run_objects
         lea _web,a0
-;  bsr fminc
         add.l #$4000,warp_add
         move.l _claw,a1    ;get clawe
         move.l 20(a0),d0
-;  add.l #$400,20(a0)
         move.l zoomspeed,d4
         add.l d4,20(a0)
         add.l d0,vp_z      ;move web past yer ears
         add.l d0,24(a0)      ;clock distance zoomed
-          sub #$40,36(a1)      ;inc spacing
+        sub #$40,36(a1)      ;inc spacing
         add.l #$1000,claud
         rts
 
-zoom3:
-        jsr dowf
+; *******************************************************************
+; zoom3
+; *******************************************************************
+zoom3:  jsr dowf
         lea _web,a0
         add.l #$4000,warp_add
         tst wason
@@ -12281,22 +12855,16 @@ zoom3:
         move #101,sfx_pri
         jsr fox
 
-;  jsr zoomoff
-;  jsr zoomon
 zoom33:
-;  bsr zoomdown
-zoom44:
-        move.l zoomspeed,d4
+zoom44: move.l zoomspeed,d4
         sub.l d4,20(a0)
         move.l 20(a0),d0
         add.l d0,vp_z
         sub.l d0,24(a0)
         bne rrts
-;  bsr zzoomoff
         move.l freeobjects,_claw  ;_claw is the base of the two claws in 2-player modes
         move players,plc+2  ;player loop counter (under interrupt so +2)
-zipp0:
-        move.l freeobjects,a6
+zipp0:  move.l freeobjects,a6
         move plc+2,d7
         bsr setclaw    ;init claw object and put it on the web
         bsr insertobject
@@ -12307,26 +12875,21 @@ zipp0:
         move.l #0,warp_count
         bra iclaw      ;and go set it to rez
 
-
-camel:
-        add #1,d0
+camel:  add #1,d0
         move d0,BORD1
         bra camel
 
-nothing:
-        move #1,screen_ready
- rts
+nothing:move #1,screen_ready
+        rts
 
-
-
-wsync:
-        move frames,d7
-wsnc:
-         cmp frames,d7
+wsync:  move frames,d7
+wsnc:   cmp frames,d7
         beq wsnc
         rts
 
-
+; *******************************************************************
+; clrscreen
+; *******************************************************************
 clrscreen:
         clr d0      ;Clear screen a0
         clr d1  
@@ -12335,6 +12898,9 @@ clrscreen:
         move #$000,d4
         bra BlitBlock
         
+; *******************************************************************
+; Unused code
+; *******************************************************************
 make160:
         move #1,14(a0)
         bra mit
@@ -12345,13 +12911,18 @@ makeit_rmw:
         rts
 
 ; *******************************************************************
-; Make a GPU object from the d0-d5 registers.
+; makeit_trans
+; Make a transparent GPU object from the d0-d5 registers.
 ; *******************************************************************
 makeit_trans:
         bsr makeit
         move #1,20(a0)
         rts
 
+; *******************************************************************
+; makeit
+; Make a GPU object from the d0-d5 registers.
+; *******************************************************************
 makeit:
         move d5,14(a0)
 mit:
@@ -12364,258 +12935,278 @@ mit:
         move #-1,20(a0)    ; post creation mod: -1=none, so default
         rts
 
-wd:
-        tst frames
- bpl wd
- rts
-
-; This loop runs the GPU/Blitter code.  I found that if you
-; started up the GPU/Blitter pair from inside the FRAME
-; Interrupt, the system would fall over if they got really heavily
-; loaded.  MAINLOOP just waits for a sync from the FRAME routine,
-; launches the GPU, then loops waiting for another sync.
+wd:     tst frames
+        bpl wd
+        rts
 
 ; ***************************************************************
 ; The game's main loop
+; It handles all the GPU/Blitter drawing. It lets the 'Frame' routine
+; look after updates to the objects' state so the only concern here is
+; doing all the GPU/drawing operations.
+;
+; Minter:
+; "This loop runs the GPU/Blitter code.  I found that if you
+; started up the GPU/Blitter pair from inside the FRAME
+; Interrupt, the system would fall over if they got really heavily
+; loaded.  MAINLOOP just waits for a sync from the FRAME routine,
+; launches the GPU, then loops waiting for another sync."
 ; ***************************************************************
 mainloop:
-;  move g_load,d0
-;  cmp g_loaded,d0
-;  beq main    ;check to see if new GPU code is needed..
-;  move d0,g_loaded
-;  lea g_codes,a0
-;  asl #2,d0
-;  move.l 0(a0,d0.w),a0
-;  bsr gpuload  
-;  bsr WaitBlit
+        move #1,sync               ; Reset the sync
+        move #1,screen_ready       ; Reset the screen ready.
+        move pauen,_pauen          ; Reset the pause indicator.
 
-        move #1,sync
-        move #1,screen_ready
-        move pauen,_pauen
-main:
-        tst sync
-        bne main
-        move #1,sync
+main:   tst sync                   ; loop waiting for another sync
+        bne main                   ; from the interrupt in 'Frame'
+
+        move #1,sync               ; reset the sync so that we wait for a new frame next time around.
         move.l dscreen,gpu_screen
 
+        move.l mainloop_routine,a0 ; do the actual mainloop work, mainloop_routine
+        jsr (a0)                   ; is usually a reference to the 'draw_objects' routine.
 
-        move.l mainloop_routine,a0
-        jsr (a0)
-        tst z
-        bne rax
-        move.l s_routine,d0
-        beq mloop
-        tst auto
-        beq nauty
-        clr.l s_routine
-        move #1,z
-        clr _pauen
-        move.l #rrts,routine
-        clr term
-        rts
-nauty:
-        move.l d0,a0
-        jsr (a0)
-        clr.l s_routine
-mloop:
-        tst pawsed
-        beq mlooo
-        jsr paustuff    ;pause displayed if pressed.
+        tst z                      ; Is 'z' (stop everything) set?
+        bne rax                    ; If it is, then just loop again.
+
+        move.l s_routine,d0        ; Do we have an s_routine?
+        beq mloop                  ; If not, check if we're paused.
+
+        tst auto                   ; Are we in demo mode?
+        beq nauty                  ; If not, then run the s_routine and continue.
+        clr.l s_routine            ; Clear s_routine.
+        move #1,z                  ; Set the 'stop everything' mode.
+        clr _pauen                 ; Clear the pause mode
+        move.l #rrts,routine       ; Clear the 'routine' pointer.
+        clr term                   ; Clear term.
+        rts                        ; Return.
+
+nauty:  move.l d0,a0               ; Move s_routine pointer to a0.
+        jsr (a0)                   ; Run it.
+        clr.l s_routine            ; Clear it.
+
+mloop:  tst pawsed                 ; Are we paused?
+        beq mlooo                  ; If not, check if we just unpaused.
+        jsr paustuff               ; Do the pause mode stuff.
         
-mlooo:
-        tst unpaused
-        beq nunpa2
-        jsr eepromsave
-        clr unpaused  
-nunpa2:
-        move #1,screen_ready
-        tst term
-        beq main
-rax:
-        clr _pauen
-        move.l #rrts,routine
-;  move #-1,db_on
-        clr term
-        rts
-;  bra fade
+mlooo:  tst unpaused               ; Did we just unpause?
+        beq nunpa2                 ; If not, prepare to loop back again.
+
+        jsr eepromsave             ; Save the current settings to EEPROM, not sure why.
+        clr unpaused               ; We're fully unpaused now.
+
+nunpa2: ; We've finished preparing dscreen, so we can set screen_ready.
+        move #1,screen_ready       ; Set screen_ready so 'Frame' can use it at the next vsync interrupt.
+        tst term                   ; Has the game been terminated?
+        beq main                   ; If not, continue looping.
+
+        ; We've terminated - so bail.
+rax:    clr _pauen                 ; Prevent pausing?
+        move.l #rrts,routine       ; Clear the routine pointer.
+        clr term                   ; Clear term
+        rts                        ; Return
 
 
 ; *******************************************************************
 ; Sync with the GPU
+; Switch the current drawing screen to the gpu.
 ; *******************************************************************
-db:
-        move #1,sync      ;request sync
-dboo:
-        tst sync
+db:     move #1,sync               ; request sync
+dboo:   tst sync                   ; Wait for sync to get reset
         bne dboo
-        move.l dscreen,gpu_screen  ;current DB thang
+        ; Move our double-buffered screen to the GPU.
+        move.l dscreen,gpu_screen  ; current DB thang
         rts
 
-
 ; *******************************************************************
-;
+; Unused routine.
+; Looks like it was used to manipulate interrupts. 
 ; *******************************************************************
 IServ:
         btst.b #2,INT1+1
         beq Frame    ;if not stopobj must be Frame
 
-; stop object code can go here
-
+        ; stop object code can go here
         move #$405,INT1
         clr INT2
         rte
 
-
 ; *******************************************************************
-; Is this called on every frame or something?
+; Frame: MAIN VSYNC INTERRUPT ROUTINE
+; This routine is responsible for updating the state of all objects in the
+; game. It is called at every vertical sync interrupt.  The counterpart to this
+; routine is 'mainloop'.  While mainloop is responsible for processing the
+; activeobjects, this routine is where the bulk of the objects get updated
+; (run_objects) and created/inserted into the activeobjects list. The main
+; place this happens is in the moveclaw routine, which despite its name is
+; responsible for managing the waves of enemies too.  The 'sync' and
+; 'screen_ready' variables are used to co-ordinate the activities of the
+; 'Frame' and 'mainloop' routines.
 ; *******************************************************************
 Frame:
-;  add #1,frames
-
-;  move.l #$FFFFFFFF,BORD1
         movem.l d0-d5/a0-a2,-(a7)  ;simple thang to make
 
-; vertical blank code goes here
-
-
-
-fr:
-        move INT1,d0
+        ; vertical blank code goes here
+fr:     move INT1,d0
         move d0,-(a7)
         btst #0,d0
         beq CheckTimer    ;go do Music thang
 
+        ; Copy the display list we built in 'blist' to 'dlist'. The
+        ; display list will be used by the Objects Processor to paint
+        ; the next frame. The pixel data for all the objects in the display
+        ; list was generated by the most recent run of 'draw_objects' in
+        ; 'mainloop'.
+        movem.l d6-d7/a3-a6,-(a7) ; Stash data and address registers.
+        move.l blist,a0     ; Stash blist in a0.
+        move.l dlist,a1     ; Stash dlist in a1.
+        move.l #$30,d0      ; 0x30 units of 4 bytes each to be copied.
 
-        movem.l d6-d7/a3-a6,-(a7)
-        move.l blist,a0
-        move.l dlist,a1
-        move.l #$30,d0
-xlst:
-        move.l (a0)+,(a1)+  ;copy built list to displayed list
-        dbra d0,xlst
+        ; Copy all bytes in blist to dlist.
+xlst:   move.l (a0)+,(a1)+  ; Copy 4 bytes from blist to dlist.
+        dbra d0,xlst        ; Keep copying until we run out of bytes.
 
+        ; Build the display list for the next frame.
         bsr RunBeasties    ;build the next one
 
+        ; Minter: "this code writes the proper screen address to double buffered objects in the display list."
+        ; In 'main_loop' we prepare dscreen (double-buffered screen) with objects drawn by the GPU/Blitter. Once it's ready
+        ; we set screen_ready. Here we check if screen_ready is set and if so, we swap dscreen into 
+        ; 'cscreen' (current screen). We will then update the main screen object in the Display List to
+        ;  reference this new address.
+setdb:  ; Check if we can swap in the new screen prepared in 'mainloop'.
+        tst screen_ready   ; has 'mainloop' finished preparing a new screen?
+        beq no_new_screen  ; If no, got to no_new_screen.
+        tst sync           ; Has mainloop signalled it safe to swap screens?
+        beq no_new_screen  ; If no, go to new_screen.
 
-setdb:
-          
-;
-; this code writes the proper screen address to double buffered objects in the display list
+        ; Swap dscreen into cscreen so that the new screen can be used in the Object List.
+        move.l cscreen,d1  ; Stash cscreen in d1.
+        move.l dscreen,cscreen  ; Overwrite cscreen with dscreen.
+        move.l d1,dscreen  ; Overwrite dscreen with stashed cscreen.
+        clr screen_ready   ; Signal that a new screen is required before we come here again.
+        clr sync           ; Signal to mainloop it can build a new screen.
 
-;  lea 32(a0),a0    ;skip background object
-
-        tst screen_ready  ;is GPU ready with a new screen
-        beq no_new_screen  ;no
-;  tst pawsed
-;  bne no_new_screen
-        tst sync
-        beq no_new_screen
-        move.l cscreen,d1
-        move.l dscreen,cscreen
-        move.l d1,dscreen  ;swap screens
-        clr screen_ready
-        clr sync
+        ; Check if we have a new screen to display.
 no_new_screen:
+        move.l dlist,a0    ; Store the display list in a0.
+        move db_on,d7      ; Store the number of double-buffered screens in d7.
+        bmi no_db          ; If we don't have any, skip to warp flash.
 
-        move.l dlist,a0
-        move db_on,d7    ;check for double buffer on (d7 holds # of contiguous DB'ed screens)
-        bmi no_db
+        ; Update the main screen item in the Object List with the address of the new screen contained
+        ; in cscreen. This has the effect of ensuring all the objects we drew with the GPU
+        ; and Blitter in 'mainloop' are actually written to the screen by the Object Processor. 
+stdb:   move.l cscreen,d6   ; Get address of current displayed screen
+        and.l #$fffffff8,d6 ; lose three LSB's
+        lsl.l #8,d6         ; move to correct bit position
+        move.l (a0),d1      ; get first word of the BMO
+        and.l #$7ff,d1      ; clear data pointer
+        or.l d6,d1          ; mask in new pointer
+        move.l d1,(a0)      ; replace in OL
+        lea 32(a0),a0       ; This skips to the next object but is unnecessary since we are
+                            ; only updating one item (the main screen) in the Object List with
+                            ; our new screen pointer.
 
+        ; Do the warp flash effect.
+no_db:  jsr dowf           ; Call the warp flash effect.
 
+        ; Now do some magic for NTSC displays. If this is an NTSC display we want to skip playing
+        ; sounds every 5th and 6th interrupt for some reason. 
+        tst pal           ; Are we a PAL display?
+        bne dtoon         ; If no, we can skip this part.
+        add #1,tuntime    ; Increment our visit count.
+        cmp #4,tuntime    ; Less than 4?
+        ble dtoon         ; If less than 4, go ahead and play a sound.
+        cmp #6,tuntime    ; Is it 6? 
+        bne ntoon         ; If not, skip playing a sound this time.
+        clr tuntime       ; If it is 6, reset to zero. 
 
-stdb:
-        move.l cscreen,d6  ;get address of current displayed screen
-        and.l #$fffffff8,d6  ;lose three LSB's
-        lsl.l #8,d6    ;move to correct bit position
-        move.l (a0),d1    ;get first word of the BMO
-        and.l #$7ff,d1    ;clear data pointer
-        or.l d6,d1    ;mask in new pointer
-        move.l d1,(a0)    ;replace in OL
-        lea 32(a0),a0    ;skip to nxt object
-;  dbra d7,stdb    ;loop for all DB backgrounds
+        ; Something to do with the Imagitec sound chip. Probably whether we should play
+        ; a sound during the interrupt?
+dtoon:  tst modstop       ; Is sound turned off?
+        bne ntoon         ; If yes, don't play a sound.
+        jsr NT_VBL        ; If no, play the next sound using the Imagitec sound synth.
 
+        ; Do any effects required while in pause mode.
+ntoon:  tst pawsed        ; Are we paused?
+        bne zial          ; If not, skip.
+        add #1,frames     ; Add to the number of paused framed.
+        move.l fx,a0      ; Stash the current 'fx' routine in a0. 
+        jsr (a0)          ; Run the routine.
 
-no_db:
-        
-        jsr dowf
+        ; 'mainloop' might be busy processing stuff in the 'activeobjects' list. If it is,
+        ; we will have to skip doing anything in this frame.
+zial:   tst locked        ; Are we in the middle of adding stuff to activeobjects?
+        beq doframe       ; If not, do our context-specific per-frame routine.
+        bra loseframe     ; If we're busy, skip this frame.
 
-        tst pal
-        bne dtoon
-        add #1,tuntime    ;do NTSC interrupts only 5/6 times
-        cmp #4,tuntime
-        ble dtoon
-        cmp #6,tuntime
-        bne ntoon
-        clr tuntime  
-dtoon:
-        tst modstop
-        bne ntoon
-        jsr NT_VBL
-ntoon:
-
-
-;   bsr readpad      ;get joy values
-        tst pawsed
-        bne zial
-        add #1,frames 
-        move.l fx,a0
-        jsr (a0)    ;for plaette changes etc
-zial:
-        tst locked
-        beq doframe
-;  move #1,drawhalt
-        bra loseframe
+        ;
+        ; Perform any context specific updates for this frame. 
+        ; 'routine' can be any one of:
+        ;  - rrts, pauson, pausing, budb, pausoff, paws, zoom1, zoomto,
+        ;    waitfor, zprev, znext, zshow, oselector, seldb, tunrun, text_o_run,
+        ;    m7run, vicrun, failcount, viccount, txen, tgoto, rotate_web,
+        ;    zoom3, zap_player, take_me_to_your_leader, snatch_it_away,           
+        ;    moveclaw, zoom2
+        ;
+        ; rotate_web -> moveclaw -> zoom1 -> zoom2 ->
+        ; zoomto -> waitfor -> zprev -> zshow -> waitfor
+        ;                   -> znext -> zshow
+        ;                   -> rrts
+        ; oselector ->seldb -> oselector
+        ; _tunn -> tunrun ->
 doframe:
-        move.l routine,a0
-        jsr (a0)    ;call do thangs routine
-        clr drawhalt
+        move.l routine,a0 ; Stash the current 'routine' in a0.
+        jsr (a0)          ; Run it.
+        clr drawhalt      ; This is redundant, it is never set anywhere.
 
 loseframe:
-        bsr checkpause  ;do pause and overriding reset command
-        bsr domod    ;do music handling  
-        btst.b #0,sysflags
-        bne chit    ;check for no h.interlace
-        move frames,d0
-        and #$01,d0
-        add #SIDE,d0
-        sub palside,d0
-        move d0,beasties  ;H. Interlace mode
-chit:
-        movem.l (a7)+,d6-d7/a3-a6
+        bsr checkpause     ; Check if the player has requested to pause the game.
+        bsr domod          ; Play a frame of music in the Imagitec synth.
+        btst.b #0,sysflags ; Check for hardware interlacing. 
+        bne chit           ; If not enabled, skip. 
+
+        ; Some kind of fixing up for hardware interlace mode.
+        move frames,d0     ; Stash frames in d0. 
+        and #$01,d0        ; Get the lsb.
+        add #SIDE,d0       ; Add SIDE.
+        sub palside,d0     ; Subtract PAL side.
+        move d0,beasties   ; Store in beasties.
+
+chit:   movem.l (a7)+,d6-d7/a3-a6 ; Restore values to data and address registers we stashed at the start.
 
 CheckTimer:
-        move (a7)+,d0  ;get back int status
-        move d0,-(a7)
-        btst #3,d0
-        beq exxit
+        move (a7)+,d0       ; Restore stashed d0.
+        move d0,-(a7)       ; Stash it again.
+        btst #3,d0          ; Do we need to check for joypad in put?
+        beq exxit           ; No, we can exit the interrupt.
 
-        tst roconon    ;Rotary Controller enabled?
-        bne roco
-        jsr dopad
-        bra exxit    ;Yeah, interrupts at 8x normal speed, go do special stuff
+        ; Check for joypad input. The logic for rotary controllers was added to support
+        ; the potential release of a rotary controller for the Jaguar, but this never happened.
+        ; So all rotary controller logic in Tempest 2000 is unused.
+        tst roconon    ; Is Rotary Controller enabled?
+        bne roco       ; Yes, do the rotary controller.
+        jsr dopad      ; No, check for normal joypad in put.
+        bra exxit      ; We're done - so exit interrupt.
 
-roco:
-        move pitcount,d1
+        ; Logic for reading input from the never-built and never-released rotary controller.
+roco:   move pitcount,d1
         and #$07,d1
         bne rotonly
         jsr dopad
 rotonly:
         add #1,pitcount
-        bsr readrotary
+        bsr readrotary  ; Read input from the rotary controller.
 
-
-
+        ; Minter: "Yeah, interrupts at 8x normal speed, go do special stuff."
 exxit:
-        move (a7)+,d0
-        lsl #8,d0
-        move.b intmask,d0
-        move d0,INT1
-        move d0,INT2 
-        movem.l (a7)+,d0-d5/a0-a2
-;  move.l #0,BORD1
-;  move.w #$101,INT1  ;do interrupt stuff
-;  move.w  #0,INT2
-        rte
+        move (a7)+,d0     ; Restore stashed d0.
+        lsl #8,d0         ; Shift left 8 bits.
+        move.b intmask,d0 ; Add our interrupt mask.
+        move d0,INT1      ; Add to INT1.
+        move d0,INT2      ; Add to INT2.
+        movem.l (a7)+,d0-d5/a0-a2 ; Restore stashed values.
+        rte               ; Return from the interrupt.
 
 ; *******************************************************************
 ; The unused rotary controller code. 
@@ -12623,7 +13214,6 @@ exxit:
 readrotary:
 ;
 ; read a Rotary Controller
-
 
         btst.b #3,sysflags
         beq op2
@@ -12664,6 +13254,10 @@ op2:
         rts
 
 
+; *******************************************************************
+; rroco
+; Process rotary controller in put.
+; *******************************************************************
 rroco:
         rol.b #2,d0      ;Phase Bits to bottom of word
         and #$03,d0      ;Get juicy bits
@@ -12696,7 +13290,7 @@ rclaw_left:
 rclaw_right:
 incsens:
         move.l #$2000,d0
-          move.l (a2),d0
+        move.l (a2),d0
         cmp.l #$5000,d0
         bge rrts
         add.l #$1000,d0
@@ -12709,9 +13303,10 @@ decsens:
         sub.l #$200,(a2)
         rts
 
-
-
-
+; *******************************************************************
+; gamefx
+; Do gamefx
+; *******************************************************************
 gamefx:
         move.l vp_sfs,d0  ;move the starfield's vp
         add.l d0,vp_sf
@@ -12753,11 +13348,8 @@ donowt:
         and #$03,d0
         bne rrts
         bra swebpsych    ;set web all psychedelic colours when HOLIDAY non0
-;  bra swebcol
 
-
-domod:
-        tst modnum
+domod:  tst modnum
         beq rrts    ;see if anything is happening?
         bmi deccount    ;dec counter and set
         tst auto
@@ -12790,6 +13382,9 @@ decco1:
         move #-1,modtimer
         rts
 
+; *******************************************************************
+; Update the message displayed to the player with whatever is in a0.
+; *******************************************************************
 setmsg:
         move #100,msgtim1  ;set default Messager parameters
         move #50,msgtim2
@@ -12817,6 +13412,11 @@ runmsg2:
         clr.l msg
         rts
 
+; *******************************************************************
+; drawmsg
+; Write a message onto the screen.
+; Used for Superzapper Recharge, for example.
+; *******************************************************************
 drawmsg:
         move.l msg,d6
         beq rrts
@@ -12839,9 +13439,8 @@ drawmsg:
         sub #$7f,d0
         bpl mpo1
         neg d0
-mpo1:
-        
-        sub #$3f,d0
+
+mpo1:   sub #$3f,d0
         swap d0
         asr.l #6,d0
         move.l d0,24(a0)
@@ -12859,11 +13458,9 @@ mpo1:
         lea in_buf,a0
         move.l #zmes2,a3
         bra xtra2
-xtra1:
-        lea in_buf,a0
+xtra1:  lea in_buf,a0
         move.l #wmesx,a3
-xtra2:
-        move.l a3,(a0)
+xtra2:  move.l a3,(a0)
         jsr textlength      ;returns length of $ (a3) in pixels in d0
         lsr #1,d0
         neg d0
@@ -12877,7 +13474,9 @@ xtra2:
         jsr gpurun
         jmp gpuwait  
 
-
+; *******************************************************************
+; Unused code
+; *******************************************************************
 mandfx:
         move palphase1,d0    ;put funky colours in the whole CLUT
         and #$ff,d0
@@ -12930,10 +13529,6 @@ only1p:
         cmp.l #bigreset,d0
         bne chp1
         move #1,z    ;flag Stop Whatever You Are Doing And Reset!  
-;  move #15,t2k_max
-;  move #15,t2k_high
-;  move #15,trad_max
-;  move #15,trad_high  
         clr auto
 chp1:
         tst _auto
@@ -12960,15 +13555,16 @@ chron:
         clr.l d0
         clr.l d1
         jsr SET_VOLUME    ;Music off
-;  jsr zoomoff    ;SFX off
         jsr pflushfx
         move #-1,vadj
         move.l routine,paws
         move.l #pauson,routine
-;  bsr beastiesoff
         move #1,pawsed
         rts
 
+; *******************************************************************
+; Unused code
+; *******************************************************************
 beastiesoff:
         neg beasties+76
         neg beasties+140
@@ -12980,11 +13576,12 @@ beastiesoff:
 ; *******************************************************************
 paustuff:
         jsr text2_setup
-;  move.l #$400040,32(a0)
-;  move.l #vertext,(a0) 
-;   lea texter,a0
-;  jsr gpurun
-;  jsr gpuwait
+        ; Version number message retained below.
+        ;  move.l #$400040,32(a0)
+        ;  move.l #vertext,(a0) 
+        ;  lea texter,a0
+        ;  jsr gpurun
+        ;  jsr gpuwait
         tst pausprite
         beq npspri
         lea in_buf,a0
@@ -13061,20 +13658,11 @@ budb:
         move.l #pausing,routine
         rts
 
+; *******************************************************************
+; pausing
+; *******************************************************************
 pausing:
         add #1,pframes
-
-;  move frames,d0
-;  and #1,d0
-;  bne psing
-;  add.b #1,camry+1
-psing:
-;  btst.b #1,pad_now+2  ;look for Option
-;  beq not_opt
-;  move.l #rrts,routine
-;  move.l #mandy,_demo
-;  move #1,term
-;  rts      ;Exit to do some demos
 
 not_opt:
         move.l pad_now,d0
@@ -13182,8 +13770,10 @@ ntsel:
         beq rrts
         jmp zoomon
 
-tvup:
-        tst.b vols
+; *******************************************************************
+; tvup
+; *******************************************************************
+tvup:   tst.b vols
         bne tvup1
         tst modstop
         beq tvup1
@@ -13192,32 +13782,33 @@ tvup:
         clr modnum
         sub #1,d0
         jsr playtune
-tvup1:
-         cmp.b #$ff,vols
+tvup1:  cmp.b #$ff,vols
         beq rrts
         add.b #1,vols
         rts
-tvdn:
-        tst.b vols
+
+; *******************************************************************
+; tvdn
+; *******************************************************************
+tvdn:   tst.b vols
         beq stpmod
         sub.b #1,vols
         rts
-stpmod:
-        move #1,modstop
+stpmod: move #1,modstop
         jmp STOP_MOD
-fxup:
-         cmp.b #$ff,vols+1
+fxup:   cmp.b #$ff,vols+1
         beq rrts
         add.b #1,vols+1
         clr modstop    ;if we add it has to be on!
         rts
-fxdn:
-        tst.b vols+1
+fxdn:   tst.b vols+1
         beq rrts
         sub.b #1,vols+1
         rts
 
-
+; *******************************************************************
+; pausoff
+; *******************************************************************
 pausoff:
         move camry,d0
         and #$fe,d0
@@ -13225,37 +13816,35 @@ pausoff:
         cmp #$80,d0
         blt decit
         add #4,d0
-decit:
-        sub #2,d0
+decit:  sub #2,d0
         move d0,camry
         rts
-p_off:
-        move.l pad_now,d0
+p_off:  move.l pad_now,d0
         cmp #2,players
         beq mergem
         tst h2h
         beq nomergem
-mergem:
-        or.l pad_now+4,d0  
+mergem: or.l pad_now+4,d0  
 nomergem:
         and.l #pausebutton,d0
         bne rrts
         move.l paws,routine
         clr.l paws
-;  move camroll,g_load  ;reset type #1 if on...
         clr pawsed
-;  bsr beastiesoff
         rts
 
+; *******************************************************************
+; gpu_run
+; Unused code
+; *******************************************************************
 gpu_run_b:
         move.l dscreen,gpu_screen
         bra rgpu 
 
-
 gpu_run:
         move.l gscreen,gpu_screen
 rgpu:
-         move.l #-1,gpu_sem  ;flag GPU running
+        move.l #-1,gpu_sem  ;flag GPU running
         move.l #$f03000,d0  ;start address of GPU program
         move.l d0,G_PC  ;set GPU's PC
         move.l #$11,G_CTRL  ;fire up GPU  
@@ -13266,6 +13855,10 @@ still_running:
         move #1,screen_ready  ;tell int routine the screen is ready        ;for display
         rts 
 
+; *******************************************************************
+; gpu
+; Unused code
+; *******************************************************************
 gpu:
         move.l dscreen,gpu_screen
         move.l #-1,gpu_sem  ;flag GPU running
@@ -13282,63 +13875,76 @@ still_r:
 
 
 
+; *******************************************************************
+; Initialize the Object List. We make it 12 items long. The main object
+; is the first one, which is a full screen of pixel data generated by the
+; GPU.
+; *******************************************************************
 InitBeasties:
- lea beasties,a0
- move #12,d7
- move d7,nbeasties
+        lea beasties,a0
+        move #12,d7
+        move d7,nbeasties
 ibeasts:
- move #-1,12(a0)  ;inactive
- lea 64(a0),a0      ;room for other shit
- dbra d7,ibeasts
- rts
+        move #-1,12(a0)  ;inactive
+        lea 64(a0),a0      ;room for other shit
+        dbra d7,ibeasts
+        rts
 
+; *******************************************************************
+; RunBeasties
+; Create the Object List (aka Display List). This is used by the 
+; Jaguar's Object Processor to write pixel data to the screen. It has
+; a fixed length of 12 objects in the list (fixed by InitBeasties above).
+; The main object is the first one (see ObTypes), which is a full screen
+; of pixel data populated by the GPU.
+; *******************************************************************
 RunBeasties:
- move.l blist,a0    ;will use MakeScaledObject to build a list
- move.l dlist,a4
- tst warp_flash
- bne StopList
- lea beasties,a2
- move nbeasties,d7
+        move.l blist,a0    ;will use MakeScaledObject to build a list
+        move.l dlist,a4
+        tst warp_flash
+        bne StopList
+        lea beasties,a2
+        move nbeasties,d7
 
-RBeasts: move d7,-(a7)
- move 12(a2),d0  ; get mode
- bmi nxbeast
- lea ModeVex,a3
- asl #2,d0
- move.l 0(a3,d0.w),a3
- jsr (a3)    ;call action for that Mode
- move (a2),d0
- and #$fff,d0    ;limit to 12-bit
- move 4(a2),d1
-; move frames,d3
-; and #1,d3
- bclr #0,d1
-; or d3,d1
- move 8(a2),d6
- move 10(a2),d3
- lsl #8,d3
- or d6,d3
- swap d3
- move 14(a2),d7    ;type
- lea ObTypes,a3
- asl #3,d7
- move 0(a3,d7.w),d3  ;get width in phrases
- move 2(a3,d7.w),d4  ;vertical height
- move 4(a3,d7.w),d5  ;depth
- move 6(a3,d7.w),d2  ;CLUT offset
- move.l 16(a2),a1  ;data pointer
- bsr MakeUnScaledObject
- move 20(a2),d0    ;post-creation stuff?
- bmi nxbeast
- lea postfixups,a3
- asl #2,d0
- move.l 0(a3,d0.w),a3
- jsr (a3)  ;do any fixup
+RBeasts:move d7,-(a7)
+        move 12(a2),d0  ; get mode
+        bmi nxbeast
+        lea ModeVex,a3
+        asl #2,d0
+        move.l 0(a3,d0.w),a3
+        jsr (a3)    ;call action for that Mode
+        move (a2),d0
+        and #$fff,d0    ;limit to 12-bit
+        move 4(a2),d1
+        ; move frames,d3
+        ; and #1,d3
+        bclr #0,d1
+        ; or d3,d1
+        move 8(a2),d6
+        move 10(a2),d3
+        lsl #8,d3
+        or d6,d3
+        swap d3
+        move 14(a2),d7    ;type
+        lea ObTypes,a3
+        asl #3,d7
+        move 0(a3,d7.w),d3  ;get width in phrases
+        move 2(a3,d7.w),d4  ;vertical height
+        move 4(a3,d7.w),d5  ;depth
+        move 6(a3,d7.w),d2  ;CLUT offset
+        move.l 16(a2),a1  ;data pointer
+        bsr MakeUnScaledObject
+        move 20(a2),d0    ;post-creation stuff?
+        bmi nxbeast
+        lea postfixups,a3
+        asl #2,d0
+        move.l 0(a3,d0.w),a3
+        jsr (a3)  ;do any fixup
 nxbeast:
- move (a7)+,d7
- lea 64(a2),a2    ;do 'em all 
- dbra d7,RBeasts
- bra StopList    ;put a stopobject on the end  
+        move (a7)+,d7
+        lea 64(a2),a2    ;do 'em all 
+        dbra d7,RBeasts
+        bra StopList    ;put a stopobject on the end  
 
 postfixups:
         dc.l make_rmw,make_trans
@@ -13346,7 +13952,6 @@ postfixups:
 make_rmw:
 ;
 ; set RMW on the sprite just defined
-
         lea -32(a0),a3    ;point to start of object
         bset.b #6,10(a3)  ;set the RMW flag
         rts
@@ -13354,20 +13959,19 @@ make_rmw:
 make_trans:
 ;
 ; make this sprite transparent
-
         lea -32(a0),a3
         bset.b #7,10(a3)
         rts
 
 ModeVex: dc.l rrts
 
-
-
-InitLists:
+; *******************************************************************
+; InitLists
 ;
 ; Align object list buffers and initialise them with some
 ; data, set one of them to be displayed
-
+; *******************************************************************
+InitLists:
         move.l #list1,d0
         and.l #$ffffffe0,d0  ;make sure it's quadphrase aligned
 
@@ -13402,9 +14006,7 @@ InitLists:
         move d0,(a0)+
         move d2,(a0)+
 
-;  move.l d0,dlist
         move.l a0,dlist
-;  move.l d0,a0
         bsr StopList
 
         move.l #list2,d0  ;same for the other list
@@ -13413,16 +14015,15 @@ InitLists:
         move.l d0,a0
         bra StopList
 
-StopList: move #15,d0
-sl:
-         move.l #0,(a0)+
+StopList:
+        move #15,d0
+sl:     move.l #0,(a0)+
         move.l #4,(a0)+    ;make a stopobject
         dbra d0,sl
         rts
 
-         
-
-MakeScaledObject:
+; *******************************************************************
+; MakeScaledObject
 ;
 ; Make an OL entry for an object. a0 --> current pos in OL being built
 ; (assumes a0 is already phrase aligned)
@@ -13436,19 +14037,18 @@ MakeScaledObject:
 ; uses all d-regs, a0 must have OL position, a6 used internally
 ;
 ; Adding new stuff: d3 high word now=Yscale:Xscale
-
-
-
-* Now the funky bit. Build a scaled bitmapped object.
-* We are now on a quadphrase boundary too.
+; *******************************************************************
+MakeScaledObject:
+        ; Now the funky bit. Build a scaled bitmapped object.
+        ; We are now on a quadphrase boundary too.
 
         move.l a1,d6    ;get copy of data pointer
         and.l #$fffffff8,d6  ;lose three LSB's
         lsl.l #8,d6    ;move to correct bit position
         move.l d6,(a0)+    ;put it in the list
 
-* The link address is the same as for the preceding conditional
-* object, and remember i saved it in a1, so...
+        ; The link address is the same as for the preceding conditional
+        ; object, and remember i saved it in a1, so...
 
         lea 32(a0),a6
         move.l a6,d6    ;get back link-pointer
@@ -13456,8 +14056,8 @@ MakeScaledObject:
         swap d6      ;get top word of the address..
         or d6,-2(a0)    ;and or it into place on the previous word.
 
-* That's the first longword done, and the remaining byte of the
-* link address is in d6 high already.
+        ; That's the first longword done, and the remaining byte of the
+        ; link address is in d6 high already.
 
         move.l #0,d7    ;make d7 empty
         move d4,d7    ;get a copy of the height...
@@ -13472,7 +14072,7 @@ MakeScaledObject:
         bset #0,d6    ;set the type=1
         move d6,(a0)+    ;..which completes the first phrase.
 
-* Now on to the next phrase.
+        ; Now on to the next phrase.
 
         clr (a0)+    ;assume Firstpix=0, RELEASE not asserted
         move d2,d7    ;get INDEX
@@ -13484,7 +14084,7 @@ MakeScaledObject:
         or d7,d6    ;mask in Index
         move d6,(a0)+    ;ignores Reflect, RMW
 
-* First long of phrase 2 is done...
+        ; First long of phrase 2 is done...
 
         move d3,d7    ;Assume dwidth=iwidth for simplicity
         lsl #2,d7    ;align
@@ -13497,7 +14097,7 @@ MakeScaledObject:
         bset #15,d6    ;(PITCH=1)
         move d6,(a0)+    ;Here endeth the Second Phrase.
 
-* Now the third and final phrase.
+        ; Now the third and final phrase.
 
         move.l #0,(a0)+    ;Not used.....
         move.l d3,d6
@@ -13510,11 +14110,11 @@ MakeScaledObject:
         move.l d7,(a0)+  
         lea 8(a0),a0
 
-* Outta here.
-
+        ; Outta here.
         rts
 
-MakeUnScaledObject:
+; *******************************************************************
+; MakeUnScaledObject
 ;
 ; Make an OL entry for an object. a0 --> current pos in OL being built
 ; (assumes a0 is already phrase aligned)
@@ -13527,6 +14127,8 @@ MakeUnScaledObject:
 ;
 ; uses all d-regs, a0 must have OL position, a6 used internally
 ;
+; *******************************************************************
+MakeUnScaledObject:
         move.l a0,d6
         and #$1f,d6    ;check for aligned
         beq muso
@@ -13535,11 +14137,10 @@ MakeUnScaledObject:
         move.l d6,a0
         lea 32(a0),a0    ;make it aligned 
 
-* Now the funky bit. Build an unscaled bitmapped object.
-* We are now on a quadphrase boundary too.
+        ; Now the funky bit. Build an unscaled bitmapped object.
+        ; We are now on a quadphrase boundary too.
 
-muso:
-        move.l a1,d6    ;get copy of data pointer
+muso:   move.l a1,d6    ;get copy of data pointer
         and.l #$fffffff8,d6  ;lose three LSB's
         lsl.l #8,d6    ;move to correct bit position
         move.l d6,(a0)+    ;put it in the list
@@ -13549,8 +14150,8 @@ muso:
         swap d6      ;get top word of the address..
         or d6,-2(a0)    ;and or it into place on the previous word.
 
-* That's the first longword done, and the remaining byte of the
-* link address is in d6 high already.
+        ; That's the first longword done, and the remaining byte of the
+        ; link address is in d6 high already.
 
         move.l #0,d7    ;make d7 empty
         move d4,d7    ;get a copy of the height...
@@ -13565,7 +14166,7 @@ muso:
         or d7,d6    ;mask in those 2 bits of height..
         move d6,(a0)+    ;..which completes the first phrase.
 
-* Now on to the next phrase.
+        ; Now on to the next phrase.
 
         clr (a0)+    ;assume Firstpix=0, RELEASE not asserted
         move d2,d7    ;get INDEX
@@ -13577,7 +14178,7 @@ muso:
         or d7,d6    ;mask in Index
         move d6,(a0)+    ;ignores Reflect, RMW
 
-* First long of phrase 2 is done...
+        ; First long of phrase 2 is done...
 
         move d3,d7    ;Assume dwidth=iwidth for simplicity
         lsl #2,d7    ;align
@@ -13591,16 +14192,18 @@ muso:
         move d6,(a0)+    ;Here endeth the Second Phrase.
         lea 16(a0),a0    ;not economical but if all objects are 32 bytes it makes life easier
         lea 32(a4),a4    ;where the list is really going to
-* Outta here.
+        ; Outta here.
 
         rts
 
 
-BlitBlock:
+; *******************************************************************
+; BlitBlock
 ;
 ; use the Blitter to draw a block, origin d0/d1, size d2/d3, colour d4,
 ; on the 384-pixel wide bitmap addressed at a0.
-
+; *******************************************************************
+BlitBlock:
         move.l #PITCH1|PIXEL16|WID384|XADDINC,d7
         move.l d7,A1_FLAGS
         move.l a0,d7
@@ -13635,15 +14238,15 @@ WaitBlit:
         move.l B_CMD,d7  ;get Blitter status regs
         btst #0,d7
         beq WaitBlit    ;wait until outer loop is idle
-rrts:
-        rts
+rrts:   rts
 
-
-fxBlock:
+; *******************************************************************
+; fxBlock
 ;
 ; use the Blitter to draw a block, origin d0/d1, size d2/d3, colour d4,
 ; on the 384-pixel wide bitmap addressed at a0.
-
+; *******************************************************************
+fxBlock:
         move.l #PITCH1|PIXEL16|WID384|XADDINC,d7
         move.l d7,A1_FLAGS
         move.l a0,d7
@@ -13674,12 +14277,15 @@ fxBlock:
         move.l #PATDSEL|UPDA1,d7
         move.l d7,B_CMD  ;do the thang
         bra WaitBlit
-            
-ecopy:
-        move.l #PITCH1|PIXEL16|WID384|XADDINC,d7
+
+; *******************************************************************
+; ecopy
+; *******************************************************************
+ecopy:  move.l #PITCH1|PIXEL16|WID384|XADDINC,d7
         bra eec
 
-CopyBlock:
+; *******************************************************************
+; CopyBlock
 ;
 ; Copy from screen at a0 to screen at a1
 ; d0/d1=origin of sourceblock
@@ -13690,10 +14296,10 @@ CopyBlock:
 ; This simple routine will assume both screens are the same width
 ;
 ; Using this blitter is a piece of piss.
-
+; *******************************************************************
+CopyBlock:
         move.l #PITCH1|PIXEL16|WID320|XADDINC,d7
-eec:
-        move.l d7,A1_FLAGS  ;a1 (Source) Gubbins
+eec:    move.l d7,A1_FLAGS  ;a1 (Source) Gubbins
 
         move.l #PITCH1|PIXEL16|WID384|XADDPIX|YADD1,d7
         move.l d7,A2_FLAGS  ;a2 (Dest) Gubbins
@@ -13735,10 +14341,10 @@ eec:
         move.l d7,B_CMD
         bra WaitBlit
 
-
+; *******************************************************************
+; MergeBlock
+; *******************************************************************
 MergeBlock:
-;
-
         move.l #0,B_PATD
         move.l #0,B_PATD+4    ;set transparency colour
 
@@ -13785,15 +14391,13 @@ MergeBlock:
         move.l d7,B_CMD
         bra WaitBlit
 
-
-
-
-
-make_vo2d:
-;
+; *******************************************************************
+; make_vo2d
 ; make a 2d vector object at a0, using the vertex list at (a1)
 ;
 ; d0.l=x scale, d1.l=y scale, d2.l=x centre, d3.l=y centre, d4=angle
+; *******************************************************************
+make_vo2d:
 
         move.l a0,a2
         move.l d0,(a0)+
@@ -13806,19 +14410,16 @@ make_vo2d:
         clr d6      ;use to do extent
 
         lea 32(a2),a0    ;start of vector info
-gv:
-        move.b (a1)+,d0
+gv:     move.b (a1)+,d0
         bmi gv_end
         move.b (a1)+,d1
         cmp d0,d5    ;check and set extent if necessary
         bge gv1
         move d0,d5
-gv1:
-         cmp d1,d6
+gv1:    cmp d1,d6
         bge gv2
         move d1,d6
-gv2:
-        move.b (a1)+,d2    ;get 1 vertex
+gv2:    move.b (a1)+,d2    ;get 1 vertex
         and.l #$ff,d0    ;co-ordinates are 0-255
         and.l #$ff,d1
         swap d0
@@ -13830,29 +14431,27 @@ gv2:
         move.l d2,(a0)+    ;vertexinfo  
         bra gv
 
-gv_end:
-        move.l #-1,(a0)+
+gv_end: move.l #-1,(a0)+
         move.l d5,8(a2)
         move.l d6,12(a2)  ;put in extent
         rts
 
-make_vo3d:
+; *******************************************************************
+; make_vo3d
 ;
 ; make a 3d vector object at a0, using the short data at (a1)
 ;
 ; d0.l=x scale, d1.l=y scale, d2.l=z scale, d3.l=x centre, d4.l=y centre, d5.l=z centre, d6=angle (xy)/angle (xz), d7=angle (yz)
 ;
 ; makes a 48-byte header which is copied to GPU local RAM when the object is drawn (I guess the techies would call it an instance)
-
-
+; *******************************************************************
+make_vo3d:
         move.l vadd,a0
         move.l a0,-(a7)
         bsr initvo
         move #$0,d4      ;use this for colour-info
-buildit:
-        move #2,d2    ;loop for three items..
-b3d1:
-         move.b (a1)+,d0  ;X
+buildit:move #2,d2    ;loop for three items..
+b3d1:   move.b (a1)+,d0  ;X
         beq builtit    ;zero means last vertex
         and.l #$ff,d0
         move.l d0,(a2)+    ;put it in the vertex list
@@ -13863,29 +14462,23 @@ b3d1:
         lea 1(a1),a1
         bra nxtvrt
 
-dcnc:
-        move d3,(a3)+    ;vertex # to connect list
-cnect:
-        move.b (a1)+,d0    ;get connected vertex #
+dcnc:   move d3,(a3)+    ;vertex # to connect list
+cnect:  move.b (a1)+,d0    ;get connected vertex #
         bpl stdvrt
         move.b (a1)+,d4
         lsl #8,d4    ;set nu colour
         move.b (a1)+,d0
 
-stdvrt:
-        and #$ff,d0
+stdvrt: and #$ff,d0
         beq zv
         or d4,d0
-zv:
-        move d0,(a3)+
+zv:     move d0,(a3)+
         bne cnect    ;loop until a zero
 
-nxtvrt:
-        addq #1,d3    ;next vertex number
+nxtvrt: addq #1,d3    ;next vertex number
         bra buildit    ;go do next vertex
 
-builtit:
-        move.l #0,(a3)+
+builtit:move.l #0,(a3)+
         and.l #$ffff,d3
         move.l d3,(a0)+    ;pass # of vertices in header
         move.l a3,connect_ptr
@@ -13894,8 +14487,11 @@ builtit:
         move.l (a7)+,a0
         rts
 
-initvo:
-        move.l a0,a2
+; *******************************************************************
+; initvo
+; Initialize a standard vector object
+; *******************************************************************
+initvo: move.l a0,a2
         move.l d0,(a0)+    ;x
         move.l d1,(a0)+    ;y
         move.l d2,(a0)+    ;z scales;
@@ -13923,16 +14519,15 @@ initvo:
         move #1,d3      ;vertex number
         rts
 
-;******
+; *******************************************************************
+; extrude
 ; This routine reads in the web data structure for a given web.
-;*****
-extrude:
 ;
 ; extrude a web from a list of 16 pairs of XY coordinates addressed by (a1)
 ;
 ; a0 = vector ram space; a2.l = z depth to extrude to; d0-d7 as above
-
-        move.l vadd,a0
+; *******************************************************************
+extrude:move.l vadd,a0
         movem.l d0-d7/a0/a2,-(a7)    ;save so routine can return address
         clr connect
         move.l a2,-(a7)    ;save z depth
@@ -13952,18 +14547,16 @@ extrude:
         move.l a3,(a5)+    ;first vertex to lanes list
 
         ; Read in the x/y pairs
-xweb:
         ; Get the current x and y pair
-        move (a1)+,d0
+xweb:   move (a1)+,d0
         move (a1)+,d1    ;get X and Y
         ext.l d0
         ext.l d1
         cmp d5,d1     ; Check if this is the large X value so far
         blt xweb2     ; As above.
         move d1,d5    ; It's bigger, so save it in d5.
-xweb2:
         ; Store the x,y,z value for the near point in the web
-        move.l d0,(a2)+ ; x value
+xweb2:  move.l d0,(a2)+ ; x value
         move.l d1,(a2)+ ; y value
         clr.l (a2)+     ; z value for near point (always 0)
 
@@ -14005,8 +14598,7 @@ lastpoint:
         move #0,(a3)+
         move d3,(a3)+
         move #2,(a3)+
-nconn1:
-        move.l #0,(a3)+
+nconn1: move.l #0,(a3)+
         and.l #$ffff,d3
         move.l d3,(a0)+    ;pass # of vertices in header
         lea 6(a1),a1
@@ -14026,6 +14618,10 @@ nconn1:
         move.l d5,20(a0)  ;set z centre
         rts
         
+; *******************************************************************
+; make_fw
+; Make a firework object
+; *******************************************************************
 make_fw:
         tst afree
         bmi rrts
@@ -14047,6 +14643,10 @@ make_fw:
         sub #1,afree
         jmp insertobject
         
+; *******************************************************************
+; draw_fw
+; Draw a firework object
+; *******************************************************************
 draw_fw:
         tst 32(a6)
         bmi fw_ex    ;Duration gone, go draw Explosion
@@ -14060,10 +14660,9 @@ draw_fw:
         move.l #5,gpu_mode
         lea xparrot,a0
         jsr gpurun    ;do pixel in 3d
-        jmp gpuwait
+        jmp gpuwait   ; returns
 
-fw_ex:
-        lea in_buf,a0
+fw_ex:  lea in_buf,a0
         move.l 4(a6),(a0)
         move.l 8(a6),4(a0)
         move.l 12(a6),8(a0)
@@ -14093,8 +14692,11 @@ fw_ex:
         jsr gpurun      ;do clear screen
         jmp gpuwait
 
-run_fw:
-        tst 32(a6)
+; *******************************************************************
+; run_fw
+; Updat the state of the firework object
+; *******************************************************************
+run_fw: tst 32(a6)
         bmi xpired
         move.l 16(a6),d0
         add.l d0,4(A6)
@@ -14114,11 +14716,12 @@ xpired:
         move #1,50(A6)
         rts
 
-iv:
+; *******************************************************************
+; iv
 ;
 ; init vertex and connect pointers
-
-        move.l #vertex_ram+4,d0
+; *******************************************************************
+iv:     move.l #vertex_ram+4,d0
         and.l #$fffffffc,d0
         move.l d0,vertex_ptr
         move.l #connect_ram,connect_ptr
@@ -14128,6 +14731,10 @@ iv:
         move.l d0,vadd
         rts
 
+; *******************************************************************
+; run_vex
+; Routines for updating the state of all objects.
+; *******************************************************************
 run_vex:
         dc.l rrts,player_shot,run_flipper,run_zap,kill_shot,run_tanker,run_spike,run_spiker,run_ashot,run_fuseball,blowaway  ;10
         dc.l run_pulsar,oblow,go_downc,go_downf,claw_con2,claw_con1,rez_claw,czoom1,czoom2,pzap,rundroid  ;21
@@ -14135,12 +14742,14 @@ run_vex:
         dc.l run_h2hball,oblow2,rumirr,refsht,refsht2,run_adroid,loiter
 
 
-run_objects:
+; *******************************************************************
+; run_objects
+; Update the state of all the objects in the game, i.e. everything in
+; the activeobjects list and more besides. 
 ;
 ; run the 'objects' in the demo
-
-;  bsr vp_xform
-
+; *******************************************************************
+run_objects:
         move #1,diag
         sub.b #1,pudel    ;do Pulsar pulses
         bpl zzonk
@@ -14156,10 +14765,8 @@ zzonk:
         beq zonk
         move #-1,zapdone
         bra zonk
-clzd:
-        clr zapdone
-zonk:
-        move #2,diag
+clzd:   clr zapdone
+zonk:   move #2,diag
         move #0,d7    ;use to check for wave_end
         move.l #500,d6    ;use to find the nearest enemy, for the Droid's brain
         move.l activeobjects,a6
@@ -14170,15 +14777,11 @@ zonk:
         and #3,d0
         bne r_obj
         move #1,_sz    ;Kill something please...  
-r_obj:
-        cmpa.l #-1,a6
+r_obj:  cmpa.l #-1,a6
         beq r_end
         tst 50(a6)
         bmi r_end1    ;>>>>> KLUDGE to prevent a garbled list being traversed
-;  beq doitthen
-;  move #webz,d7    ;>>>>>  
-;  move.l 60(a6),a6
-;  bra r_obj  
+
 doitthen:
         lea run_vex,a0
         move 34(a6),d0    ;Collapsed to a pixel?
@@ -14196,15 +14799,13 @@ doitthen:
         add #2,12(a6)
         bra r_o1    ;Makes pulsars wait until innocent before touchdown
 
-setxx:
-        neg 34(a6)    ;make it real now  
+setxx:  neg 34(a6)    ;make it real now  
 
 notcolap:
         move 54(a6),d0
         bpl r_o1    ;-ve treated as no action
         clr d0
-r_o1:
-        asl #2,d0
+r_o1:   asl #2,d0
         move.l 60(a6),-(a7)  ;save address of current Next in case this object is unlinked
         move.l 0(a0,d0.w),a0
         tst 52(a6)    ;'Enemy' flag
@@ -14216,26 +14817,22 @@ r_o1:
         move 16(a6),d6    ;get nearest one's Lane #
         swap d6
         move 12(a6),d6    ;make this z nearest  
-gokk:
-        cmp 12(a6),d7
+gokk:   cmp 12(a6),d7
         bgt zokk
         move 12(a6),d7
-zokk:
-        movem.l d6-d7,-(a7)
+zokk:   movem.l d6-d7,-(a7)
         move #3,diag
         move.l a0,diag+4
         move.l a6,diag+8
         tst locked    ;>>>>> A nasty hack.
         bne hack
         jsr (a0)    ;call motion vector
-hack:
-        movem.l (a7)+,d6-d7    ;retrieve furthest-z
+hack:   movem.l (a7)+,d6-d7    ;retrieve furthest-z
         move.l (a7)+,a6    ;Next
         move #4,diag
         move.l a6,diag+12
         bra r_obj
-r_end:
-        move.l d6,droid_data
+r_end:  move.l d6,droid_data
         move #5,diag
         tst wave_tim    ;has E been done?
         bpl r_end1    ;Nope
@@ -14243,19 +14840,14 @@ r_end:
         beq rrts
         cmp #webz-80,d7    ;furthest NME at top?
         bgt r_end1
-szoom:
-        move #-2,wave_tim
-;  tst inf_zap
-;  bne zagga
+szoom:  move #-2,wave_tim
 
         tst dnt
         bpl skagi
         clr dnt
-skagi:
-        clr szap_on
+skagi:  clr szap_on
         bsr clzapa
-zagga:
-        move.l #zoom1,routine    ;fly off the web
+zagga:  move.l #zoom1,routine    ;fly off the web
         clr l_soltarg
         move #18,d0
         bsr sclawt      ;any claws to Zoom Mode
@@ -14264,11 +14856,8 @@ zagga:
         clr.l 24(a0)
         move.l #10,zoopitch
         bsr zoomon
-banana:
-        cmp #3,cwave
+banana: cmp #3,cwave
         blt rrts
-;  tst inf_zap
-;  bne rrts
         cmp #15,cwave
         bgt rrts
         tst outah
@@ -14280,8 +14869,7 @@ banana:
         move #250,msgtim1
         rts
 
-yeson:
-        move #23,sfx
+yeson:  move #23,sfx
         move #101,sfx_pri
         jsr fox
         move handl,handl1
@@ -14290,8 +14878,10 @@ yeson:
         move handl,handl2
         rts
 
-zoomon:
-        move #0,sfx
+; *******************************************************************
+; zoomon
+; *******************************************************************
+zoomon: move #0,sfx
         move #100,sfx_pri
         move.l zoopitch,d0
         move.l d0,sfx_pitch
@@ -14310,31 +14900,26 @@ zoomon:
         move #1,wson
         rts
 
-r_end1:
-        tst _sz      ;did we Zap something?
+r_end1: tst _sz      ;did we Zap something?
         beq rrts    ;No
         bmi someone_fried  ;Yes
-;  tst inf_zap
-;  bne rrts
         clr szap_on    ;Superzap done
         bra clzapa
 someone_fried:
         tst szap_avail  ;Was that a second, desperate Zap?
         bpl rrts    ;No
-;  tst inf_zap
-;  bne rrts
-clzapa:
-        clr szap_on    ;Yeah, he zaps 1 alien is all
+clzapa: clr szap_on    ;Yeah, he zaps 1 alien is all
         clr bolt_lock
         clr inf_zap
         move #1,wave_speed
         rts
 
 
-rob:
-        move.l activeobjects,a6
-r_ob:
-        cmpa.l #-1,a6
+; *******************************************************************
+; rob
+; *******************************************************************
+rob:    move.l activeobjects,a6
+r_ob:   cmpa.l #-1,a6
         beq rob_end
         tst 50(a6)
         bmi rob_end    ;>>>>> KLUDGE to prevent a garbled list being traversed
@@ -14343,25 +14928,19 @@ r_ob:
         move 54(a6),d0
         bpl r_ob1    ;-ve treated as no action
         clr d0
-r_ob1:
-        asl #2,d0
+r_ob1:  asl #2,d0
         move.l 60(a6),-(a7)  ;save address of current Next in case this object is unlinked
         move.l 0(a0,d0.w),a0
         jsr (a0)    ;call motion vector
         move.l (a7)+,a6
         bra r_ob
-rob_end:
-        rts
-r_nxt:
-        move.l 56(a6),a6
+rob_end:rts
+r_nxt:  move.l 56(a6),a6
         bra r_ob
 
-
         ; Our first pass through the activeobjects list.
-dob:
-        move.l activeobjects,a6
-d_ob:
-        cmpa.l #-1,a6
+dob:    move.l activeobjects,a6
+d_ob:   cmpa.l #-1,a6
         beq dobend
         move 50(a6),d0    ;'Unlink Me Please'
         beq no_dunlink
@@ -14371,8 +14950,7 @@ d_ob:
         move.l d1,a5
         move.l 60(a6),60(a5)  ;if interrupted, unlinking object is invisible to int routine now
 
-dtlink:
-        move #-1,50(a6)    ;mark it bad
+dtlink: move #-1,50(a6)    ;mark it bad
         move.l 60(a6),-(a7)
         move d0,-(a7)
         move.l a6,a0
@@ -14389,30 +14967,30 @@ no_dunlink:
         move.l 60(a6),-(a7)    ;go to next object
         jsr (a0)    ;execute chosen draw type
         jsr gpuwait
-nxtdob:
-        move.l (a7)+,a6    ;this way i can even trash a6 if i need II
+nxtdob: move.l (a7)+,a6    ;this way i can even trash a6 if i need II
         bra d_ob    ;finish off and terminate the ud-list
 
-dobend:
-        bsr showscore
+dobend: bsr showscore
         tst blanka
         beq dodvec
         bsr drawpolyos    ;draw pri-list full of poly objects
-dodvec:
-        bra drawmsg    ;draw Messager thang if needed
+dodvec: bra drawmsg    ;draw Messager thang if needed
 
-dafinc:
-        add #1,afree
+dafinc: add #1,afree
         move #1,locked
         bsr unlinkobject  
         clr locked
         rts
 
-donki:
-        bsr showscore
+donki:  bsr showscore
         bra drawmsg
 
-
+; *******************************************************************
+; draw_vex
+; A list of routines used for drawing vector object. The activeobjects
+; list contains an index into this list so the specific draw routine
+; for each object can be invoked.
+; *******************************************************************
 draw_vex:
         dc.l rrts,draw,draw_z,draw_vxc,draw_spike,draw_pixex,draw_mpixex,draw_oneup,draw_pel,changex  ;9
         dc.l draw_pring,draw_prex,dxshot,drawsphere,draw_fw,dmpix,dsclaw,dsclaw2
@@ -14421,47 +14999,43 @@ draw_vex:
 
 ; *******************************************************************
 ; Draw Objects
+; This is called from the mainloop and is responsible for doing
+; nearly all the GPU/Blitter operations for each frame. 
 ; *******************************************************************
 draw_objects:
-
-        tst h2h
-        bne nodraw    ;cheque 2p h2h mode
+        tst h2h                 ; Are we in head to head mode?
+        bne nodraw              ; Yes, go to 'nodraw'.
         clr h2hor
 stayhalt:
-        tst drawhalt
-;  bne stayhalt
+        tst drawhalt            ; 
         bsr clearscreen
         move.b sysflags,d0
         and.l #$ff,d0
-        move.l d0,_sysflags    ;pass sys flags to GPU
-        tst sf_on
-        bne dostarf
-        bra gwb
-dostarf:
-;   tst solidweb
-;  bne gwb
-        move.l #3,gpu_mode  ;mode 3 is starfield1
-        move.l vp_x,in_buf+4
-        move.l vp_y,in_buf+8
-        move.l vp_z,d0
-        add.l vp_sf,d0
-        move.l d0,in_buf+12    ;pass viewpoint to GPU
-        move.l #field1,d0
-        move.l d0,in_buf+16  ;address off the starfield data structure
-        move.l warp_count,in_buf+20
-        move.l warp_add,in_buf+24
-        lea fastvector,a0
-        jsr gpurun    ;do gpu routine
-        jsr gpuwait
+        move.l d0,_sysflags     ;pass sys flags to GPU
+        tst sf_on               ; Is the starfield active?
+        bne dostarf             ; If yes, go to 'dostarf'.
+        bra gwb                 ; Otherwise do the web.
 
-gwb:
-        move.l vp_x,d3
+        ; Prepare the starfield!
+dostarf: move.l #3,gpu_mode      ; mode 3 is starfield1
+        move.l vp_x,in_buf+4    ; Put x pos in the in_buf buffer.
+        move.l vp_y,in_buf+8    ; Put y pos in the buffer.
+        move.l vp_z,d0          ; Get the current z pos.
+        add.l vp_sf,d0          ; Increment it. 
+        move.l d0,in_buf+12     ; Add it to the buffer.
+        move.l #field1,d0       ; Get the starfield data structure.
+        move.l d0,in_buf+16     ; And put it in the buffer.
+        move.l warp_count,in_buf+20 ; Add the warp count.
+        move.l warp_add,in_buf+24   ; Add the warp increment.
+        lea fastvector,a0       ; Get the GPU routine to use.
+        jsr gpurun              ; do gpu routine
+        jsr gpuwait             ; Wait until its finished.
+
+gwb:    move.l vp_x,d3
         move.l vp_y,d4
         move.l vp_z,d5
 
-dscud:
-solweb:
-        move #120,d0
+solweb: move #120,d0
         add palfix2,d0
         and.l #$ff,d0
         move.l d0,ycent
@@ -14500,104 +15074,91 @@ solweb:
         jsr gpurun
         jsr gpuwait
         jsr WaitBlit
-;  bra n_wb
-vweb:
-        tst t2k
+
+vweb:   tst t2k
         beq gvweb
         cmp #1,webcol
         bne gvweb
         add #1,wpt    ;..are actually psychedelic vectors...
-;  and #7,wpt    ;in t2k
-;  bne vweb    
         bsr swebpsych
-gvweb:
-        move.l #2,gpu_mode  ;Mode 2 is do-the-vectors-in-3d-thang
+
+gvweb:  move.l #2,gpu_mode  ;Mode 2 is do-the-vectors-in-3d-thang
         lea _web,a6
-        tst 34(A6)
+        tst 34(a6)
         beq n_wb
         bsr drawweb    ;draw th' Web
-n_wb:
-        move.l activeobjects,a6
+n_wb:   move.l activeobjects,a6
         bsr d_obj
         bra odend
 
-d_obj:
-        cmpa.l #-1,a6
-        beq oooend
-        move 50(a6),d0    ;'Unlink Me Please'
-        beq no_unlink
+        ; A loop for processing everything in 'activeobjects'.
+d_obj:  cmpa.l #-1,a6      ; Have we reached the end of activeobjects? 
+        beq oooend         ; If yes, skip to end.
+        move 50(a6),d0     ; Is the object marked for deletion? 
+        beq no_unlink      ; If not, skip to no_unlink and draw it.
 
-        move.l 56(a6),d1
-        bmi tlink
-        move.l d1,a5
-        move.l 60(a6),60(a5)  ;if interrupted, unlinking object is invisible to int routine now
+        ; This verbose section up until no_unlink is concerned entirely 
+        ; with deleting the dead object from the activeobjects list.
+        move.l 56(a6),d1     ; Get address of previous object. 
+        bmi tlink            ;  
+        move.l d1,a5         ; Move previous object to a5.
+        move.l 60(a6),60(a5) ; Make it invisible to the vsync interrupt.
 
-tlink:
-        move #-1,50(a6)    ;mark it bad
-;  move #1,locked  
-        move.l 60(a6),-(a7)
+tlink:  move #-1,50(a6)      ; mark it bad
+        move.l 60(a6),-(a7)  ; Stash the next object address
         move d0,-(a7)
         move.l a6,a0
-        move 32(a6),-(a7)  ;save player ownership tag
-;  bsr unlinkobject  ;unlink myself if asked politely
+        move 32(a6),-(a7)   ;save player ownership tag
         move (a7)+,d1
         move (a7)+,d0
         lea uls,a1
         asl #2,d0
-        move.l -4(a1,d0.w),a1
+        move.l -4(a1,d0.w),a1 ; 
         jmp (a1)
 
-uls:
-        dc.l afinc,ashinc,pshinc
+        ; Object specific unlinking/deletion routines
+uls:    dc.l afinc,ashinc,pshinc
 
-pshinc:
-        tst d1    ;player ownership of an unlinked bullet
+pshinc: tst d1    ;player ownership of an unlinked bullet
         beq ulsh1
         add #1,shots+2
-ulo:
-        move #1,locked
+ulo:    move #1,locked
         bsr unlinkobject  
         clr locked
-        bra nxt_o
-ulsh1:
-         add #1,shots
+        bra nxt_o             ; Finished deleting, go the the next object.
+ulsh1:  add #1,shots
         bra ulo
-ashinc:
-        add #1,ashots
-afinc:
-        add #1,afree
+
+ashinc: add #1,ashots
+afinc:  add #1,afree
         bra ulo
-no_unlink:
-        lea draw_vex,a0
-        move 34(a6),d0    ;-ve it is collapsed to a pixel!
-        bpl notpxl
-        move.l #draw_pel,a0
-        bra apal  
-notpxl:
-        asl #2,d0
-        move.l 0(a0,d0.w),a0
-apal:
-        move.l 60(a6),-(a7)    ;go to next object
-        jsr (a0)    ;execute chosen draw type
-        jsr gpuwait
-nxt_o:
-        clr locked
-nxt_ob:
-        move.l (a7)+,a6    ;this way i can even trash a6 if i need II
-        bra d_obj    ;finish off and terminate the ud-list
-oooend:
-        rts
+
+        ; Actually draw the object.
+        ; No need to remove the object, just draw it.
+no_unlink:      
+        lea draw_vex,a0      ; Get our table of draw routines.
+        move 34(a6),d0       ; Is this object smaller than a pixel?
+        bpl notpxl           ; If not, go to notpxl.
+        move.l #draw_pel,a0  ; Use draw_pex for pixel-size objects.
+        bra apal             ; Jump to the draw call. 
+notpxl: asl #2,d0            ; Multiply the val in d0 by 2.
+        move.l 0(a0,d0.w),a0 ; Use it as an index into draw_vex.
+apal:   move.l 60(a6),-(a7)  ; Store the index of next object in a7. 
+        jsr (a0)             ; But first call the routine in draw_vex.
+        jsr gpuwait          ; Wait for the GPU to finish.
+nxt_o:  clr locked           ; Clear 'locked' just in case.
+nxt_ob: move.l (a7)+,a6      ; Put the index of next object back in a6.
+        bra d_obj            ; Go to the next object.
+oooend: rts
+
 
         ; We've finished our first pass of activeobjects.
-odend:
-        bsr showscore     ; Show the score.
+odend:  bsr showscore     ; Show the score.
         ; In Tempest Classic mode we don't need solid polygons.
         tst blanka        ; Are we doing solid polygons?
         beq odvec         ; If not, skip.
         bsr drawpolyos    ; if we are, draw them.
-odvec:
-        bsr drawmsg    ;draw Messager thang if needed
-
+odvec:  bsr drawmsg       ; Draw 'Superzapper Recharge' or other message, if applicable.
         
         tst auto      ; Check if we're in demo-mode.
         beq namsg     ; If we're not, skip.
@@ -14605,21 +15166,20 @@ odvec:
         beq namsg     ; If not, skip.
 
         ; Draw the demo text.
-        lea bfont,a1
-        lea autom1,a0  
-        move #50,d0
-        jsr centext
-        lea cfont,a1
-        lea autom2,a0  
-        move #180,d0
-        tst pal
-        beq dunfirst
-        add palfix2,d0
+        lea bfont,a1    ; Load font
+        lea autom1,a0   ; "Demo" string 
+        move #50,d0     ; Set y position
+        jsr centext     ; Display text in center
+        lea cfont,a1    ; Load font
+        lea autom2,a0   ; "Press Fire to Play" 
+        move #180,d0    ; Set y position
+        tst pal         ; PAL?
+        beq dunfirst    ; No, skip next line.
+        add palfix2,d0  ; Adjust for PAL
 dunfirst:
-        jsr centext   ; Draw the text in the centre.
+        jsr centext    ; Draw the text in the centre.
 
-namsg:
-         tst blanka
+namsg:  tst blanka
         beq xox1    ;no bolts on ordinary T
         tst bolt_lock
         beq xox1    ;only draw bolt if Bolt Lock is set
@@ -14655,10 +15215,8 @@ gp1smart:
         move.l boltz,d0
         sub.l vp_z,d0
         move.l d0,(a0)+  ;XYZ source
-;  move.l 4(a1),d0
         sub.l vp_x,d2
         move.l d2,(a0)+
-;  move.l 8(a1),d0
         sub.l vp_y,d3
         move.l d3,(a0)+
         move.l 12(a6),d0
@@ -14688,10 +15246,8 @@ gp1smart:
         move.l boltz,d0
         sub.l vp_z,d0
         move.l d0,(a0)+  ;XYZ source
-;  move.l 4(a1),d0
         sub.l vp_x,d2
         move.l d2,(a0)+
-;  move.l 8(a1),d0
         sub.l vp_y,d3
         move.l d3,(a0)+
         move.l 12(a6),d0
@@ -14709,29 +15265,18 @@ gp1smart:
         jsr gpurun    ;do it
         jsr gpuwait
 
-
-xox1:
-        tst evon
+xox1:   tst evon
         beq nevon
 
-nevon:
-;  move #380,d0
-;  clr d1
-;  move #4,d2
-;  move #240,d3
-;  clr.l d4
-;  move.l dscreen,a0
-;  jsr BlitBlock
-        rts
+nevon:  rts
 
+; *******************************************************************
+; nodraw
+; Drawing, but for head to head mode.
+; *******************************************************************
+nodraw: bsr clearscreen
 
-nodraw:
-        bsr clearscreen
-
-
-        ;
         ; Draw the starfield.
-        ; 
         move.b sysflags,d0   ; Get the sysflags
         and.l #$ff,d0        ; Just the first byte.
         move.l d0,_sysflags  ; pass sys flags to GPU
@@ -14811,17 +15356,11 @@ noo_wb:
         move #4,d0
         sub r_sc,d0
         and #7,d0
-;;  lsl #5,d0
-;  move d0,d7
-;  lsl #2,d7
-;  lsl #4,d0
         mulu #26,d0
-;  add d7,d0
         add #10+32,d0
         jsr BlitBlock
         clr r_ud
-nudl:
-         tst l_ud
+nudl:   tst l_ud
         beq nudr
         clr.l d4
         move #26,d2
@@ -14830,21 +15369,14 @@ nudl:
         move #4,d0
         sub l_sc,d0
         and #7,d0
-;;  lsl #5,d0
-;  move d0,d7
-;  lsl #2,d7
-;  lsl #4,d0
-;  add d7,d0
         mulu #26,d0
         neg d0
         add #330-32,d0
         jsr BlitBlock
         clr l_ud
-nudr:
-        bra nevon 
+nudr:   bra nevon 
 
-h2hinsc:
-        lea screen3,a0    ;source screen for any score u/d xfers
+h2hinsc:lea screen3,a0    ;source screen for any score u/d xfers
         move.l a0,a1
         move #0,d0
         move #32,d1
@@ -14852,14 +15384,8 @@ h2hinsc:
         move #32,d3
         move #0,d5
         move #4,d6
-zoopy1:
-        move d6,d4
+zoopy1: move d6,d4
         and #7,d4
-;;  lsl #5,d4
-;  move d4,d7
-;  lsl #2,d7
-;  lsl #4,d4
-;  add d7,d4
         mulu #26,d4
         add #10+32,d4
         jsr ecopy
@@ -14870,14 +15396,8 @@ zoopy1:
         move #32,d3
         move #0,d5
         move #4,d6
-zoopy2:
-        move d6,d4
+zoopy2: move d6,d4
         and #7,d4
-;;  lsl #5,d4
-;  move d4,d7
-;  lsl #2,d7
-;  lsl #4,d4
-;  add d7,d4
         mulu #26,d4
         neg d4
         add #330-32,d4
@@ -14885,10 +15405,11 @@ zoopy2:
         dbra d6,zoopy2
         rts
 
-
-;
+; *******************************************************************
+; draw_spike
 ; Special case of draw, for a spike.
-;
+; A member of the draw_vex list.
+; *******************************************************************
 draw_spike:
 
         move.l (a6),a0    ; Get object and put in a0.
@@ -14902,9 +15423,11 @@ draw_spike:
         move.l d1,20(a1)  ; Stretch spike towards player
         bra draw          ; Draw.
 
-;
+; *******************************************************************
+; draw_vxc
 ; Draw, with a variable x-centre
-;
+; A member of the draw_vex list.
+; *******************************************************************
 draw_vxc:
 
         move.l (a6),d0       ; Check if vector or solid.
@@ -14924,10 +15447,12 @@ vvxc:
         move.l (a7)+,12(a0)  ; Restore old centre
         rts
 
-;
+; *******************************************************************
+; draw_z
 ; Draw  with a number of incrementally coloured layers.
 ; Used for vector objects in the activeobjects list.
-;
+; A member of the draw_vex list.
+; *******************************************************************
 draw_z:
         bsr draw           ; draw original object
         move 40(a6),-(a7)  ; save orignal colour
@@ -14959,9 +15484,12 @@ dr_z:
         move (a7)+,40(a6) ; Get old colour back
         rts
 
+; *******************************************************************
+; draw
 ; The 'base' draw routine when processing 'activeobjects'. If a 'vector'
 ; draw is good enough, we just do that. Otherwise we add the object to the
 ; 'apriority' list for processing by 'drawpolyos'. 
+; *******************************************************************
 draw:
         move.l a6,oopss   ; Stash the header.
         move.l (a6),d0    ; Is the header value greater than zero?
@@ -14980,24 +15508,25 @@ draw:
         move.l apriority,a1
         move.l a1,a2
 chklp:
-        cmp.l #-1,a1       ;no objects active?
+        cmp.l #-1,a1      ;no objects active?
         bne prio1
-        bra insertprior    ;we are at top of list then, if we are first a1=a2=-1
+        bra insertprior   ;we are at top of list then, if we are first a1=a2=-1
 
 prio1:
-        cmp.l 12(a1),d0    ;check against stored 'z'
-        bge insertprior    ;behind, insert on to list
+        cmp.l 12(a1),d0   ;check against stored 'z'
+        bge insertprior   ;behind, insert on to list
         move.l a1,a2
-        move.l 8(a1),a1    ;get next object
-        bra chklp    ;loop until list end or next object in front of us
-        rts      ;return with object at right place in the list
+        move.l 8(a1),a1   ;get next object
+        bra chklp         ;loop until list end or next object in front of us
+        rts               ;return with object at right place in the list
 
-
-
+; *******************************************************************
+; drawpolyos
 ; Routine for drawing all solid polygons.
 ; Process each object in the 'apriority' list. We remove each item after
 ; processing.The draw routine for each item is given by its index into
 ; the 'solids' array.
+; *******************************************************************
 drawpolyos:
         move.l #192,xcent   ; Set 192 as X centre.
         move.l #120,d6      ; Set 120 as Y centre.
@@ -15037,10 +15566,12 @@ soldraw:
         and.l #$ff,d0       ; Use only the least significant bytes.
         jmp (a0)            ; Call the objects draw routine.
                             ; The draw routine returns to 'dpoloop'.
-draw2polyos:
-;
-; traverse the priority list, draw the objects on p1's web, then traverse it backwards to draw the objects on p2's web
 
+; *******************************************************************
+; draw2polyos
+; traverse the priority list, draw the objects on p1's web, then traverse it backwards to draw the objects on p2's web
+; *******************************************************************
+draw2polyos:
         move.l #96+32,xcent
         move.l #120,d6
         add palfix2,d6
@@ -15103,8 +15634,8 @@ r_podraw:
         and.l #$ff,d0
         jmp (a0)    ;draw specific polyobject
 
-
 ; *******************************************************************
+; drawweb
 ; Actually draw the web.
 ; *******************************************************************
 drawweb:
@@ -15130,9 +15661,12 @@ swebbo:
         lea xvector,a2
         bra draaa  
 
+; *******************************************************************
+; vector
 ; Draw a vector
+; *******************************************************************
 vector:
-        move.l d0,a1    ;Get object header
+        move.l d0,a1       ;Get object header
         lea in_buf+4,a0
         move.l 4(a6),d0
         sub.l vp_x,d0
@@ -15143,15 +15677,11 @@ vector:
         move.l 12(a6),d0
 
 ; Draw a vector without the above header information.
-dra:
-        sub.l vp_z,d0     ; Subtract the camera viewpoint.
+dra:    sub.l vp_z,d0     ; Subtract the camera viewpoint.
         move.l d0,(a0)+   ; Add to the GPU buffer.
-dragg:
-        lea fastvector,a2 ; Get the fastvector shader.
-draaa:
-        move 28(a6),d0    ; Get the XZ orientation
-druuu:
-        and.l #$ff,d0     ; Only first byte.
+dragg:  lea fastvector,a2 ; Get the fastvector shader.
+draaa:  move 28(a6),d0    ; Get the XZ orientation
+druuu:  and.l #$ff,d0     ; Only first byte.
         move.l d0,24(a1)  ; Copy to XY orientation
         move 30(a6),d0    ; Get Y rotation of object.
         and.l #$ff,d0     ; Only first byte.
@@ -15162,8 +15692,7 @@ druuu:
 
         ; Copy the first 48 bytes of object to GPU buffer.
         move #11,d0    ;copy 48 bytes
-xhead:
-        move.l (a1)+,(a0)+  ;copy the header to GPU input ram
+xhead:  move.l (a1)+,(a0)+  ;copy the header to GPU input ram
         dbra d0,xhead
 
         move 40(a6),d0    ; Get the colour
@@ -15174,8 +15703,7 @@ xhead:
         move.l d0,scaler  ; Move to scaler.
         move.l a1,oopss+4 ; Stash the updated object.
         move.l (a6),oopss+8 ; Stash the original object.
-godraa:
-        move.l #2,gpu_mode; Set the GPU mode
+godraa: move.l #2,gpu_mode; Set the GPU mode
         move.l a2,a0      ; Load the fastvector shader.
         jsr gpurun        ; Run the gpu routine
         jsr gpuwait       ; Wait until finished.
@@ -15183,6 +15711,11 @@ godraa:
 
 
 
+; *******************************************************************
+; draw_h2hclaw
+; Draw a claw in head-to-head mode
+; A member of the 'solids' list.
+; *******************************************************************
 draw_h2hclaw:
         move 48(a6),d4
         beq wittg
@@ -15224,11 +15757,9 @@ draw_h2hclaw:
         move.l #2,gpu_mode
         lea equine,a0
         jsr gpurun      ;do clear screen
-        jmp gpuwait
+        jmp gpuwait     ; returns
 
-
-rezza:
-        movem.l d0-d5,-(a7)
+rezza:  movem.l d0-d5,-(a7)
         move.l #1,gpu_mode
         lea in_buf,a0
         move.l #8,(a0)+    ;# pixels per ring
@@ -15237,13 +15768,11 @@ rezza:
         move.l d1,(a0)+  ;XYZ position
         
         move #3,d2
-xlxlxl:
-        move d4,d7
+xlxlxl: move d4,d7
         lea in_buf+16,a0
         
         jsr pulser
-fcolour:
-        and.l #$ff,d6
+fcolour:and.l #$ff,d6
         move.l d6,(A0)+  ;colour
         move d4,d0
         swap d0
@@ -15260,17 +15789,7 @@ fcolour:
         bne wittg
         rts  
 
-
-
-wittg:
-; move.l 4(a6),d2
-;  sub.l vp_x,d2
-;  move.l 8(a6),d3
-;  sub.l vp_y,d3
-;  move.l 12(a6),d1
-;  sub.l vp_z,d1
-;  move 28(a6),d0
-        and.l #$ff,d0
+wittg:  and.l #$ff,d0
         move.l 16(a6),d6
         lsl.l #3,d6
         swap d6
@@ -15284,11 +15803,9 @@ snopp2:
         move.l 0(a1,d6.w),a1
         jmp zqz
 
-
-
-
-
-
+; *******************************************************************
+; Unused/unreachable code
+; *******************************************************************
         lea in_buf+4,a0
         move.l d2,(a0)+
         move.l d3,(a0)+
@@ -15297,6 +15814,11 @@ snopp2:
         lea xvector,a2
         bra draaa
 
+; *******************************************************************
+; draw_h2hball
+; Routine for drawing a solid ball in head-to-head mode.
+; A member of the 'solids' list.
+; *******************************************************************
 draw_h2hball:
         tst 18(a6)  ;check for are we zapping someone
         bmi onlyball
@@ -15367,10 +15889,11 @@ bhead:
         move.l #$88,(a0)+    ;colour
         move.l #-2,scaler
         bra godraa
-        
-        
 
-
+; *******************************************************************
+; draw_pel
+; Draw a pixel sized object.
+; *******************************************************************
 draw_pel:
         lea in_buf,a0
         move.l 4(a6),d0
@@ -15386,7 +15909,6 @@ draw_pel:
         and #$ff,d0
         lea pixcols,a4
         move.b 0(a4,d0.w),d0
-;  move.l #$f0,(a0)+
         and.l #$ff,d0
         move.l d0,(a0)+
         move.l #5,gpu_mode
@@ -15395,25 +15917,22 @@ draw_pel:
         jsr gpuwait
         rts
 
-
-
-
-
+; *******************************************************************
+; clearscreen
+; Clear the current gpu_screen.
+; *******************************************************************
 clearscreen:
         move.l #0,gpu_mode  ;GPU op 0 is clear the screen
         lea fastvector,a0
-        jsr gpurun    ;do gpu routine
-        jmp gpuwait
-
+        jsr gpurun          ; do gpu routine
+        jmp gpuwait         ; returns
 
 ; *******************************************************************
+; readpad
+; read joypad keys
 ; Unused function for reading the rotary controller before the pad.
 ; *******************************************************************
-readpad:
-;
-; read joypad keys
-
-        tst roconon
+readpad:tst roconon
         bne rrts      ;Pad read is done by rocon routine, if enabled
 
 ; *******************************************************************
@@ -15422,112 +15941,76 @@ readpad:
 ; *******************************************************************
 dopad:
         movem.l  d0-d2,-(sp)
-
-;  move.l  #$f0fffffc,d1    ; d1 = Joypad data mask
-;  moveq.l  #-1,d2      ; d2 = Cumulative joypad reading
-;  move.w  #$810e,JOYOUT
-;  move.l  JOYIN,d0    ; Read Stick and Pause/A
-;  or.l  d1,d0      ; Mask off unused bits
-;  ror.l  #4,d0
-;  and.l  d0,d2      ; d2 = xxApxxxx RLDUxxxx xxxxxxxx xxxxxxxx
-;  move.w  #$810d,JOYOUT
-;  move.l  JOYIN,d0    ; Read *741 and B
-;  move.l d0,d3      ;get some pad 2 data (RLDUxxxx xxxxxxxx xxxxxxxx xxxxFxxx, F=any firenutton)
-;  ror.l #8,d3      ;make it xxxxFxxx RLDUxxxx xxxxxxxx xxxxxxxx
-;  not.l d3      ;flip bit pattern so 1=pressed
-;  move.l d3,pad_2
-;  or.l  d1,d0      ; Mask off unused bits
-;  ror.l  #8,d0
-;  and.l  d0,d2      ; d2 = xxApxxBx RLDU741* xxxxxxxx xxxxxxxx
-;  move.w  #$810b,JOYOUT
-;  move.l  JOYIN,d0    ; Read 2580 and C
-;  or.l  d1,d0      ; Mask off unused bits
-;  rol.l  #6,d0
-;  rol.l  #6,d0
-;  and.l  d0,d2      ; d2 = xxApxxBx RLDU741* xxCxxxxx 2580xxxx
-;  move.w  #$8107,JOYOUT
-;  move.l  JOYIN,d0    ; Read 369# and Option
-;  or.l  d1,d0      ; Mask off unused bits
-;  rol.l  #8,d0
-;  and.l  d0,d2      ; d2 = xxApxxBx RLDU741* xxCxxxox 2580369#
-;  moveq.l  #-1,d1
-;  eor.l  d2,d1      ; d1 = Inputs active high
-;  move.l  pad_now,d0
-;  move.l  d1,pad_now    ; PAD_NOW = Current joypad reading
-;  eor.l  d1,d0
-;  and.l  d1,d0
-;  move.l  d0,pad_shot    ; PAD_SHOT = Oneshot joypad
-
-;scan for player 1
+        ;scan for player 1
         move.l  #$f0fffffc,d1    ; d1 = Joypad data mask
-        moveq.l  #-1,d2      ; d2 = Cumulative joypad reading
+        moveq.l  #-1,d2          ; d2 = Cumulative joypad reading
 
         move.w  #$81fe,JOYOUT
-        move.l  JOYIN,d0      ; Read joypad, pause button, A button
-        or.l    d1,d0      ; Mask off unused bits
+        move.l  JOYIN,d0         ; Read joypad, pause button, A button
+        or.l    d1,d0            ; Mask off unused bits
         ror.l  #4,d0
-        and.l  d0,d2      ; d2 = xxAPxxxx RLDUxxxx xxxxxxxx xxxxxxxx
+        and.l  d0,d2             ; d2 = xxAPxxxx RLDUxxxx xxxxxxxx xxxxxxxx
         move.w  #$81fd,JOYOUT
-        move.l  JOYIN,d0      ; Read *741 keys, B button
-        or.l    d1,d0      ; Mask off unused bits
+        move.l  JOYIN,d0         ; Read *741 keys, B button
+        or.l    d1,d0            ; Mask off unused bits
         ror.l  #8,d0
-        and.l  d0,d2      ; d2 = xxAPxxBx RLDU741* xxxxxxxx xxxxxxxx
+        and.l  d0,d2             ; d2 = xxAPxxBx RLDU741* xxxxxxxx xxxxxxxx
         move.w  #$81fb,JOYOUT
-        move.l  JOYIN,d0      ; Read 2580 keys, C button
-        or.l    d1,d0      ; Mask off unused bits
+        move.l  JOYIN,d0         ; Read 2580 keys, C button
+        or.l    d1,d0            ; Mask off unused bits
         rol.l  #6,d0
         rol.l  #6,d0
-        and.l  d0,d2      ; d2 = xxAPxxBx RLDU741* xxCxxxxx 2580xxxx
+        and.l  d0,d2             ; d2 = xxAPxxBx RLDU741* xxCxxxxx 2580xxxx
         move.w  #$81f7,JOYOUT
-        move.l  JOYIN,d0      ; Read 369# keys, Option button
-        or.l    d1,d0      ; Mask off unused bits
+        move.l  JOYIN,d0         ; Read 369# keys, Option button
+        or.l    d1,d0            ; Mask off unused bits
         rol.l  #8,d0
-        and.l  d0,d2      ; d2 = xxAPxxBx RLDU741* xxCxxxOx 2580369# <== inputs active low
+        and.l  d0,d2             ; d2 = xxAPxxBx RLDU741* xxCxxxOx 2580369# <== inputs active low
 
         moveq.l  #-1,d1
-        eor.l  d2,d1      ; d1 = xxAPxxBx RLDU741* xxCxxxOx 2580369# <== now inputs active high
+        eor.l  d2,d1             ; d1 = xxAPxxBx RLDU741* xxCxxxOx 2580369# <== now inputs active high
 
-        move.l  pad_now,d0      ; old joycur needed for determining the new joyedge
-        move.l  d1,pad_now      ; Current joypad reading stored into joycur
+        move.l  pad_now,d0       ; old joycur needed for determining the new joyedge
+        move.l  d1,pad_now       ; Current joypad reading stored into joycur
         eor.l  d1,d0
         and.l  d1,d0
-        move.l  d0,pad_shot    ;joypad, buttons, keys that were just pressed
+        move.l  d0,pad_shot      ;joypad, buttons, keys that were just pressed
 
 ;scan for player 2
         move.l  #$0ffffff3,d1    ; d1 = Joypad data mask
-        moveq.l  #-1,d2      ; d2 = Cumulative joypad reading
+        moveq.l  #-1,d2          ; d2 = Cumulative joypad reading
 
         move.w  #$817f,JOYOUT
-        move.l  JOYIN,d0      ; Read joypad, pause button, A button
-        or.l    d1,d0      ; Mask off unused bits
-        rol.b  #2,d0      ; note the size of rol
+        move.l  JOYIN,d0         ; Read joypad, pause button, A button
+        or.l    d1,d0            ; Mask off unused bits
+        rol.b  #2,d0             ; note the size of rol
         ror.l  #8,d0
-        and.l  d0,d2      ; d2 = xxAPxxxx RLDUxxxx xxxxxxxx xxxxxxxx
+        and.l  d0,d2             ; d2 = xxAPxxxx RLDUxxxx xxxxxxxx xxxxxxxx
         move.w  #$81bf,JOYOUT
-        move.l  JOYIN,d0      ; Read *741 keys, B button
-        or.l    d1,d0      ; Mask off unused bits
-        rol.b  #2,d0      ; note the size of rol
+        move.l  JOYIN,d0         ; Read *741 keys, B button
+        or.l    d1,d0            ; Mask off unused bits
+        rol.b  #2,d0             ; note the size of rol
         ror.l  #8,d0
         ror.l  #4,d0
-        and.l  d0,d2      ; d2 = xxAPxxBx RLDU741* xxxxxxxx xxxxxxxx
+        and.l  d0,d2             ; d2 = xxAPxxBx RLDU741* xxxxxxxx xxxxxxxx
         move.w  #$81df,JOYOUT
-        move.l  JOYIN,d0      ; Read 2580 keys, C button
-        or.l    d1,d0      ; Mask off unused bits
-        rol.b  #2,d0      ; note the size of rol
+        move.l  JOYIN,d0         ; Read 2580 keys, C button
+        or.l    d1,d0            ; Mask off unused bits
+        rol.b  #2,d0             ; note the size of rol
         rol.l  #8,d0
-        and.l  d0,d2      ; d2 = xxAPxxBx RLDU741* xxCxxxxx 2580xxxx
+        and.l  d0,d2             ; d2 = xxAPxxBx RLDU741* xxCxxxxx 2580xxxx
         move.w  #$81ef,JOYOUT
-        move.l  JOYIN,d0      ; Read 369# keys, Option button
-        or.l    d1,d0      ; Mask off unused bits
-        rol.b  #2,d0      ; note the size of rol
+        move.l  JOYIN,d0         ; Read 369# keys, Option button
+        or.l    d1,d0            ; Mask off unused bits
+        rol.b  #2,d0             ; note the size of rol
         rol.l  #4,d0
-        and.l  d0,d2      ; d2 = xxAPxxBx RLDU741* xxCxxxOx 2580369# <== inputs active low
+        and.l  d0,d2             ; d2 = xxAPxxBx RLDU741* xxCxxxOx 2580369# <== inputs active low
 
         moveq.l  #-1,d1
-        eor.l  d2,d1      ; d1 = xxAPxxBx RLDU741* xxCxxxOx 2580369# <== now inputs active high
+        eor.l  d2,d1             ; d1 = xxAPxxBx RLDU741* xxCxxxOx 2580369# <== now inputs active high
 
-        move.l  pad_now+4,d0      ; old joycur needed for determining the new joyedge
-        move.l  d1,pad_now+4      ; Current joypad reading stored into joycur
+        move.l  pad_now+4,d0     ; old joycur needed for determining the new joyedge
+        move.l  d1,pad_now+4     ; Current joypad reading stored into joycur
         eor.l  d1,d0
         and.l  d1,d0
         move.l  d0,pad_shot+4    ;joypad, buttons, keys that were just pressed
@@ -15536,61 +16019,63 @@ dopad:
         rts
 
 ; *******************************************************************
+; MoveLink
+; Linked-list transfer entry from list a4 to list a3
+; prev ptr in a1, next in a2
 ; Part of the GPU object management system.
 ; *******************************************************************
 MoveLink:
-;
-; Linked-list transfer entry from list a4 to list a3
-; prev ptr in a1, next in a2
+mlink:  cmpa.l #-1,a1    ;Prev is -1?
+        bne ML1
+        move.l a2,(a4)   ;Make Next entry current top of list
+        cmpa.l a1,a2     ;Check if Next is -1
+        beq NewLink      ;Yup, we were the only entry
+ML1:    cmpa.l #-1,a2    ;Next link is -1?
+        bne ML2          ;Nope
+        move.l a2,60(a1) ;Make prev link-to-next -1
+        bra NewLink
+ML2:    cmpa.l #-1,a1
+        beq ml3
+        move.l a2,60(a1)
+ml3:    move.l a1,56(a2) ;Link 'em up
+NewLink:move.l (a3),a4   ;Get address of first entry of dest list
+        cmpa.l #-1,a4    ;Check if link is real
+        bne NL1          ;Yup
+        move.l a0,(a3)   ;Make ourselves the first entry
+        move.l #-1,56(a0)
+        move.l #-1,60(a0)
+        clr d0
+        rts
+NL1:    move.l #-1,56(a0) ;Gonna insert ourselves at the top
+        move.l a0,56(a4)  ;We are his previous
+        move.l a4,60(a0)  ;And he is our next
+        move.l a0,(a3)    ;Put us in
+        clr d0
+        rts
 
-
-mlink:
-        cmpa.l #-1,a1    ;Prev is -1?
- bne ML1
- move.l a2,(a4)    ;Make Next entry current top of list
- cmpa.l a1,a2    ;Check if Next is -1
- beq NewLink    ;Yup, we were the only entry
-ML1: cmpa.l #-1,a2  ;Next link is -1?
- bne ML2    ;Nope
- move.l a2,60(a1)  ;Make prev link-to-next -1
- bra NewLink
-ML2: cmpa.l #-1,a1
- beq ml3
- move.l a2,60(a1)
-ml3:
-        move.l a1,56(a2)    ;Link 'em up
-NewLink: move.l (a3),a4  ;Get address of first entry of dest list
- cmpa.l #-1,a4    ;Check if link is real
- bne NL1    ;Yup
- move.l a0,(a3)    ;Make ourselves the first entry
- move.l #-1,56(a0)
- move.l #-1,60(a0)
- clr d0
- rts
-NL1: move.l #-1,56(a0)  ;Gonna insert ourselves at the top
- move.l a0,56(a4)    ;We are his previous
- move.l a4,60(a0)  ;And he is our next
- move.l a0,(a3)    ;Put us in
- clr d0
- rts
-
+; *******************************************************************
+; initobjects
+; *******************************************************************
 initobjects:
         move.l #-1,activeobjects
- lea objects,a0  
- move #63,d0
- move d0,ofree
- move.l a0,freeobjects
- move.l #-1,a1
-IniA: move #-1,50(a0)
- move.l a1,56(a0)  ;set Prev
- move.l a0,a1    ;current=new Prev
- lea 64(a0),a0    ;next bullet
- move.l a0,60(a1)  ;set Next field of preceding one
- dbra d0,IniA
- move.l #-1,60(a1)  
- move #32,afree
- rts
+        lea objects,a0  
+        move #63,d0
+        move d0,ofree
+        move.l a0,freeobjects
+        move.l #-1,a1
+IniA:   move #-1,50(a0)
+        move.l a1,56(a0)  ;set Prev
+        move.l a0,a1      ;current=new Prev
+        lea 64(a0),a0     ;next bullet
+        move.l a0,60(a1)  ;set Next field of preceding one
+        dbra d0,IniA
+        move.l #-1,60(a1)  
+        move #32,afree
+        rts
 
+; *******************************************************************
+; initprior
+; *******************************************************************
 initprior:
         move.l #-1,apriority
         lea priors,a0
@@ -15606,105 +16091,103 @@ inipri:
         move.l #-1,8(a1)
         rts  
 
-insertobject:
+; *******************************************************************
+; insertobject
 ;
 ; move object to active list
+; *******************************************************************
+insertobject:
+        clr 50(a0)    ;init busy flag
+        move.l 56(a0),a1 
+        move.l 60(a0),a2
+        sub #1,ofree
+        lea activeobjects,a3
+        lea freeobjects,a4
+        bra MoveLink
 
- clr 50(a0)    ;init busy flag
- move.l 56(a0),a1 
- move.l 60(a0),a2
- sub #1,ofree
- lea activeobjects,a3
- lea freeobjects,a4
- bra MoveLink
-
-unlinkobject:
+; *******************************************************************
+; unlinkobject
 ;
 ; render an active object inactive
+; *******************************************************************
+unlinkobject:
+        move.l 56(a0),a1 
+        move.l 60(a0),a2
+        add #1,ofree
+        lea freeobjects,a3
+        lea activeobjects,a4
+        bra MoveLink
 
- move.l 56(a0),a1 
- move.l 60(a0),a2
- add #1,ofree
- lea freeobjects,a3
- lea activeobjects,a4
- bra MoveLink
 
-
-insertprior:
-;
+; *******************************************************************
+; insertprior
 ; insert object a0 behind object a1
-
+; *******************************************************************
+insertprior:
         move.l 8(a0),a3
         move.l a3,fpriority  ;next free object to top of list
-        move.l #-1,4(a3)  ;set object's prev to -1, now our obj is off free list
+        move.l #-1,4(a3)     ;set object's prev to -1, now our obj is off free list
 
-        cmp.l #-1,a1    ;first object on list special case
+        cmp.l #-1,a1         ;first object on list special case
         bne insp1
         cmp.l a1,a2
-        beq vfo      ;if list header is -1, go do very-first-object
+        beq vfo              ;if list header is -1, go do very-first-object
 
-nvfo:
-        move.l a0,8(a2)    ;us to Next    this is Very Last Object
-        move.l a2,4(a0)    ;him to Prev
-        move.l #-1,8(a0)  ;us to List End
+nvfo:   move.l a0,8(a2)      ;us to Next    this is Very Last Object
+        move.l a2,4(a0)      ;him to Prev
+        move.l #-1,8(a0)     ;us to List End
         rts
 
-vfo:
-        move.l a0,apriority
+vfo:    move.l a0,apriority
         move.l #-1,4(a0)
-        move.l #-1,8(a0)  ;set first object
+        move.l #-1,8(a0)     ;set first object
         rts
 
-insp1:
-        cmp.l #-1,4(a1)    ;is he at the top of the lst?
-        bne gencase    ;nope
+insp1:  cmp.l #-1,4(a1)      ;is he at the top of the lst?
+        bne gencase          ;nope
         move.l a0,apriority  ;set us as the first object
         move.l 4(a1),a3
-        bra insp2    ;skip setting prev coz it's top of the lst  
-gencase:
-        
-        move.l 4(a1),a3    ;get his/our prev
-        move.l a0,8(a3)    ;put us there
-insp2:
-        move.l a3,4(a0)  ;His prev link is now our prev link
-        move.l a0,4(a1)    ;We are now his previous
-        move.l a1,8(a0)    ;He is our next
+        bra insp2            ;skip setting prev coz it's top of the lst  
+
+gencase:move.l 4(a1),a3      ;get his/our prev
+        move.l a0,8(a3)      ;put us there
+insp2:  move.l a3,4(a0)      ;His prev link is now our prev link
+        move.l a0,4(a1)      ;We are now his previous
+        move.l a1,8(a0)      ;He is our next
         rts
 
 
-unlinkprior:
-;
+; *******************************************************************
+; unlinkprior
 ; always unlink object a0 from top of apriority to top of fpriority
-
+; *******************************************************************
+unlinkprior:
         move.l 8(a0),d0
         bpl ulp1
         move.l d0,apriority  ;sets to -1
         bra ulp2
-ulp1:
-         move.l d0,a1
+ulp1:   move.l d0,a1
         move.l d0,apriority
         move.l #-1,4(a1)
-ulp2:
-        move.l #-1,4(a0)
+ulp2:   move.l #-1,4(a0)
         move.l fpriority,a1
         move.l a1,8(a0)
         move.l a0,fpriority
         move.l a0,4(a1)
         rts
 
-bunlinkprior:
-;
+; *******************************************************************
+; bunlinkprior
 ; unlink from bottom of apriority to top of fpriority
-
+; *******************************************************************
+bunlinkprior:
         move.l 4(a0),d0
         bpl ulp3
         move.l d0,apriority  ;sets to -1
         bra ulp4
-ulp3:
-         move.l d0,a1
+ulp3:   move.l d0,a1
         move.l #-1,8(a1)
-ulp4:
-        move.l #-1,4(a0)
+ulp4:   move.l #-1,4(a0)
         move.l fpriority,a1
         move.l a1,8(a0)
         move.l a0,fpriority
@@ -15719,45 +16202,44 @@ ulp4:
  bra MovePrior
 
 
-MovePrior:
-;
+; *******************************************************************
+; MovePrior
 ; Linked-list transfer entry from list a4 to list a3
 ; prev ptr in a1, next in a2
+; *******************************************************************
+MovePrior:
+mprio:  cmpa.l #-1,a1    ;Prev is -1?
+        bne MP1
+        move.l a2,(a4)    ;Make Next entry current top of list
+        cmpa.l a1,a2    ;Check if Next is -1
+        beq NewPLink    ;Yup, we were the only entry
+MP1:    cmpa.l #-1,a2  ;Next link is -1?
+        bne MP2    ;Nope
+        move.l a2,8(a1)  ;Make prev link-to-next -1
+        bra NewPLink
+MP2:    cmpa.l #-1,a1
+        beq mp3
+        move.l a2,8(a1)
+mp3:    move.l a1,4(a2)    ;Link 'em up
 
+NewPLink:
+        move.l (a3),a4  ;Get address of first entry of dest list
+        cmpa.l #-1,a4    ;Check if link is real
+        bne NP1    ;Yup
+        move.l a0,(a3)    ;Make ourselves the first entry
+        move.l #-1,4(a0)
+        move.l #-1,8(a0)
+        rts
+NP1:    move.l #-1,4(a0)  ;Gonna insert ourselves at the top
+        move.l a0,4(a4)    ;We are his previous
+        move.l a4,8(a0)  ;And he is our next
+        move.l a0,(a3)    ;Put us in
+        rts
 
-mprio:
-        cmpa.l #-1,a1    ;Prev is -1?
- bne MP1
- move.l a2,(a4)    ;Make Next entry current top of list
- cmpa.l a1,a2    ;Check if Next is -1
- beq NewPLink    ;Yup, we were the only entry
-MP1: cmpa.l #-1,a2  ;Next link is -1?
- bne MP2    ;Nope
- move.l a2,8(a1)  ;Make prev link-to-next -1
- bra NewPLink
-MP2: cmpa.l #-1,a1
- beq mp3
- move.l a2,8(a1)
-mp3:
-        move.l a1,4(a2)    ;Link 'em up
-NewPLink: move.l (a3),a4  ;Get address of first entry of dest list
- cmpa.l #-1,a4    ;Check if link is real
- bne NP1    ;Yup
- move.l a0,(a3)    ;Make ourselves the first entry
- move.l #-1,4(a0)
- move.l #-1,8(a0)
- rts
-NP1: move.l #-1,4(a0)  ;Gonna insert ourselves at the top
- move.l a0,4(a4)    ;We are his previous
- move.l a4,8(a0)  ;And he is our next
- move.l a0,(a3)    ;Put us in
- rts
-
-
-rannum:
-;
+; *******************************************************************
 ; return a ran# 0-255
-
+; *******************************************************************
+rannum:
         lea rantab,a3
         add #1,ranptr
         move ranptr,d0
@@ -15765,83 +16247,110 @@ rannum:
         move.b 0(a3,d0.w),d0
         rts
 
-rand:
-;
+; *******************************************************************
 ; Return a number between zero and d1, uses same stuff as rannum (plus d1 obviously)
-
+; *******************************************************************
+rand:
         bsr rannum
         mulu d1,d0
         lsr.l #8,d0
         rts
 
+; *******************************************************************
+; setnewgen
+; Initialize the wave data in 'wstuff' using the selected wave data structure.
+; a0 is the wave data structure selected from the 'waves' array.
+; The processed data gets written to wstuff.
+; e.g.
+; _nw1:   dc.w 24       ; Duration
+;         dc.w 120,0    ; Flippers - Max Time,  Index into 'inits' for generation routine.
+;         dc.w -1       ; End of data sentinel
+;
+; _nw3:   dc.w 16       ; Duration
+;         dc.w 120,0    ; Flippers - Max Time, Type
+;         dc.w 0,444,1  ; Flipper Tankers - Sentinel, Max Time, Index into 'inits' for generation routine.
+;         dc.w -1       ; End of data sentinel
+; *******************************************************************
 setnewgen:
-        lea wstuff,a1  ;point at wave stuff table
-        move #-1,(a1)+
-        move (a0)+,wave_dur  ;duration set
-        move (a0)+,d0
-        move d0,(a1)+
-        move (a0)+,(a1)+
-        lsr #1,d0
-        move d0,(a1)+    ;set up free-running timer
-sngenl:
-        move (a0)+,d0
-        bmi thaggit    ;-1 here means it's the end
-        move d0,(a1)+    ;set max
-        move (a0)+,d0
-        move d0,(a1)+
-        move (a0)+,(a1)+
-        lsr #1,d0
-        move d0,(a1)+    ;set timing and type
-        bra sngenl    ;loop until all done
+        lea wstuff,a1        ; Point to the wstuff table to a1
+        move #-1,(a1)+       ; Terminate the previous entry.
+        ; Read the header byte.
+        move (a0)+,wave_dur  ; Store the duration in wave_dur.
+        ; There's always at least one entry - for flippers, so we
+        ; do that first entry here. It always has just two elements,
+        ; while the others have three.
+        move (a0)+,d0        ; Stash the max time in d0.
+        move d0,(a1)+        ; Then store it in the wstuff table.
+        move (a0)+,(a1)+     ; Store the type in the wstuff table.
+        lsr #1,d0            ; Divide max time by 2.
+        move d0,(a1)+        ; Store it as a timer.
+
+        ; Process the remaining items in the wave data.
+sngenl: move (a0)+,d0        ; Stash the sentinel in d0.
+        bmi thaggit          ; If it's -1, then we've reached the end of the wave data.
+        move d0,(a1)+        ; Otherwise store it in the wstuff table.
+        move (a0)+,d0        ; Stash the max time in d0.
+        move d0,(a1)+        ; Store it in the wstuff table.
+        move (a0)+,(a1)+     ; Store the type in the wstuff table.
+        lsr #1,d0            ; Divide max time by 2.
+        move d0,(a1)+        ; Store it as a timer. 
+        bra sngenl           ; Loop until all done
+
 thaggit:
-        move d0,4(a1)    ;-1 to terminate
-        clr wave_tim
+        move d0,4(a1)        ; Store the end sentinel
+        clr wave_tim         ; Clear the wave timer.
         rts
 
-newgen:
-        tst wave_tim
+; *******************************************************************
+; newgen
+; Use the wstuff table to determine the generation of new enemies.
+; Processes each entry in wstuff and sees if its time to generate a new
+; enemy for each enemy type in the wave.
+; *******************************************************************
+newgen: tst wave_tim
         bmi rrts
         tst startbonus
         bpl nostab
         bsr do_oneup
         clr startbonus
-nostab:
-        lea wstuff,a0
-        sub #1,6(a0)
-        bpl nugen1
-        move 4(a0),d0
-        bsr launch1
-nugen1:
-        lea 8(a0),a0
-nugen2:
-        move 4(a0),d0
-        bmi rrts
-        sub #1,6(a0)
-        bpl nugen3
-        bsr launch1
-nugen3:
-        lea 8(a0),a0
-        bra nugen2
 
-launch1:
-        tst t2k
-        bne doany
-        cmp #6,d0
-        bgt shutoff
-doany:
-         move noclog,d1
-        cmp afree,d1
-        bpl rrts
+nostab: lea wstuff,a0     ; Get the wave table.
+        ; Process the first entry in the wstuff table (always the flipper entry).
+        sub #1,6(a0)      ; Decrement the wave timer.
+        bpl nugen1
+        move 4(a0),d0     ; Store the type/index of the first entry (always a flipper) in d0.
+        bsr launch1       ; Try to launch a new flipper.
+
+        ; Process the rest of the wstuff table.
+nugen1: lea 8(a0),a0      ; Move to the next entry in the list.
+nugen2: move 4(a0),d0     ; Store the type/index of the next entry in d0.
+        bmi rrts          ; If it's -1 we've reached the end of the wstuff table.
+        sub #1,6(a0)      ; Subtract 1 from the wave's timer.
+        bpl nugen3        ; Is it zero yet? If not - go the next item in wsstuff.
+        bsr launch1       ; If it is, then it's time to create a new enemy for this part of the wave.
+nugen3: lea 8(a0),a0      ; Move to the next entry in the list.
+        bra nugen2        ; Process it.
+
+        ; Generate a new enemy.
+launch1:tst t2k           ; Are we in t2k mode?
+        bne doany         ; If not, go ahead and try to create an enemy.
+        cmp #6,d0         ; Is the type greater than 6?
+        bgt shutoff       ; 
+
+doany:  move noclog,d1    ; Get the available bandwidth for new enemies.
+        cmp afree,d1      ; Do we have room for a new enemy?
+        bpl rrts          ; if no, return now.
+        ; Add an enemy.
         move 2(a0),6(a0)
-        lsl #2,d0
-        move.l a0,-(a7)
-        lea inits,a0
-        move.l 0(a0,d0.w),a0
-        jsr (a0)
-        move.l (a7)+,a0
-        sub #1,wave_dur
-        bpl rrts
-        move #-1,wave_tim
+        lsl #2,d0         ; Multiply the type/index by 2
+        move.l a0,-(a7)   ; Stash a0
+        lea inits,a0      ; Load the inits list to a0.
+        move.l 0(a0,d0.w),a0  ; Index into 'inits' to get the routine for this type/index.
+        jsr (a0)          ; Run the creation routine for this enemy type.
+        move.l (a7)+,a0   ; Retrieve the stashed a0.
+        sub #1,wave_dur   ; We've created an enemy, so knock one off the duration.
+        bpl rrts          ; If we still have more to generate, return now.
+        move #-1,wave_tim ; Otherwise signal that there are no more to do.
         rts
 
 shutoff:
@@ -15850,112 +16359,127 @@ shutoff:
         rts
 
 
+; *******************************************************************
+; init_wave
+; Set up the wave run routine.
+; a0 is the wave data structure selected from the 'waves' array.
+; e.g.
+; _nw1:   dc.w 24
+;         dc.w 120,0    ;Flippers
+;         dc.w -1
+; *******************************************************************
 init_wave:
-;
-; Set up the wave run routine. a0= String defining a wave.
-
-
-        bra setnewgen
-
+        bra setnewgen     ; Initialize the wave data
 
         move.l a0,wave_ptr
         move.l #wave_stack,wave_sp  ;init pointer and stack
         clr wave_tim      ;OK to run
         rts
 
+; *******************************************************************
+; Routines for generating all types of new enemies.
+; *******************************************************************
 inits:
         dc.l make_flipper,make_tanker,make_spiker,make_fuseball,make_pulsar,make_futanker,make_putanker  ;6
         dc.l make_sflip2,make_mirr,make_adroid,make_beast,make_sflip3
 
+; *******************************************************************
+; Generate a new enemy if required.
+; *******************************************************************
 run_wave:
-;
-; Do the wave string
+        bra newgen          ; Add new enemies from 'wstuff' if available.
 
+        tst wave_tim        ; Is it time to generate a new wave?
+        beq rwave0          ; If yes, go to rwave0.
+        bmi rrts            ; If value is negative, we're not generating enemies.
+        move wave_speed,d0  ; Get the wave speed.
+        sub d0,wave_tim     ; Subtract it from the wave timer.
+        bpl rrts            ; If still positive, return as not time to generate a new enemy.
+        clr wave_tim        ; Clear the timer, we'll generate a new enemy the next time we come round.
+        rts                 ; Return.
 
-        bra newgen
+rwave:  cmp #1,d0           ; Is wave speed '1'?
+        bne strin           ; If so, avoid granting bonuses.
 
-;  rts
-        tst wave_tim    ;time or delay?
-        beq rwave0    ;no
-        bmi rrts    ;turned off
-        move wave_speed,d0
-        sub d0,wave_tim
-        bpl rrts
-        clr wave_tim
-        rts      ;timer then ret
-rwave:
-        cmp #1,d0
-        bne strin
-rwave0:
-        tst startbonus
-        bpl nosb
-        bsr do_oneup
-        clr startbonus
-nosb:
-        move noclog,d0
-        cmp afree,d0
-        bge rrts    ;Clog preventer
-strin:
-        move.l wave_ptr,a6  ;get current address in $
-rave:
-        move.b (a6)+,d0    ;get cmd
+        ; Generate a new wave.
+rwave0: tst startbonus      ; Has the player received a start bonus?
+        bpl nosb            ; No, skip.
+        bsr do_oneup        ; Yes, give them an extra life.
+        clr startbonus      ; Clear the start bonus.
 
-        cmp.b #'w',d0    ;Wait time
-        bne rwav1
-        move.b (a6)+,d0
-        and #$ff,d0
-        move d0,d1
-        lsr #1,d0
-        add d1,d0
-        move d0,wave_tim  ;set timer
-wok:
-        move.l a6,wave_ptr
+nosb:   move noclog,d0      ; Number of new waves we could tolerate.
+        cmp afree,d0        ; Number of slots available.
+        bge rrts            ; If not enough slots, don't add any new waves.
+
+        ; Update the wave as appropriate to its current state.
+strin:  move.l wave_ptr,a6  ; Get the current wave ptr.
+rave:   move.b (a6)+,d0     ; Get the current status of the wave.
+
+        ; Check if it's 'waiting'.
+        cmp.b #'w',d0       ; Is it in wait status?
+        bne rwav1           ; No, check if it's awaiting intialisation.
+        ; It's waiting, so set the timer based on its value.
+        move.b (a6)+,d0     ; Put the timer value in d0 
+        and #$ff,d0         ; Just the LSB.
+        move d0,d1          ; Stash it in d1.
+        lsr #1,d0           ; Divide by 2.
+        add d1,d0           ; Add to initial timer value.
+        move d0,wave_tim    ; Set result as wave_tim
+wok:    move.l a6,wave_ptr  ; Store updated a6 in wave_ptr
         rts
-rwav1:
-        cmp.b #'i',d0    ;Init a meany
-        bne rwav2
-        move.b (a6)+,d0
-        and #$ff,d0
-        lea inits,a0
-        asl #2,d0
-        move.l 0(a0,d0.w),a0  ;Pointer to Init routine
-        move.l a6,-(a7)
-        jsr (a0)    ;do Init routine
-        move.l (a7)+,a6
-        bpl rave      ;positive, was OK
-        lea -2(a6),a6
-        move #10,wave_tim  ;Try again after 10 ticks
-        bra wok
-rwav2:
-        cmp.b #'(',d0    ;Open loop?
-        bne rwav3
-        move.b (a6)+,d0    ;get loop-counter
-        and #$ff,d0
-        move.l wave_sp,a0  ;get sp
-        move.l a6,(a0)+
-        move d0,(a0)+    ;store address and #-iterations
-        move.l a0,wave_sp
-        bra rave    ;and go back to looking at $
-rwav3:
-        cmp.b #')',d0    ;Close loop?
-        bne rwav4
-        move.l wave_sp,a0  ;get sp
-        sub #1,-2(a0)    ;dec ctr
-        bmi unstak
-        move.l -6(a0),a6  ;set pointer from stack
-        bra rave
-unstak:
-        sub.l #6,wave_sp  ;free stack space
-        bra wok
-rwav4:
-        cmp.b #'e',d0    ;End
-        bne wok      ;effectively discard spuirious shit
-        move #-1,wave_tim  ;tyurn it off
-        rts      ;and go.
 
-initstarfield:
-;
+        ; Is it awaiting initialisation?
+rwav1:  cmp.b #'i',d0       ; Awaiting initialisation?
+        bne rwav2           ; No, check if it's open.
+        ; Initialize it.
+        move.b (a6)+,d0     ; Get the index to the init routine.
+        and #$ff,d0         ; LSB byte only.
+        lea inits,a0        ; Stash the inits array in a0.
+        asl #2,d0           ; Multiply index by 2.
+        move.l 0(a0,d0.w),a0 ; Get the init routine from inits.
+        move.l a6,-(a7)     ; Stash a6.
+        jsr (a0)            ; Run the init routine.
+        move.l (a7)+,a6     ; Retrieve a6.
+        bpl rave            ; If it worked, try running it.
+        lea -2(a6),a6       ; Try the previous one.
+        move #10,wave_tim   ; Try again after 10 ticks
+        bra wok             ; Exit run_wave for now.
+
+        ; Is it for an open loop?
+rwav2:  cmp.b #'(',d0       ; Is the wave for an open loop?
+        bne rwav3           ; If no, check for closed loop.
+        ; Set it up.
+        move.b (a6)+,d0     ; Put the loop counter in d0.
+        and #$ff,d0         ; Just the LSB byte.
+        move.l wave_sp,a0   ; Stash the wave_sp in a0. 
+        move.l a6,(a0)+     ; Add the wave_ptr to the stack.
+        move d0,(a0)+       ; Add the loop counter to the stack.
+        move.l a0,wave_sp   ; Restore the wave_sp from a0.
+        bra rave            ; Try again.
+
+        ; Is it for a closed loop?
+rwav3:  cmp.b #')',d0       ; Is the wave for a closed loop?
+        bne rwav4           ; If no, check if it's finished.
+        move.l wave_sp,a0   ; Stash wave_sp in a0.
+        sub #1,-2(a0)       ; Decrement the counter.
+        bmi unstak          ; If less than zero, free it up.
+        move.l -6(a0),a6    ; Set pointer from stack
+        bra rave            ; Try again.
+
+unstak: sub.l #6,wave_sp    ; free stack space
+        bra wok             ; Exit run_wave for now.
+
+        ; Is it finished?
+rwav4:  cmp.b #'e',d0      ; End
+        bne wok            ; effectively discard spuirious shit
+        move #-1,wave_tim  ; turn it off
+        rts
+
+; *******************************************************************
+; initstarfield
 ; initialise a starfield data structure for the GPU to display
+; *******************************************************************
+initstarfield:
 
         lea field1,a0
         move #127,d7
@@ -15990,9 +16514,12 @@ rs400:
         move #400,d5
         bra rst
 
-ringstars:
+; *******************************************************************
+; ringstars
 ;
 ; initialise a starfield of 8 rings of 64 stars each
+; *******************************************************************
+ringstars:
 
         move #200,d5
 rst:
@@ -16052,9 +16579,12 @@ sposss:
         rts
 
 
-initpstarfield:
+; *******************************************************************
+; initpstarfield
 ;
 ; initialise a patterned starfield; d6-d7=sine pointers (long); d4-d5=sine step (long)
+; *******************************************************************
+initpstarfield:
 
         lea field1,a0
         move #255,d3
@@ -16100,9 +16630,13 @@ ipstarf:
         dbra d3,ipstarf
         rts
 
-initmstarfield:
+; *******************************************************************
+; initmstarfield
+; Unused code
 ;
 ; initialise a starfield data structure using the bitmap mask at a1
+; *******************************************************************
+initmstarfield:
 
         move (a1)+,d5    ;Width in bytes
         move (a1)+,d6    ;Size in lines
@@ -16169,7 +16703,6 @@ impixel:
         clr d0
         move.l d0,(a0)+    ;Z set=random
 
-
         add #$80,d2
         add #$80,d3
         and #$f0,d2
@@ -16185,9 +16718,12 @@ impixel:
         rts
 
 
-zscore:
+; *******************************************************************
+; zscore
 ;
 ; Clear score, initialise the score objects
+; *******************************************************************
+zscore:
 
         lea scoreimj,a0    ;set score object #1 to all zeros
         move #17,d0
@@ -16205,7 +16741,9 @@ zsco3:
         dbra d0,zsco
         rts
 
- 
+; *******************************************************************
+; showscore
+; *******************************************************************
 showscore:
         tst show_warpy
         beq shoscc
@@ -16230,10 +16768,14 @@ showscore:
         move.l (a7)+,d0
         move.l d0,gpu_screen
 
-
 shoscc:
         tst ud_score
         beq rrts
+
+; *******************************************************************
+; ashowscore
+; Unused code
+; *******************************************************************
 ashowscore:
         clr ud_score    ;fall thru to set lives display if requested
         lea screen3,a1
@@ -16262,7 +16804,6 @@ sscore2:
         add #16,d4
         move.b (a2)+,d0
         dbra d6,sscore2
-        
 
 ; *******************************************************************
 ; Update the displayed lives left
@@ -16296,35 +16837,6 @@ lstliv:
 ; Unused and commented out function for initialising the sound system.
 ; *******************************************************************
 initjerry:
-;
-; load the synth module into the DSP and initialise the vtable
-
-;  move.l  #0,D_CTRL    ; Turn DSP off
-;
-;  move.l  #0,D_FLAGS    ; Set known state
-;
-;
-;  move.l  #DSPORG,a1
-;  move.l  #GPUSTART,a0
-;  move.l  a0,d0
-;  move.l  #GPUEND,d1
-;  sub.l  d0,d1
-;  asr.l  #2,d1
-;translop:
-;  move.l  (a0)+,(a1)+
-;  dbra  d1,translop
-
-; Set up the I2S interface
-
-;  move.l  #19,SCLK
-;  move.l  #$15,SMODE
-
-; Now it should be safe to turn on the DSP
-
-;  move.l  #DSPORG,D_PC  ; Set up D_PC
-
-;  move.l  #$1,D_CTRL  ; LET 'R RIP
-
         rts
 
 
@@ -16335,6 +16847,7 @@ loopsample:
         rts
 
 ; *******************************************************************
+; doscore
 ; Recalculate the score.
 ; *******************************************************************
 doscore:
@@ -16381,11 +16894,10 @@ nnxtdig:
         rts  
 
 
+; *******************************************************************
+; iii
+; *******************************************************************
 iii:
-; tst.l 4(a0)
-;  bpl ininc
-;  neg.l 4(a0)
-;  bra dedec
         move.l roach,d0
         lsl.l #1,d0
         add.l (a0),d0
@@ -16398,9 +16910,12 @@ iii:
         move.l d0,(a0)
         rts
 
-inertcon:
+; *******************************************************************
+; inertcon
 ;
 ; Inertial control. Enter with a0-> I_CON data structure, d0 bits 0 and 1 are Dec/Inc flags
+; *******************************************************************
+inertcon:
 
         move d0,d1
         and #3,d1
@@ -16469,9 +16984,12 @@ sposk:
         bra inmove  ;but still move
 
 
-itunnel:
+; *******************************************************************
+; itunnel
 ;
 ; init a startunnel data struct
+; *******************************************************************
+itunnel:
 
         lea field1,a0  ;gonna put it in starfield space
         move #63,d7  ;64 tunnel segs in a circular buffr
@@ -16480,13 +16998,11 @@ itunnel:
         clr d2
 itunn:
          move.l #$00000020,(a0)+
-;  move.b d0,-4(a0)
         move.l #$4020ff00,(a0)+
         move.b d0,-4(a0)
         move.l #$3030b000,(a0)+
         move.b d1,-4(a0)
         move.l #$e2408f00,(a0)+
-;  move.b d2,-4(a0)
         add #1,d0
         add #2,d1
         add #3,d2
@@ -16494,9 +17010,12 @@ itunn:
         rts
 
 
-init_fw:
+; *******************************************************************
+; init_fw
 ;
 ; init the firework controller, a0 pts to an f-control string
+; *******************************************************************
+init_fw:
 
         move #1,fw_del
         move.l a0,fw_ptr
@@ -16647,9 +17166,12 @@ fw_sv4:
         bra fw_cmd
           
 
-score2num:
+; *******************************************************************
+; score2num
 ;
 ; convert the score pointed to by a0 into a long integer in d0
+; *******************************************************************
+score2num:
 
         lea 8(a0),a0
         clr.l d0    ;get units out
@@ -16676,11 +17198,12 @@ s3n:
         add.l d4,d0
         rts
 
-xscoretab:
+; *******************************************************************
+; xscoretab
 ;
 ; Expand a HS table from the packed data starting at a0.
-
-;  lea 90(a0),a1  ;point to where the expanded table lies
+; *******************************************************************
+xscoretab:
         lea hstab1,a1
         lea 80(a0),a3
         move #9,d4  ;do 10 scores
@@ -16805,6 +17328,10 @@ anima1:
         dbra d4,xscore  ;xfer them all
         rts
         
+; *******************************************************************
+; eepromsave
+; Save the EEPROM
+; *******************************************************************
 eepromsave:
         move #63,d1
         move #$6510,d0
@@ -16824,11 +17351,16 @@ xxhs1:
 unchnged:
         lea 2(a2),a2
         dbra d1,xxhs1
+
         move d2,d0
         move #62,d1
         jsr eewrite  ;save checksum
         rts
 
+; *******************************************************************
+; eepromload
+; Load the EEPROM
+; *******************************************************************
 eepromload:
         move #63,d1
         jsr eeread
@@ -16860,9 +17392,12 @@ ccrset:
         jsr spall      ;(makesure PAL bit is set)
         bra eepromsave
 
-pager:
+; *******************************************************************
+; pager
 ;
 ; use text thang to do a page of txt. Pass d0,d1=start pos of first line. Returns 0=text done, 1=more text waiting (a0 poised)
+; *******************************************************************
+pager:
 
         lea in_buf,a0
         move.l #linebuff,(a0)    ;Set up texter: address of text $
@@ -16907,8 +17442,6 @@ palll:
         ble nxline
         move #1,d7
         rts
-
-
 
 g_getline:
         move.l a5,a2  ;d2.l points to 0term text
@@ -16981,9 +17514,12 @@ morend2:
         move #2,d7
         rts
 
-xkeys:
+; *******************************************************************
+; xkeys
 ;
 ; set up OPTION8 according to how many keys there are.
+; *******************************************************************
+xkeys:
 
         lea keys,a0
         lea keym1,a1
@@ -17043,6 +17579,7 @@ stetoff:
         rts
 
 ; *******************************************************************
+; playtune
 ; Play a tune
 ; *******************************************************************
 playtune:
@@ -17060,6 +17597,7 @@ playtune:
         jmp START_MOD
 
 ; *******************************************************************
+; fox
 ; Play a selected sound sample.
 ; *******************************************************************
 fox:
@@ -17086,7 +17624,10 @@ fox:
 
 *---------  fixed data
 
-fw_test: dc.b '[x=',0,'y=',$40,'z=',$70,'X=',0,'Y=',-8,'Z=',$10
+; *******************************************************************
+; Control string for the firework display
+; *******************************************************************
+fw_test:dc.b '[x=',0,'y=',$40,'z=',$70,'X=',0,'Y=',-8,'Z=',$10
         dc.b 'd',80,'c',0,'.Y-',2,'c',$88,'.Y-',2,'c',$f0,'.Y+',4,'w',50
         dc.b 'X=',-8,'d',80,'c',$ff,'(',7,'.X!.X!w',20,'X+',1,'-c-c-d)w',30
         dc.b 'x=',$60,'(',4,'Y=',-8,'X=',0,'d',140,'c',0,'.x!.x!Y-',2,'c',$88,'.x!.x!Y-',2,'c',$f0,'.x!.x!Y+',4,'w',20
@@ -17096,80 +17637,110 @@ fw_test: dc.b '[x=',0,'y=',$40,'z=',$70,'X=',0,'Y=',-8,'Z=',$10
         dc.b 'X+',2,'Y+',1,'c',0,'.X!.X!w',50,')w',50
         dc.b ']'
 
+; *******************************************************************
+; Sequence for the rotary controller
+; *******************************************************************
 conseq: dc.b 0,1,3,2
 
 
+; *******************************************************************
+; Animation sequence for the claw. These data structures are defined
+; in obj2d.s
+; *******************************************************************
 sclaws: dc.l sclaw0,sclaw1,sclaw2,sclaw3,sclaw4,sclaw5,sclaw6,sclaw7
- dc.l gsclaw0,gsclaw1,gsclaw2,gsclaw3,gsclaw4,gsclaw5,gsclaw6,gsclaw7
+        dc.l gsclaw0,gsclaw1,gsclaw2,gsclaw3,gsclaw4,gsclaw5,gsclaw6,gsclaw7
 
 .phrase
 
-webtunes: dc.b 5,2,6,7,5,2,6,7
+; *******************************************************************
+; The tune to use for each web.
+; *******************************************************************
+webtunes:
+        dc.b 5,2,6,7,5,2,6,7
 
-testskore: dc.b 0,0,6,0,5,0,0,1
+; *******************************************************************
+; Unused
+; *******************************************************************
+testskore:
+        dc.b 0,0,6,0,5,0,0,1
 
-fonties: dc.l afont,bfont,cfont
+; *******************************************************************
+; Fonts
+; *******************************************************************
+fonties:dc.l afont,bfont,cfont
 
-rospeeds: dc.b 2,4,8,8,8,8,8,8
+; *******************************************************************
+; Speeds on the web?
+; *******************************************************************
+rospeeds:
+        dc.b 2,4,8,8,8,8,8,8
 
 
-_nw1: dc.w 24
+; *******************************************************************
+; The definition of each wave
+; e.g.
+; _nw3:   dc.w 16       ; Duration
+;         dc.w 120,0    ; Flippers - Max Time, Index into 'inits' for generation routine.
+;         dc.w 0,444,1  ; Flipper Tankers - Sentinel, Max Time, Index into 'inits' for generation routine.
+;         dc.w -1       ; End of data sentinel
+; *******************************************************************
+_nw1:   dc.w 24
         dc.w 120,0    ;Flippers
         dc.w -1
 
-_nw2: dc.w 24
+_nw2:  dc.w 24
         dc.w 100,0    ;Flippers
         dc.w -1
 
-_nw3: dc.w 16
+_nw3:  dc.w 16
         dc.w 120,0    ;Flippers
         dc.w 0,444,1    ;Flipper Tankers
         dc.w -1    
 
-_nw4: dc.w 24
+_nw4:  dc.w 24
         dc.w 80,0    ;Flippers
         dc.w 0,333,1    ;Flipper Tankers
         dc.w 0,800,2    ;Spikers
         dc.w -1  
 
-_nw5: dc.w 24
+_nw5:  dc.w 24
         dc.w 100,0    ;Flippers
         dc.w 0,280,1    ;Flipper Tankers
         dc.w 0,800,2    ;Spikers
         dc.w -1
 
-_nw6: dc.w 30
+_nw6:  dc.w 30
         dc.w 95,0    ;Flippers
         dc.w 0,260,1    ;Flipper Tankers
         dc.w 0,800,2    ;Spikers
         dc.w -1
 
-_nw7: dc.w 30
+_nw7:  dc.w 30
         dc.w 90,0    ;Flippers
         dc.w 0,250,1    ;Flipper Tankers
         dc.w 0,750,2    ;Spikers
         dc.w -1
 
-_nw8: dc.w 30
+_nw8:  dc.w 30
         dc.w 90,0    ;Flippers
         dc.w 0,240,1    ;Flipper Tankers
         dc.w 0,650,2    ;Spikers
         dc.w -1
 
-_nw9: dc.w 30
+_nw9:  dc.w 30
         dc.w 85,0    ;Flippers
         dc.w 0,230,1    ;Flipper Tankers
         dc.w 0,600,2    ;Spikers
         dc.w -1
 
-_nw10: dc.w 30
+_nw10:  dc.w 30
         dc.w 85,0    ;Flippers
         dc.w 0,240,1    ;Flipper Tankers
         dc.w 0,850,2    ;Spikers
         dc.w 0,2000,10    ;Beasties
         dc.w -1
 
-_nw11: dc.w 30
+_nw11:  dc.w 30
         dc.w 85,0    ;Flippers
         dc.w 0,270,1    ;Flipper Tankers
         dc.w 0,850,2    ;Spikers
@@ -17177,7 +17748,7 @@ _nw11: dc.w 30
         dc.w 0,2000,10    ;Beasties
         dc.w -1
 
-_nw12: dc.w 30
+_nw12:  dc.w 30
         dc.w 80,0    ;Flippers
         dc.w 0,270,1    ;Flipper Tankers
         dc.w 0,850,2    ;Spikers
@@ -17185,7 +17756,7 @@ _nw12: dc.w 30
         dc.w 0,700,3    ;Fuseballs
         dc.w -1
 
-_nw13: dc.w 30
+_nw13:  dc.w 30
         dc.w 80,0    ;Flippers
         dc.w 0,270,1    ;Flipper Tankers
         dc.w 0,2000,10    ;Beasties
@@ -17193,7 +17764,7 @@ _nw13: dc.w 30
         dc.w 0,600,3    ;Fuseballs
         dc.w -1
 
-_nw14: dc.w 30
+_nw14:  dc.w 30
         dc.w 75,0    ;Flippers
         dc.w 0,270,1    ;Flipper Tankers
         dc.w 0,2000,10    ;Beasties
@@ -17201,7 +17772,7 @@ _nw14: dc.w 30
         dc.w 0,600,3    ;Fuseballs
         dc.w -1
 
-_nw15: dc.w 30
+_nw15:  dc.w 30
         dc.w 75,0    ;Flippers
         dc.w 0,270,1    ;Flipper Tankers
         dc.w 0,2000,10    ;Beasties
@@ -17209,7 +17780,7 @@ _nw15: dc.w 30
         dc.w 0,500,3    ;Fuseballs
         dc.w -1
 
-_nw16: dc.w 40
+_nw16:  dc.w 40
         dc.w 70,0    ;Flippers
         dc.w 0,230,1    ;Flipper Tankers
         dc.w 0,750,2    ;Spikers
@@ -17217,7 +17788,7 @@ _nw16: dc.w 40
         dc.w 0,500,3    ;Fuseballs
         dc.w -1
 
-_nw17: dc.w 24
+_nw17:  dc.w 24
         dc.w 120,0    ;Flippers
         dc.w 0,600,4    ;Pulsars
         dc.w 0,750,2    ;Spikers
@@ -17225,7 +17796,7 @@ _nw17: dc.w 24
         dc.w 0,900,3    ;Fuseballs
         dc.w -1
 
-_nw18: dc.w 30
+_nw18:  dc.w 30
         dc.w 100,0    ;Flippers
         dc.w 0,500,4    ;Pulsars
         dc.w 0,750,2    ;Spikers
@@ -17233,7 +17804,7 @@ _nw18: dc.w 30
         dc.w 0,900,3    ;Fuseballs
         dc.w -1
 
-_nw19: dc.w 30
+_nw19:  dc.w 30
         dc.w 120,0    ;Flippers
         dc.w 0,444,1    ;Flipper Tankers
         dc.w 0,600,4    ;Pulsars
@@ -17242,7 +17813,7 @@ _nw19: dc.w 30
         dc.w 0,900,3    ;Fuseballs
         dc.w -1    
 
-_nw20: dc.w 32
+_nw20:  dc.w 32
         dc.w 80,0    ;Flippers
         dc.w 0,333,1    ;Flipper Tankers
         dc.w 0,500,4    ;Pulsars
@@ -17251,7 +17822,7 @@ _nw20: dc.w 32
         dc.w 0,900,3    ;Fuseballs
         dc.w -1  
 
-_nw21: dc.w 32
+_nw21:  dc.w 32
         dc.w 100,0    ;Flippers
         dc.w 0,280,1    ;Flipper Tankers
         dc.w 0,800,2    ;Spikers
@@ -17260,7 +17831,7 @@ _nw21: dc.w 32
         dc.w 0,900,3    ;Fuseballs
         dc.w -1
 
-_nw22: dc.w 35
+_nw22:  dc.w 35
         dc.w 95,0    ;Flippers
         dc.w 0,260,1    ;Flipper Tankers
         dc.w 0,800,2    ;Spikers
@@ -17269,7 +17840,7 @@ _nw22: dc.w 35
         dc.w 0,900,3    ;Fuseballs
         dc.w -1
 
-_nw23: dc.w 35
+_nw23:  dc.w 35
         dc.w 90,0    ;Flippers
         dc.w 0,250,1    ;Flipper Tankers
         dc.w 0,750,2    ;Spikers
@@ -17278,7 +17849,7 @@ _nw23: dc.w 35
         dc.w 0,900,3    ;Fuseballs
         dc.w -1
 
-_nw24: dc.w 35
+_nw24:  dc.w 35
         dc.w 90,0    ;Flippers
         dc.w 0,240,1    ;Flipper Tankers
         dc.w 0,650,2    ;Spikers
@@ -17287,7 +17858,7 @@ _nw24: dc.w 35
         dc.w 0,900,3    ;Fuseballs
         dc.w -1
 
-_nw25: dc.w 40
+_nw25:  dc.w 40
         dc.w 85,0    ;Flippers
         dc.w 0,230,1    ;Flipper Tankers
         dc.w 0,600,2    ;Spikers
@@ -17297,7 +17868,7 @@ _nw25: dc.w 40
         dc.w 0,2000,5    ;Fuseball Tankers
         dc.w -1  
 
-_nw26: dc.w 40
+_nw26:  dc.w 40
         dc.w 85,0    ;Flippers
         dc.w 0,240,1    ;Flipper Tankers
         dc.w 0,850,2    ;Spikers
@@ -17307,7 +17878,7 @@ _nw26: dc.w 40
         dc.w 0,2000,5
         dc.w -1
 
-_nw27: dc.w 40
+_nw27:  dc.w 40
         dc.w 85,0    ;Flippers
         dc.w 0,370,1    ;Flipper Tankers
         dc.w 0,850,2    ;Spikers
@@ -17317,7 +17888,7 @@ _nw27: dc.w 40
         dc.w 0,2000,5    ;Fuseball Tankers
         dc.w -1
 
-_nw28: dc.w 40
+_nw28:  dc.w 40
         dc.w 80,0    ;Flippers
         dc.w 0,370,1    ;Flipper Tankers
         dc.w 0,850,2    ;Spikers
@@ -17327,7 +17898,7 @@ _nw28: dc.w 40
         dc.w 0,2000,5    ;Fuseball Tankers
         dc.w -1
 
-_nw29: dc.w 40
+_nw29:  dc.w 40
         dc.w 80,0    ;Flippers
         dc.w 0,470,1    ;Flipper Tankers
         dc.w 0,750,2    ;Spikers
@@ -17337,7 +17908,7 @@ _nw29: dc.w 40
         dc.w 0,2000,5    ;Fuseball Tankers
         dc.w -1
 
-_nw30: dc.w 40
+_nw30:  dc.w 40
         dc.w 75,0    ;Flippers
         dc.w 0,470,1    ;Flipper Tankers
         dc.w 0,750,2    ;Spikers
@@ -17347,7 +17918,7 @@ _nw30: dc.w 40
         dc.w 0,1000,5    ;Fuseball Tankers
         dc.w -1
 
-_nw31: dc.w 40
+_nw31:  dc.w 40
         dc.w 95,0    ;Flippers
         dc.w 0,470,1    ;Flipper Tankers
         dc.w 0,750,2    ;Spikers
@@ -17357,7 +17928,7 @@ _nw31: dc.w 40
         dc.w 0,1000,5    ;Fuseball Tankers
         dc.w -1
 
-_nw32: dc.w 40
+_nw32:  dc.w 40
         dc.w 90,0    ;Flippers
         dc.w 0,430,1    ;Flipper Tankers
         dc.w 0,750,2    ;Spikers
@@ -17368,7 +17939,7 @@ _nw32: dc.w 40
         dc.w -1
 
 
-_nw33: dc.w 24
+_nw33:  dc.w 24
         dc.w 100,0    ;Flippers
         dc.w 0,750,2    ;Spikers
         dc.w 0,900,3    ;Fuseballs
@@ -17376,7 +17947,7 @@ _nw33: dc.w 24
         dc.w 0,700,10    ;Beasties
         dc.w -1
 
-_nw34: dc.w 30
+_nw34:  dc.w 30
         dc.w 100,0    ;Flippers
         dc.w 0,750,2    ;Spikers
         dc.w 0,700,10    ;Beasties
@@ -17384,7 +17955,7 @@ _nw34: dc.w 30
         dc.w 0,900,3    ;Fuseballs
         dc.w -1
 
-_nw35: dc.w 30
+_nw35:  dc.w 30
         dc.w 120,0    ;Flippers
         dc.w 0,444,1    ;Flipper Tankers
         dc.w 0,750,2    ;Spikers
@@ -17393,7 +17964,7 @@ _nw35: dc.w 30
         dc.w 0,450,6    ;Pulsar Tankers
         dc.w -1    
 
-_nw36: dc.w 32
+_nw36:  dc.w 32
         dc.w 80,0    ;Flippers
         dc.w 0,333,1    ;Flipper Tankers
         dc.w 0,750,2    ;Spikers
@@ -17402,7 +17973,7 @@ _nw36: dc.w 32
         dc.w 0,400,6    ;Pulsar Tankers
         dc.w -1  
 
-_nw37: dc.w 32
+_nw37:  dc.w 32
         dc.w 100,0    ;Flippers
         dc.w 0,280,1    ;Flipper Tankers
         dc.w 0,800,2    ;Spikers
@@ -17411,7 +17982,7 @@ _nw37: dc.w 32
         dc.w 0,450,6    ;Pulsar Tankers
         dc.w -1
 
-_nw38: dc.w 35
+_nw38:  dc.w 35
         dc.w 95,0    ;Flippers
         dc.w 0,260,1    ;Flipper Tankers
         dc.w 0,800,2    ;Spikers
@@ -17420,7 +17991,7 @@ _nw38: dc.w 35
         dc.w 0,450,6    ;Pulsar Tankers
         dc.w -1
 
-_nw39: dc.w 35
+_nw39:  dc.w 35
         dc.w 90,0    ;Flippers
         dc.w 0,250,1    ;Flipper Tankers
         dc.w 0,750,2    ;Spikers
@@ -17429,7 +18000,7 @@ _nw39: dc.w 35
         dc.w 0,400,6    ;Pulsar Tankers
         dc.w -1
 
-_nw40: dc.w 35
+_nw40:  dc.w 35
         dc.w 90,0    ;Flippers
         dc.w 0,240,1    ;Flipper Tankers
         dc.w 0,650,2    ;Spikers
@@ -17438,7 +18009,7 @@ _nw40: dc.w 35
         dc.w 0,350,6    ;Pulsar Tankers
         dc.w -1
 
-_nw41: dc.w 40
+_nw41:  dc.w 40
         dc.w 85,0    ;Flippers
         dc.w 0,230,1    ;Flipper Tankers
         dc.w 0,600,2    ;Spikers
@@ -17449,7 +18020,7 @@ _nw41: dc.w 40
         dc.w 0,350,6    ;Pulsar Tankers
         dc.w -1  
 
-_nw42: dc.w 40
+_nw42:  dc.w 40
         dc.w 85,0    ;Flippers
         dc.w 0,240,1    ;Flipper Tankers
         dc.w 0,850,2    ;Spikers
@@ -17460,7 +18031,7 @@ _nw42: dc.w 40
         dc.w 0,2000,5
         dc.w -1
 
-_nw43: dc.w 40
+_nw43:  dc.w 40
         dc.w 85,0    ;Flippers
         dc.w 0,270,1    ;Flipper Tankers
         dc.w 0,850,2    ;Spikers
@@ -17471,7 +18042,7 @@ _nw43: dc.w 40
         dc.w 0,300,5    ;Fuseball Tankers
         dc.w -1
 
-_nw44: dc.w 40
+_nw44:  dc.w 40
         dc.w 80,0    ;Flippers
         dc.w 0,270,1    ;Flipper Tankers
         dc.w 0,850,2    ;Spikers
@@ -17482,7 +18053,7 @@ _nw44: dc.w 40
         dc.w 0,300,5    ;Fuseball Tankers
         dc.w -1
 
-_nw45: dc.w 40
+_nw45:  dc.w 40
         dc.w 80,0    ;Flippers
         dc.w 0,270,1    ;Flipper Tankers
         dc.w 0,750,2    ;Spikers
@@ -17493,7 +18064,7 @@ _nw45: dc.w 40
         dc.w 0,800,5    ;Fuseball Tankers
         dc.w -1
 
-_nw46: dc.w 40
+_nw46:  dc.w 40
         dc.w 75,0    ;Flippers
         dc.w 0,270,1    ;Flipper Tankers
         dc.w 0,750,2    ;Spikers
@@ -17504,7 +18075,7 @@ _nw46: dc.w 40
         dc.w 0,800,5    ;Fuseball Tankers
         dc.w -1
 
-_nw47: dc.w 40
+_nw47:  dc.w 40
         dc.w 95,0    ;Flippers
         dc.w 0,270,1    ;Flipper Tankers
         dc.w 0,750,2    ;Spikers
@@ -17515,7 +18086,7 @@ _nw47: dc.w 40
         dc.w 0,800,5    ;Fuseball Tankers
         dc.w -1
 
-_nw48: dc.w 40
+_nw48:  dc.w 40
         dc.w 90,0    ;Flippers
         dc.w 0,230,1    ;Flipper Tankers
         dc.w 0,750,2    ;Spikers
@@ -17526,32 +18097,32 @@ _nw48: dc.w 40
         dc.w 0,400,5    ;Fuseball Tankers
         dc.w -1
 
-_nw49: dc.w 16
+_nw49:  dc.w 16
         dc.w 140,10    ;Beasties!
         dc.w -1
 
-_nw50: dc.w 40
+_nw50:  dc.w 40
         dc.w 50,0    ;Flippers
         dc.w 0,750,2    ;Spikers
         dc.w 0,500,10    ;Beasties
         dc.w 0,900,3    ;Fuseballs
         dc.w -1
 
-_nw51: dc.w 45
+_nw51:  dc.w 45
         dc.w 50,0    ;Flippers
         dc.w 0,750,2    ;Spikers
         dc.w 0,500,10    ;Beasties
         dc.w 0,950,6    ;Pulsar Tankers
         dc.w -1    
 
-_nw52: dc.w 50
+_nw52:  dc.w 50
         dc.w 50,0    ;Flippers
         dc.w 0,750,2    ;Spikers
         dc.w 0,950,3    ;Fuseballs
         dc.w 0,300,10    ;Beasties
         dc.w -1  
 
-_nw53: dc.w 50
+_nw53:  dc.w 50
         dc.w 50,0    ;Flippers
         dc.w 0,280,1    ;Flipper Tankers
         dc.w 0,800,2    ;Spikers
@@ -17559,7 +18130,7 @@ _nw53: dc.w 50
         dc.w 0,200,10    ;Beasties
         dc.w -1
 
-_nw54: dc.w 50
+_nw54:  dc.w 50
         dc.w 50,0    ;Flippers
         dc.w 0,260,1    ;Flipper Tankers
         dc.w 0,800,2    ;Spikers
@@ -17567,7 +18138,7 @@ _nw54: dc.w 50
         dc.w 0,100,10    ;Beasties
         dc.w -1
 
-_nw55: dc.w 50
+_nw55:  dc.w 50
         dc.w 50,0    ;Flippers
         dc.w 0,250,1    ;Flipper Tankers
         dc.w 0,750,2    ;Spikers
@@ -17575,7 +18146,7 @@ _nw55: dc.w 50
         dc.w 0,100,10    ;Beasties
         dc.w -1
 
-_nw56: dc.w 50
+_nw56:  dc.w 50
         dc.w 50,0    ;Flippers
         dc.w 0,240,1    ;Flipper Tankers
         dc.w 0,650,2    ;Spikers
@@ -17584,33 +18155,25 @@ _nw56: dc.w 50
         dc.w -1
 
 ;_nw1:
-_nw57: dc.w 60
+_nw57:  dc.w 60
         dc.w 25,7    ;SFlip2
         dc.w 0,400,8    ;Mirror
         dc.w -1  
 
-_nw58: dc.w 40
+_nw58:  dc.w 40
         dc.w 50,2    ;Flippers
         dc.w 0,400,8    ;Mirror
         dc.w 0,151,4    ;Pulsars
         dc.w -1
 
-_nw59: dc.w 40
-        dc.w 50,2    ;Flippers
-        dc.w 0,400,8    ;Mirror
-        dc.w 0,151,4    ;Pulsars
-        dc.w 0,523,3    ;Fuseballs
-        dc.w -1
-
-_nw60: dc.w 50
+_nw59:  dc.w 40
         dc.w 50,2    ;Flippers
         dc.w 0,400,8    ;Mirror
         dc.w 0,151,4    ;Pulsars
         dc.w 0,523,3    ;Fuseballs
-        dc.w 0,1500,2    ;Spikers
         dc.w -1
 
-_nw61: dc.w 50
+_nw60:  dc.w 50
         dc.w 50,2    ;Flippers
         dc.w 0,400,8    ;Mirror
         dc.w 0,151,4    ;Pulsars
@@ -17618,7 +18181,15 @@ _nw61: dc.w 50
         dc.w 0,1500,2    ;Spikers
         dc.w -1
 
-_nw62: dc.w 50
+_nw61:  dc.w 50
+        dc.w 50,2    ;Flippers
+        dc.w 0,400,8    ;Mirror
+        dc.w 0,151,4    ;Pulsars
+        dc.w 0,523,3    ;Fuseballs
+        dc.w 0,1500,2    ;Spikers
+        dc.w -1
+
+_nw62:  dc.w 50
         dc.w 50,2    ;Flippers
         dc.w 0,400,8    ;Mirror
         dc.w 0,351,6    ;Pulsar Tankers
@@ -17626,7 +18197,7 @@ _nw62: dc.w 50
         dc.w 0,1500,2    ;Spikers
         dc.w -1
 
-_nw63: dc.w 50
+_nw63:  dc.w 50
         dc.w 50,2    ;Flippers
         dc.w 0,400,8    ;Mirror
         dc.w 0,251,6    ;Pulsar Tankers
@@ -17634,65 +18205,65 @@ _nw63: dc.w 50
         dc.w 0,1500,2    ;Spikers
         dc.w -1
 
-_nw64: dc.w 50
+_nw64:  dc.w 50
         dc.w 30,4    ;Pulsars
         dc.w 0,400,10    ;Beasties
         dc.w -1
 
-_nw65: dc.w 60
+_nw65:  dc.w 60
         dc.w 20,7    ;Beasties!
         dc.w 0,700,9    ;Adroids
         dc.w -1
 
-_nw66: dc.w 60
+_nw66:  dc.w 60
         dc.w 40,7    ;Flippers3
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w -1
 
-_nw67: dc.w 60
-        dc.w 40,7    ;Flippers3
-        dc.w 0,750,8    ;Mirrors
-        dc.w 0,600,9    ;Adroids
-        dc.w 0,500,3    ;Fuseballs
-        dc.w -1
-
-_nw68: dc.w 60
+_nw67:  dc.w 60
         dc.w 40,7    ;Flippers3
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w 0,500,3    ;Fuseballs
         dc.w -1
 
-_nw69: dc.w 60
+_nw68:  dc.w 60
+        dc.w 40,7    ;Flippers3
+        dc.w 0,750,8    ;Mirrors
+        dc.w 0,600,9    ;Adroids
+        dc.w 0,500,3    ;Fuseballs
+        dc.w -1
+
+_nw69:  dc.w 60
         dc.w 40,7    ;Flippers3
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w 0,500,6    ;Pulsar Tankers
         dc.w -1
 
-_nw70: dc.w 60
+_nw70:  dc.w 60
         dc.w 70,6    ;Pulsar Tankers
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w 0,300,3    ;Fuseballs
         dc.w -1
 
-_nw71: dc.w 60
+_nw71:  dc.w 60
         dc.w 70,6    ;Pulsar Tankers
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w 0,500,10    ;Beasties
         dc.w -1
 
-_nw72: dc.w 60
+_nw72:  dc.w 60
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w 0,500,2    ;Spikers
         dc.w -1
 
-_nw73: dc.w 60
+_nw73:  dc.w 60
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
@@ -17700,7 +18271,7 @@ _nw73: dc.w 60
         dc.w 0,300,3    ;Fuseballs
         dc.w -1
 
-_nw74: dc.w 60
+_nw74:  dc.w 60
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
@@ -17709,7 +18280,7 @@ _nw74: dc.w 60
         dc.w 0,400,11    ;flip3
         dc.w -1
 
-_nw75: dc.w 60
+_nw75:  dc.w 60
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
@@ -17719,7 +18290,7 @@ _nw75: dc.w 60
         dc.w 0,700,1    ;flip tanker
         dc.w -1
 
-_nw76: dc.w 60
+_nw76:  dc.w 60
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
@@ -17730,7 +18301,7 @@ _nw76: dc.w 60
         dc.w 0,300,4    ;Pulsars
         dc.w -1
 
-_nw77: dc.w 60
+_nw77:  dc.w 60
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
@@ -17741,7 +18312,7 @@ _nw77: dc.w 60
         dc.w 0,623,5    ;Fuseball Tanker
         dc.w -1
 
-_nw78: dc.w 60
+_nw78:  dc.w 60
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
@@ -17753,7 +18324,7 @@ _nw78: dc.w 60
         dc.w 0,300,4    ;Pulsars
         dc.w -1
 
-_nw79: dc.w 60
+_nw79:  dc.w 60
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
@@ -17766,7 +18337,7 @@ _nw79: dc.w 60
         dc.w 0,800,10    ;Beasties
         dc.w -1
 
-_nw80: dc.w 60
+_nw80:  dc.w 60
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
@@ -17779,7 +18350,7 @@ _nw80: dc.w 60
         dc.w 0,800,10    ;Beasties
         dc.w -1
 
-_nw81: dc.w 60
+_nw81:  dc.w 60
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
@@ -17792,7 +18363,7 @@ _nw81: dc.w 60
         dc.w 0,800,10    ;Beasties
         dc.w -1
 
-_nw82: dc.w 60
+_nw82:  dc.w 60
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,500,9    ;Adroids
@@ -17805,7 +18376,7 @@ _nw82: dc.w 60
         dc.w 0,800,10    ;Beasties
         dc.w -1
 
-_nw83: dc.w 60
+_nw83:  dc.w 60
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,500,9    ;Adroids
@@ -17818,21 +18389,7 @@ _nw83: dc.w 60
         dc.w 0,800,10    ;Beasties
         dc.w -1
 
-_nw84: dc.w 60
-        dc.w 20,7    ;flip2
-        dc.w 0,750,8    ;Mirrors
-        dc.w 0,500,9    ;Adroids
-        dc.w 0,500,6    ;Pulsar Tankers
-        dc.w 0,300,3    ;Fuseballs
-        dc.w 0,400,11    ;flip3
-        dc.w 0,500,1    ;flip tanker
-        dc.w 0,523,5    ;Fuseball Tanker
-        dc.w 0,300,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
-        dc.w -1
-
-
-_nw85: dc.w 70
+_nw84:  dc.w 60
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,500,9    ;Adroids
@@ -17845,7 +18402,21 @@ _nw85: dc.w 70
         dc.w 0,800,10    ;Beasties
         dc.w -1
 
-_nw86: dc.w 70
+
+_nw85:  dc.w 70
+        dc.w 20,7    ;flip2
+        dc.w 0,750,8    ;Mirrors
+        dc.w 0,500,9    ;Adroids
+        dc.w 0,500,6    ;Pulsar Tankers
+        dc.w 0,300,3    ;Fuseballs
+        dc.w 0,400,11    ;flip3
+        dc.w 0,500,1    ;flip tanker
+        dc.w 0,523,5    ;Fuseball Tanker
+        dc.w 0,300,4    ;Pulsars
+        dc.w 0,800,10    ;Beasties
+        dc.w -1
+
+_nw86:  dc.w 70
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,400,9    ;Adroids
@@ -17858,20 +18429,7 @@ _nw86: dc.w 70
         dc.w 0,800,10    ;Beasties
         dc.w -1
 
-_nw87: dc.w 70
-        dc.w 20,7    ;flip2
-        dc.w 0,750,8    ;Mirrors
-        dc.w 0,400,9    ;Adroids
-        dc.w 0,450,6    ;Pulsar Tankers
-        dc.w 0,300,3    ;Fuseballs
-        dc.w 0,400,11    ;flip3
-        dc.w 0,500,1    ;flip tanker
-        dc.w 0,523,5    ;Fuseball Tanker
-        dc.w 0,300,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
-        dc.w -1
-
-_nw88: dc.w 70
+_nw87:  dc.w 70
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,400,9    ;Adroids
@@ -17884,20 +18442,20 @@ _nw88: dc.w 70
         dc.w 0,800,10    ;Beasties
         dc.w -1
 
-_nw89: dc.w 70
+_nw88:  dc.w 70
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,400,9    ;Adroids
         dc.w 0,450,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
         dc.w 0,400,11    ;flip3
-        dc.w 0,300,1    ;flip tanker
+        dc.w 0,500,1    ;flip tanker
         dc.w 0,523,5    ;Fuseball Tanker
         dc.w 0,300,4    ;Pulsars
         dc.w 0,800,10    ;Beasties
         dc.w -1
 
-_nw90: dc.w 80
+_nw89:  dc.w 70
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,400,9    ;Adroids
@@ -17910,7 +18468,20 @@ _nw90: dc.w 80
         dc.w 0,800,10    ;Beasties
         dc.w -1
 
-_nw91: dc.w 80
+_nw90:  dc.w 80
+        dc.w 20,7    ;flip2
+        dc.w 0,750,8    ;Mirrors
+        dc.w 0,400,9    ;Adroids
+        dc.w 0,450,6    ;Pulsar Tankers
+        dc.w 0,300,3    ;Fuseballs
+        dc.w 0,400,11    ;flip3
+        dc.w 0,300,1    ;flip tanker
+        dc.w 0,523,5    ;Fuseball Tanker
+        dc.w 0,300,4    ;Pulsars
+        dc.w 0,800,10    ;Beasties
+        dc.w -1
+
+_nw91:  dc.w 80
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,400,9    ;Adroids
@@ -17923,20 +18494,7 @@ _nw91: dc.w 80
         dc.w 0,800,10    ;Beasties
         dc.w -1
 
-_nw92: dc.w 80
-        dc.w 20,7    ;flip2
-        dc.w 0,750,8    ;Mirrors
-        dc.w 0,400,9    ;Adroids
-        dc.w 0,450,6    ;Pulsar Tankers
-        dc.w 0,300,3    ;Fuseballs
-        dc.w 0,350,11    ;flip3
-        dc.w 0,250,1    ;flip tanker
-        dc.w 0,523,5    ;Fuseball Tanker
-        dc.w 0,300,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
-        dc.w -1
-
-_nw93: dc.w 80
+_nw92:  dc.w 80
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,400,9    ;Adroids
@@ -17945,11 +18503,11 @@ _nw93: dc.w 80
         dc.w 0,350,11    ;flip3
         dc.w 0,250,1    ;flip tanker
         dc.w 0,523,5    ;Fuseball Tanker
-        dc.w 0,100,4    ;Pulsars
+        dc.w 0,300,4    ;Pulsars
         dc.w 0,800,10    ;Beasties
         dc.w -1
 
-_nw94: dc.w 80
+_nw93:  dc.w 80
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,400,9    ;Adroids
@@ -17962,7 +18520,20 @@ _nw94: dc.w 80
         dc.w 0,800,10    ;Beasties
         dc.w -1
 
-_nw95: dc.w 80
+_nw94:  dc.w 80
+        dc.w 20,7    ;flip2
+        dc.w 0,750,8    ;Mirrors
+        dc.w 0,400,9    ;Adroids
+        dc.w 0,450,6    ;Pulsar Tankers
+        dc.w 0,300,3    ;Fuseballs
+        dc.w 0,350,11    ;flip3
+        dc.w 0,250,1    ;flip tanker
+        dc.w 0,523,5    ;Fuseball Tanker
+        dc.w 0,100,4    ;Pulsars
+        dc.w 0,800,10    ;Beasties
+        dc.w -1
+
+_nw95:  dc.w 80
         dc.w 20,7    ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,200,9    ;Adroids
@@ -17975,7 +18546,7 @@ _nw95: dc.w 80
         dc.w 0,800,10    ;Beasties
         dc.w -1
 
-_nw96: dc.w 90
+_nw96:  dc.w 90
         dc.w 20,7    ;flip2
         dc.w 0,350,8    ;Mirrors
         dc.w 0,200,9    ;Adroids
@@ -17988,7 +18559,7 @@ _nw96: dc.w 90
         dc.w 0,800,10    ;Beasties
         dc.w -1
 
-_nw97: dc.w 90
+_nw97:  dc.w 90
         dc.w 20,7    ;flip2
         dc.w 0,350,8    ;Mirrors
         dc.w 0,200,9    ;Adroids
@@ -18001,7 +18572,7 @@ _nw97: dc.w 90
         dc.w 0,800,10    ;Beasties
         dc.w -1
 
-_nw98: dc.w 90
+_nw98:  dc.w 90
         dc.w 20,7    ;flip2
         dc.w 0,350,8    ;Mirrors
         dc.w 0,200,9    ;Adroids
@@ -18034,6 +18605,10 @@ _nw100: dc.w 100
         dc.w -1
 
 
+; *******************************************************************
+; A list of all waves in the order in which they occur, using the wave
+; data structures defined above.
+; *******************************************************************
 waves:
         dc.l _nw1,_nw2,_nw3,_nw4,_nw5,_nw6,_nw7,_nw8,_nw9,_nw10,_nw11,_nw12,_nw13,_nw14,_nw15,_nw16
         dc.l _nw17,_nw18,_nw19,_nw20,_nw21,_nw22,_nw23,_nw24,_nw25,_nw26,_nw27,_nw28,_nw29,_nw30,_nw31,_nw32
@@ -18045,23 +18620,34 @@ waves:
         dc.l 0
 
 
+; *******************************************************************
+; A list of all waves for traditional Tempest.
+; *******************************************************************
 tradmax: dc.l _tm1,_tm2,_tm3,_tm4,_tm5,_tm6,_tm7,_tm8,_tm9,_tm10,_tm11,_tm12,_tm13,_tm14,_tm15,_tm16
 
-_tm1: dc.w 40
+; *******************************************************************
+; The definition of each wave for traditional/classic Tempest
+; e.g.
+; _nw3:   dc.w 16       ; Duration
+;         dc.w 120,0    ; Flippers - Max Time, Index into 'inits' for generation routine.
+;         dc.w 0,444,1  ; Flipper Tankers - Sentinel, Max Time, Index into 'inits' for generation routine.
+;         dc.w -1       ; End of data sentinel
+; *******************************************************************
+_tm1:   dc.w 40
         dc.w 50,0    ;Flippers
         dc.w 0,450,2    ;Spikers
         dc.w 0,700,3    ;Fuseballs
         dc.w 0,300,6    ;Pulsar Tankers
         dc.w -1
 
-_tm2: dc.w 40
+_tm2:   dc.w 40
         dc.w 50,0    ;Flippers
         dc.w 0,450,2    ;Spikers
         dc.w 0,700,3    ;Fuseballs
         dc.w 0,250,6    ;Pulsar Tankers
         dc.w -1
 
-_tm3: dc.w 50
+_tm3:   dc.w 50
         dc.w 40,0    ;Flippers
         dc.w 0,444,1    ;Flipper Tankers
         dc.w 0,450,2    ;Spikers
@@ -18069,7 +18655,7 @@ _tm3: dc.w 50
         dc.w 0,250,6    ;Pulsar Tankers
         dc.w -1
 
-_tm4: dc.w 50
+_tm4:   dc.w 50
         dc.w 40,0    ;Flippers
         dc.w 0,444,1    ;Flipper Tankers
         dc.w 0,450,2    ;Spikers
@@ -18077,7 +18663,7 @@ _tm4: dc.w 50
         dc.w 0,250,6    ;Pulsar Tankers
         dc.w -1
 
-_tm5: dc.w 60
+_tm5:   dc.w 60
         dc.w 40,0    ;Flippers
         dc.w 0,444,1    ;Flipper Tankers
         dc.w 0,450,2    ;Spikers
@@ -18086,7 +18672,7 @@ _tm5: dc.w 60
         dc.w -1
 
 
-_tm6: dc.w 60
+_tm6:   dc.w 60
         dc.w 30,0    ;Flippers
         dc.w 0,444,1    ;Flipper Tankers
         dc.w 0,450,2    ;Spikers
@@ -18094,7 +18680,7 @@ _tm6: dc.w 60
         dc.w 0,250,6    ;Pulsar Tankers
         dc.w -1
 
-_tm7: dc.w 60
+_tm7:   dc.w 60
         dc.w 30,0    ;Flippers
         dc.w 0,444,1    ;Flipper Tankers
         dc.w 0,450,2    ;Spikers
@@ -18103,7 +18689,7 @@ _tm7: dc.w 60
         dc.w 0,623,5    ;Fuseball Tanker
         dc.w -1
 
-_tm8: dc.w 60
+_tm8:   dc.w 60
         dc.w 30,0    ;Flippers
         dc.w 0,444,1    ;Flipper Tankers
         dc.w 0,450,2    ;Spikers
@@ -18112,7 +18698,7 @@ _tm8: dc.w 60
         dc.w 0,623,5    ;Fuseball Tanker
         dc.w -1
 
-_tm9: dc.w 60
+_tm9:   dc.w 60
         dc.w 30,0    ;Flippers
         dc.w 0,444,1    ;Flipper Tankers
         dc.w 0,450,2    ;Spikers
@@ -18121,7 +18707,7 @@ _tm9: dc.w 60
         dc.w 0,623,5    ;Fuseball Tanker
         dc.w -1
 
-_tm10: dc.w 60
+_tm10:  dc.w 60
         dc.w 30,0    ;Flippers
         dc.w 0,444,1    ;Flipper Tankers
         dc.w 0,450,2    ;Spikers
@@ -18131,7 +18717,7 @@ _tm10: dc.w 60
         dc.w 0,151,4    ;Pulsars
         dc.w -1
 
-_tm11: dc.w 60
+_tm11:  dc.w 60
         dc.w 30,0    ;Flippers
         dc.w 0,344,1    ;Flipper Tankers
         dc.w 0,450,2    ;Spikers
@@ -18141,7 +18727,7 @@ _tm11: dc.w 60
         dc.w 0,151,4    ;Pulsars
         dc.w -1
 
-_tm12: dc.w 65
+_tm12:  dc.w 65
         dc.w 30,0    ;Flippers
         dc.w 0,344,1    ;Flipper Tankers
         dc.w 0,450,2    ;Spikers
@@ -18151,7 +18737,7 @@ _tm12: dc.w 65
         dc.w 0,151,4    ;Pulsars
         dc.w -1
 
-_tm13: dc.w 60
+_tm13:  dc.w 60
         dc.w 30,0    ;Flippers
         dc.w 0,344,1    ;Flipper Tankers
         dc.w 0,450,2    ;Spikers
@@ -18161,7 +18747,7 @@ _tm13: dc.w 60
         dc.w 0,151,4    ;Pulsars
         dc.w -1
 
-_tm14: dc.w 60
+_tm14:  dc.w 60
         dc.w 30,0    ;Flippers
         dc.w 0,244,1    ;Flipper Tankers
         dc.w 0,350,2    ;Spikers
@@ -18171,7 +18757,7 @@ _tm14: dc.w 60
         dc.w 0,151,4    ;Pulsars
         dc.w -1
 
-_tm15: dc.w 60
+_tm15:  dc.w 60
         dc.w 30,0    ;Flippers
         dc.w 0,244,1    ;Flipper Tankers
         dc.w 0,350,2    ;Spikers
@@ -18181,7 +18767,7 @@ _tm15: dc.w 60
         dc.w 0,151,4    ;Pulsars
         dc.w -1
 
-_tm16: dc.w 80
+_tm16:  dc.w 80
         dc.w 30,0    ;Flippers
         dc.w 0,244,1    ;Flipper Tankers
         dc.w 0,350,2    ;Spikers
@@ -18192,8 +18778,16 @@ _tm16: dc.w 80
         dc.w -1
 
 
-h2hwebs: dc.b 1,2,5,10,12,13,15,23,29,32,34,35,37,44,47,48
-h2hlevs: dc.w $1010,-1
+; *******************************************************************
+; The webs to use for head-to-head mode.
+; Each of these is an index into raw_webs
+; *******************************************************************
+h2hwebs:dc.b 1,2,5,10,12,13,15,23,29,32,34,35,37,44,47,48
+
+; *******************************************************************
+; 
+; *******************************************************************
+h2hlevs:dc.w $1010,-1
         dc.w $0c0c,-1
         dc.w $0c0c,0
         dc.w $0808,0
@@ -18211,8 +18805,10 @@ h2hlevs: dc.w $1010,-1
         dc.w $0,-1
 
 
-cube:
-         dc.b 1,1,1,2,3,5,0
+; *******************************************************************
+; Vertex list describing a cube.
+; *******************************************************************
+cube:   dc.b 1,1,1,2,3,5,0
         dc.b 3,1,1,6,4,0
         dc.b 1,3,1,4,7,0
         dc.b 3,3,1,0    ;was 1,6,0
@@ -18224,7 +18820,10 @@ cube:
 
 
 
-claw1: dc.b 6,4,1,2,8,0
+; *******************************************************************
+; Vertices for the classic claw shape?
+; *******************************************************************
+claw1:  dc.b 6,4,1,2,8,0
         dc.b 3,9,1,3,0
         dc.b 9,12,1,4,0
         dc.b 15,9,1,5,0
@@ -18233,7 +18832,7 @@ claw1: dc.b 6,4,1,2,8,0
         dc.b 9,15,1,8,0
         dc.b 1,9,1,0,0
 
-claw2: dc.b 5,4,1,2,8,0
+claw2:  dc.b 5,4,1,2,8,0
         dc.b 3,10,1,3,0
         dc.b 10,12,1,4,0
         dc.b 15,9,1,5,0
@@ -18242,7 +18841,7 @@ claw2: dc.b 5,4,1,2,8,0
         dc.b 10,15,1,8,0
         dc.b 1,10,1,0,0
 
-claw3: dc.b 4,5,1,2,8,0
+claw3:  dc.b 4,5,1,2,8,0
         dc.b 4,11,1,3,0
         dc.b 11,12,1,4,0
         dc.b 15,8,1,5,0
@@ -18251,7 +18850,7 @@ claw3: dc.b 4,5,1,2,8,0
         dc.b 11,15,1,8,0
         dc.b 2,12,1,0,0
 
-claw4: dc.b 4,6,1,2,8,0
+claw4:  dc.b 4,6,1,2,8,0
         dc.b 5,12,1,3,0
         dc.b 11,13,1,4,0
         dc.b 15,8,1,5,0
@@ -18260,7 +18859,7 @@ claw4: dc.b 4,6,1,2,8,0
         dc.b 12,16,1,8,0
         dc.b 3,13,1,0,0
 
-claw5: dc.b 3,8,1,2,8,0
+claw5:  dc.b 3,8,1,2,8,0
         dc.b 6,13,1,3,0
         dc.b 12,13,1,4,0
         dc.b 15,7,1,5,0
@@ -18269,7 +18868,7 @@ claw5: dc.b 3,8,1,2,8,0
         dc.b 13,16,1,8,0
         dc.b 4,14,1,0,0
 
-claw6: dc.b 3,9,1,2,8,0
+claw6:  dc.b 3,9,1,2,8,0
         dc.b 7,13,1,3,0
         dc.b 13,13,1,4,0
         dc.b 15,6,1,5,0
@@ -18278,7 +18877,7 @@ claw6: dc.b 3,9,1,2,8,0
         dc.b 15,16,1,8,0
         dc.b 6,15,1,0,0
 
-claw7: dc.b 4,11,1,2,8,0
+claw7:  dc.b 4,11,1,2,8,0
         dc.b 10,14,1,3,0
         dc.b 14,13,1,4,0
         dc.b 15,6,1,5,0
@@ -18287,7 +18886,7 @@ claw7: dc.b 4,11,1,2,8,0
         dc.b 16,15,1,8,0
         dc.b 10,16,1,0,0
 
-claw8: dc.b 5,14,1,2,8,0
+claw8:  dc.b 5,14,1,2,8,0
         dc.b 11,14,1,3,0
         dc.b 14,12,1,4,0
         dc.b 15,6,1,5,0
@@ -18301,9 +18900,7 @@ t_test: dc.b 1,4,1,2,0
         dc.b 5,4,1,4,0
         dc.b 5,4,20,0,0
 
-
-
-test: dc.b 1,1,1,2,3,0
+test:   dc.b 1,1,1,2,3,0
         dc.b 1,3,3,0
         dc.b 3,1,1,4,0
         dc.b 3,1,3,5,0
@@ -18315,13 +18912,16 @@ test: dc.b 1,1,1,2,3,0
         dc.b 3,3,3,0
         dc.b 0
 
-tetra: dc.b 2,1,1,2,3,4,0
+tetra:  dc.b 2,1,1,2,3,4,0
         dc.b 1,2,1,3,4,0
         dc.b 3,3,1,4,0
         dc.b 2,2,3,0
         dc.b 0
 
-tempest: dc.b 1,1,1,2,0
+; *******************************************************************
+; An unused vector list giving the 'Tempest' title screen.
+; *******************************************************************
+tempest:dc.b 1,1,1,2,0
         dc.b 5,1,1,0
         dc.b 3,1,1,4,0
         dc.b 3,5,1,0
@@ -18368,7 +18968,10 @@ tempest: dc.b 1,1,1,2,0
         dc.b 37,5,1,0
         dc.b 0
 
-web1: dc.w 11,5
+; *******************************************************************
+; The vertex lists that define each web.
+; *******************************************************************
+web1:   dc.w 11,5
         dc.w -3,16,-1,16,1,16,3,16,5,16    ;flat plane
         dc.w 7,16,9,16,11,16,13,16
         dc.w 15,16,17,16,19,16,-3,16,0
@@ -18376,16 +18979,16 @@ web1: dc.w 11,5
         dc.w 0,0,0,0,0,0,0,0,0,0,0  ;orientation table (angle of an object within a particular lane)
         dc.w $80,$70,$60,$50,$40,$30,$32,$34,$36,$48,$5a
 
-web2: dc.w 15,7
+web2:   dc.w 15,7
         dc.w 1,1,2,3,3,5,4,7    ;v
         dc.w 5,9,6,11,7,13,8,15
         dc.w 10,15,11,13,12,11,13,9
         dc.w 14,7,15,5,16,3,17,1,1,1,0
 
-         dc.w 48,48,48,48,48,48,48,0,-48,-48,-48,-48,-48,-48,-48
+        dc.w 48,48,48,48,48,48,48,0,-48,-48,-48,-48,-48,-48,-48
         dc.w 0,$10,$20,$30,$40,$50,$60,$70,$60,$50,$40,$30,$20,$10,0
 
-web3: dc.w 15,7
+web3:   dc.w 15,7
         dc.w 1,1,1,3,1,5,1,7    ;u
         dc.w 2,9,4,11,6,12,8,12
         dc.w 10,12,12,12,14,11,16,9
@@ -18395,7 +18998,7 @@ web3: dc.w 15,7
         dc.w 0,$10,$20,$30,$40,$50,$60,$70,$60,$50,$40,$30,$20,$10,0
 
 
-web4: dc.w 15,7
+web4:   dc.w 15,7
         dc.w 8,6,7,4,5,5,4,7    ;clover
         dc.w 6,8,4,9,5,11,7,12
         dc.w 8,10,9,12,11,11,12,9
@@ -18404,9 +19007,7 @@ web4: dc.w 15,7
         dc.w -80,112,80,16,112,48,16,-48,48,-16,-48,-112,-16,-80,-112,80  ;orientation table (angle of an object within a particular lane)
         dc.w $0,$70,$10,$60,$20,$50,$30,$40,$40,$30,$50,$20,$60,$10,$70,0
 
-
-
-web5: dc.w 15,7
+web5:   dc.w 15,7
         dc.w 7,2,5,3,3,5,2,7    ;circle
         dc.w 2,9,3,11,5,13,7,14
         dc.w 9,14,11,13,13,11,14,9
@@ -18415,7 +19016,7 @@ web5: dc.w 15,7
         dc.w 112,96,80,64,48,32,16,0,-16,-32,-48,-64,-80,-96,-112,-128  ;orientation table (angle of an object within a particular lane)
         dc.w 0,$01,$02,$03,$04,$05,$06,07,$07,$6,$05,$04,$03,$02,$01,0
 
-web6: dc.w 15,6
+web6:   dc.w 15,6
         dc.w 1,3,2,5,3,7,4,9    ;distorted w
         dc.w 5,11,6,13,7,15,9,15
         dc.w 10,13,11,11,13,11,14,9
@@ -18424,7 +19025,7 @@ web6: dc.w 15,6
         dc.w 48,48,48,48,48,48,0,-48,-48,0,-48,-48,-48,-48,-48  ;orientation table (angle of an object within a particular lane)
         dc.w 0,$10,$20,$30,$40,$50,$60,$70,$60,$50,$40,$30,$20,$10,0
 
-web7: dc.w 15,7
+web7:   dc.w 15,7
         dc.w 7,6,5,5,3,5,1,7    ;dumb-bell
         dc.w 1,9,3,11,5,11,7,10
         dc.w 9,10,11,11,13,11,15,9
@@ -18433,7 +19034,7 @@ web7: dc.w 15,7
         dc.w -96,128,96,64,32,0,-32,0,32,0,-32,-64,-96,128,96,128  ;orientation table (angle of an object within a particular lane)
         dc.w $00,$01,$02,$03,$04,$15,$26,$37,$37,$26,$15,$04,$03,$02,$01,$00
 
-web8: dc.w 15,15
+web8:   dc.w 15,15
         dc.w 7,7,5,5,3,5,1,7    ;figure-8
         dc.w 1,9,3,11,5,11,7,9  
         dc.w 9,7,11,5,13,5,15,7
@@ -18442,14 +19043,14 @@ web8: dc.w 15,15
         dc.w -96,128,96,64,32,0,-32,-32,-32,0,32,64,96,128,-96,-96  ;orientation table (angle of an object within a particular lane)
         dc.w 0,$10,$20,$30,$40,$50,$60,$70,$60,$50,$40,$30,$20,$10,0
 
-web9: dc.w 17,8      ;triangle
+web9:   dc.w 17,8      ;triangle
         dc.w 8,1,7,3,6,5,5,7,4,9,3,11
         dc.w 2,13,4,13,6,13,8,13,10,13,12,13,14,13
         dc.w 13,11,12,9,11,7,10,5,9,3,8,1,-1
         dc.w 80,80,80,80,80,80,0,0,0,0,0,0,-80,-80,-80,-80,-80,-80  ;orientation table (angle of an object within a particular lane)
         dc.w $04,$14,$23,$33,$42,$52,$61,$71,$70,$70,$71,$61,$52,$42,$33,$23,$14,$04
 
-web10: dc.w 15,7        ;cross
+web10:  dc.w 15,7        ;cross
         dc.w 7,3,7,5,5,7,3,7,3,9,5,9,7,11,7,13
         dc.w 9,13,9,11,11,9,13,9
         dc.w 13,7,11,7,9,5,9,3,7,3,-1
@@ -18457,20 +19058,20 @@ web10: dc.w 15,7        ;cross
         dc.w 64,96,128,64,0,32,64,0,-64,-32,0,-64,128,-96,-64,128  ;orientation table (angle of an object within a particular lane)
         dc.w $0,$70,$10,$60,$20,$50,$30,$40,$40,$30,$50,$20,$60,$10,$70,0
 
-web11: dc.w 15,5    ;square
+web11:  dc.w 15,5    ;square
         dc.w 4,4,4,6,4,8,4,10,4,12
         dc.w 6,12,8,12,10,12,12,12
         dc.w 12,10,12,8,12,6,12,4
         dc.w 10,4,8,4,6,4,4,4,-1
         dc.w 64,64,64,64,0,0,0,0,-64,-64,-64,-64,128,128,128,128  ;orientation table (angle of an object within a particular lane)
         dc.w $00,$01,$02,$03,$04,$15,$26,$37,$37,$26,$15,$04,$03,$02,$01,$00
-web12: dc.w 14,7    ;w
+web12:  dc.w 14,7    ;w
         dc.w -3,8,-1,10,1,12,3,14,5,16,6,14,7,12,8,10
         dc.w 9,12,10,14,11,16,13,14,15,12,17,10,19,8,-3,8,0
 
         dc.w 32,32,32,32,-48,-48,-48,48,48,48,-32,-32,-32,-32
 
-web13: dc.w 14,6          ;sine wave
+web13:  dc.w 14,6          ;sine wave
         dc.w -2,14,-2,12,-1,10,1,8
         dc.w 3,7,5,7,7,8,9,10
         dc.w 11,12,13,13,15,13,17,12
@@ -18488,144 +19089,144 @@ web14:
         dc.w -48,-48,-48,-48,-32,-16,0,16,32,48,48,48,48
         dc.w $84,$74,$63,$53,$42,$32,$21,$32,$42,$53,$63,$74,$84
 
-web15: dc.w 17,8          ;arrowhead
+web15:  dc.w 17,8          ;arrowhead
         dc.w 8,5,6,4,4,3,2,2,3,4,4,6,5,8,6,10,7,12,8,14
         dc.w 9,12,10,10,11,8,12,6,13,4,14,2,12,3,10,4,8,5,-1
         dc.w -112,-112,-112,48,48,48,48,48,48,-48,-48,-48,-48,-48,-48,112,112,112
 
-web16: dc.w 15,7
+web16:  dc.w 15,7
         dc.w 1,4,-1,6,-1,8,1,10,3,10,4,12,5,14,6,16
         dc.w 8,16,9,14,10,12,11,10,13,10,15,8,15,6,13,4,1,4,0
 w16col:
         dc.w 96,64,32,0,48,48,48,0,-48,-48,-48,0,-32,-64,-96
         dc.w 0,$10,$20,$30,$40,$50,$60,$70,$60,$50,$40,$30,$20,$10,0
-        
 
-
-web17: dc.w 12,6          ;wobbly u
+web17:  dc.w 12,6          ;wobbly u
         dc.w 6,1,4,2,3,4,2,6
         dc.w 3,8,5,9,7,10,9,10
         dc.w 11,9,12,7,13,5,14,3,15,1,6,1,0
         dc.w 112,80,80,48,16,16,0,-16,-48,-48,-48,-48
         dc.w $0f,$0e,$0d,$0c,$0b,$0a,$09,$08,$07,$06,$05,$04
 
-web18: dc.w 13,8          ;lemon
+web18:  dc.w 13,8          ;lemon
         dc.w 12,3,10,3,8,3,6,4,4,6,3,8,3,10,3,12,5,12,7,12,9,11,11,9,12,7,12,5,12,3,-1
         dc.w 128,128,112,96,80,64,64,0,0,-16,-32,-48,-64,-64
         dc.w 0,$21,$42,$63,$84,$a5,$c6,$c6,$a5,$84,$63,$42,$21,0
 
-web19: dc.w 14,5        ;long wide v
+web19:  dc.w 14,5        ;long wide v
         dc.w -3,3,-3,5,-3,7,-3,9,-3,11,-1,13,1,13,3,12,5,11
         dc.w 7,10,9,9,11,8,13,7,15,6,16,4,-3,3,0
         dc.w 64,64,64,64,32,0,-16,-16,-16,-16,-16,-16,-16,-48
         dc.w 0,$10,$21,$31,$42,$52,$63,$73,$84,$94,$a5,$a6,$a7,$a8
 
-web20: dc.w 13,6        ;giraffes neck kind of a shape
+web20:  dc.w 13,6        ;giraffes neck kind of a shape
         dc.w -1,16,-3,15,-3,13,-3,11,-1,9,1,8,3,7,5,6,7,4,8,2,9,0,10,-2,12,-3,14,-3,-1,16,0
         dc.w -112,-64,-64,-32,-16,-16,-16,-32,-48,-48,-48,-16,0
         dc.w 0,$10,$21,$31,$42,$52,$63,$73,$64,$54,$45,$36,$27,$18
         
-web21: dc.w 7,3        ;tiny nut
+web21:  dc.w 7,3        ;tiny nut
         dc.w 7,5,5,7,5,9,7,11,9,11,11,9,11,7,9,5,7,5,-1
         dc.w 96,64,32,0,-32,-64,-96,128  
         dc.w 0,$20,$40,$60,$80,$60,$40,$20
 
-web22: dc.w 11,3        ;tiny star
+web22:  dc.w 11,3        ;tiny star
         dc.w 7,5,5,7,3,8,5,9,7,11,8,13,9,11,11,9,13,8,11,7,9,5,8,3,7,5,-1
         dc.w 96,112,16,32,48,-48,-32,-16,-112,-96,-80,80  
         dc.w 0,$14,$34,$40,$54,$74,$80,$74,$54,$40,$34,$14
 
-web23: dc.w 15,3    ;spiraloid
+web23:  dc.w 15,3    ;spiraloid
         dc.w 1,9,2,11,4,12,6,13,8,13,10,12,12,10,13,8,13,6,12,4,11,2,9,1,7,1,5,3,5,5,7,6,1,9,0
         dc.w 48,16,16,0,-16,-32,-48,-64,-80,-80,-112,128,96,64,16
         dc.w $40,$41,$42,$43,$54,$55,$56,$57,$68,$69,$6a,$6b,$7c,$7d,$7e
 
-web24: dc.w 17,4    ;big oval
+web24:  dc.w 17,4    ;big oval
         dc.w 1,8,1,10,2,12,4,13,6,14,8,14,10,14,12,13,14,12,15,10,15,8
         dc.w 14,6,12,5,10,4,8,4,6,4,4,5,2,6,1,8,-1
         dc.w 64,48,16,16,0,0,-16,-16,-48,-64,-80,-112,-112,128,128,112,112,80
         dc.w $40,$42,$54,$56,$68,$6a,$7c,$7e,$7e,$7c,$6a,$68,$56,$54,$42,$40,$40,$40
 
-web25: dc.w 12,9    ;hook kind of a shape
+web25:  dc.w 12,9    ;hook kind of a shape
         dc.w 8,-3,8,-1,7,1,5,3,3,5,2,7,2,9,3,11,5,13,7,14,9,14,11,13,13,11,8,-3,0
         dc.w 64,80,96,96,80,64,48,32,16,0,-16,-32
         dc.w $ff,$fe,$fd,$fc,$fb,$fa,$f9,$f8,$f7,$f6,$f5,$f4
 
-web26: dc.w 15,6    ;really diffy tiny star
+web26:  dc.w 15,6    ;really diffy tiny star
         dc.w 8,3,8,5,7,7,5,8,3,8,5,8,7,9,8,11,8,13,8,11,9,9,11,8,13,8,11,8,9,7,8,5,8,3,-1
         dc.w 64,80,112,128,0,16,48,64,-64,-48,-16,0,128,-112,-80,-64
         dc.w $8f,$40,$50,$8d,$8d,$60,$70,$8b,$8b,$70,$60,$8d,$8d,$50,$40,$8f
-web27: dc.w 14,7    ;pentagon
+web27:  dc.w 14,7    ;pentagon
         dc.w 8,2,6,4,4,6,2,8,3,10,4,12,5,14,7,14,9,14,11,14,12,12,13,10,14,8,12,6,10,4,8,2,-1
         dc.w 96,96,96,48,48,48,0,0,0,-48,-48,-48,-96,-96,-96
         dc.w $ff,$fd,$fc,$f4,$f2,$f0,$90,$80,$70,$20,$10,0,$7f,$8f,$9f
 
-web28: dc.w 12,5    ;inverted bird shape thang
+web28:  dc.w 12,5    ;inverted bird shape thang
         dc.w -2,8,-1,6,1,5,3,4,5,3,7,1,8,-1,9,1,11,3,13,4,15,5,17,6,18,8,-2,8,0
         dc.w -48,-16,-16,-16,-32,-48,48,32,16,16,16,48
         dc.w $ff,$fe,$fd,$fc,$fb,$fa,$fa,$fb,$fc,$fd,$fe,$ff
 
-web29: dc.w 14,2    ;D
+web29:  dc.w 14,2    ;D
         dc.w 2,12,4,12,6,12,8,12,10,12,12,12,14,12,14,10,13,8,11,6,9,5,7,5,5,6,3,8,2,10,2,12,-1
         dc.w 0,0,0,0,0,0,-64,-80,-96,-112,128,112,96,80,64
         dc.w 0,$20,$40,$40,$20,$0,0,$24,$48,$6c,$8f,$6c,$48,$24,0
 
-web30: dc.w 13,8    ;curved L
+web30:  dc.w 13,8    ;curved L
         dc.w -2,0,-2,2,-2,4,-2,6,-2,8,-1,10,1,12,3,13,5,13,7,13,9,13,11,12,13,12,15,13,-2,0,0
         dc.w 64,64,64,64,48,32,16,0,0,0,-16,0,16
         dc.w $f0,$e0,$d0,$c0,$b0,$a0,$90,$80,$70,$60,$50,$40,$30
 
-web31: dc.w 17,3    ;mouse pointer (diffi)
+web31:  dc.w 17,3    ;mouse pointer (diffi)
         dc.w 2,16,4,14,4,16,4,18,5,16,6,14,7,12,8,10,9,8,7,6,5,7,3,8,1,9,-1,10,-3,11,-1,11,1,11,-1,13,2,16,0
         dc.w -32,64,64,-48,-48,-48,-48,-48,-96,112,112,112,112,112,0,0,96
         dc.w $f0,$d0,$b0,$90,$70,$50,$30,$10,0,$10,$30,$50,$70,$90,$b0,$d0,$f0
 
-web32: dc.w 12,4    ;diagonal arse shape
+web32:  dc.w 12,4    ;diagonal arse shape
         dc.w -3,4,-4,6,-4,8,-3,10,-1,11,1,11,3,10,2,12,2,14,3,16,5,17,7,17,9,16,-3,4,0
         dc.w 80,64,48,16,0,-16,80,64,48,16,0,-16
         dc.w $80,$70,$60,$50,$40,$30,$20,$10,0,0,0,0
 
-web33: dc.w 15,7    ;kind of cats head shaped
+web33:  dc.w 15,7    ;kind of cats head shaped
         dc.w 8,1,6,2,4,0,3,2,1,3,3,4,4,6,6,8,8,8,10,8,12,6,13,4,15,3,13,2,12,0,10,2,8,1,-1
         dc.w 112,-96,80,112,16,48,32,0,0,-32,-48,-16,-112,-80,96,112
         dc.w $f0,$d0,$b0,$90,$70,$50,$30,$10,$10,$30,$50,$70,$90,$b0,$d0,$f0
 
-web34: dc.w 14,7    ;teardrop
+web34:  dc.w 14,7    ;teardrop
         dc.w 8,-1,8,1,7,3,5,5,4,7,4,9,5,11,7,12,9,12,11,11,12,9,12,7,11,5,9,3,8,1,8,-1,-1
         dc.w 64,80,96,80,64,48,16,0,-16,-48,-64,-80,-96,-80,-64
         dc.w $40,$42,$34,$36,$28,$2a,$1c,$1e,$1c,$2a,$28,$36,$34,$42,$40
 
-web35: dc.w 14,10    ;crinkly L
+web35:  dc.w 14,10    ;crinkly L
         dc.w 1,-2,1,0,2,2,2,4,3,6,3,8,4,10,4,12,5,14,5,16,6,18,8,18,10,17,12,17,14,16,1,-2,0
         dc.w 64,48,64,48,64,48,64,48,64,48,0,-16,0,-16
         dc.w $f0,$d0,$b0,$90,$70,$50,$40,$30,$20,$10,0,0
 
-web36: dc.w 12,3    ;kiss of death
+web36:  dc.w 12,3    ;kiss of death
         dc.w 2,7,3,9,5,10,7,11,9,11,11,10,13,9,14,7,12,6,10,6,8,7,6,6,4,6,2,7,-1
         dc.w 48,16,16,0,-16,-16,-48,-112,128,112,-112,128,112
         dc.w $d0,$b0,$90,$70,$90,$b0,$d0,$d0,$b0,$90,$90,$b0,$d0
 
-web37: dc.w 15,2    ;backwards C 
+web37:  dc.w 15,2    ;backwards C 
         dc.w 6,10,4,12,6,14,8,14,10,13,12,12,14,11,15,9,15,7,14,5,12,4,10,3,8,2,6,2,4,4,6,6,6,10,0
         dc.w 96,32,0,-16,-16,-16,-48,-64,-80,-112,-112,-112,128,96,32
         dc.w $f0,$f1,$e2,$e3,$d4,$d5,$c6,$c7,$b8,$b9,$aa,$ab,$9c,$9d,$ae
 
-shot: dc.b 8,7,1,2,0
+; *******************************************************************
+; Vertext list defining different enemy objects.
+; *******************************************************************
+shot:   dc.b 8,7,1,2,0
         dc.b 10,11,1,0
         dc.b 10,7,1,4,0
         dc.b 8,11,1,0
         dc.b 7,9,1,6,0
         dc.b 11,9,1,0,0
 
-flipper: dc.b 2,5,1,2,6,0
+flipper:dc.b 2,5,1,2,6,0
         dc.b 16,13,1,3,0
         dc.b 12,9,1,4,0
         dc.b 16,5,1,5,0
         dc.b 2,13,1,6,0
         dc.b 6,9,1,0,0
 
-zap:
-         dc.b 3,3,1,2,10,0
+zap:    dc.b 3,3,1,2,10,0
         dc.b 8,7,1,3,0
         dc.b 14,3,1,4,0
         dc.b 12,8,1,5,0
@@ -18636,7 +19237,8 @@ zap:
         dc.b 3,13,1,10,0
         dc.b 6,8,1,0,0
 
-fliptank: dc.b 2,9,1,2,7,4,0
+fliptank:
+        dc.b 2,9,1,2,7,4,0
         dc.b 9,16,1,8,3,0
         dc.b 16,9,1,4,5,0
         dc.b 9,2,1,6,0
@@ -18705,7 +19307,7 @@ spiker: dc.b 10,9,1,2,0
         dc.b 13,14,1,12,0
         dc.b 6,15,1,0,0
 
-ev: dc.b 3,1,1,2,0
+ev:     dc.b 3,1,1,2,0
         dc.b 1,1,1,3,0
         dc.b 1,5,1,4,0
         dc.b 3,5,1,0
@@ -18736,7 +19338,8 @@ ev: dc.b 3,1,1,2,0
         dc.b 14,5,1,25,0
         dc.b 16,5,1,0,0
 
-la_routine: dc.b 1,1,1,2,0
+la_routine:
+        dc.b 1,1,1,2,0
         dc.b 1,5,1,3,0
         dc.b 3,5,1,0
 
@@ -18756,7 +19359,7 @@ la_routine: dc.b 1,1,1,2,0
         dc.b 9,5,1,0,0
 
 
-pu: dc.b 1,5,1,2,0
+pu:     dc.b 1,5,1,2,0
         dc.b 1,1,1,3,0
         dc.b 3,1,1,4,0
         dc.b 4,2,1,5,0
@@ -18796,7 +19399,7 @@ pu: dc.b 1,5,1,2,0
         dc.b 20,5,1,34,0
         dc.b 18,5,1,0,0
 
-fuse1: dc.b 9,9,1,2,0
+fuse1:  dc.b 9,9,1,2,0
         dc.b 8,7,1,3,0
         dc.b 10,5,1,4,0
         dc.b 9,2,1,-1,-1,0
@@ -18813,8 +19416,7 @@ fuse1: dc.b 9,9,1,2,0
         dc.b 13,7,1,16,0
         dc.b 14,5,1,0,0
 
-fuse2:
-        dc.b 9,9,1,2,0
+fuse2:  dc.b 9,9,1,2,0
         dc.b 10,7,1,3,0
         dc.b 8,5,1,4,0
         dc.b 9,2,1,-1,-1,0
@@ -18832,7 +19434,7 @@ fuse2:
         dc.b 15,4,1,0,0
 
 
-b250: dc.b 5,7,1,2,0
+b250:   dc.b 5,7,1,2,0
         dc.b 6,7,1,3,0
         dc.b 7,8,1,4,0
         dc.b 7,9,1,5,0
@@ -18850,7 +19452,7 @@ b250: dc.b 5,7,1,2,0
         dc.b 13,11,1,17,0
         dc.b 11,11,1,0,0
 
-b500: dc.b 7,7,1,2,0
+b500:   dc.b 7,7,1,2,0
         dc.b 5,7,1,3,0
         dc.b 5,9,1,4,0
         dc.b 6,9,1,5,0
@@ -18866,8 +19468,7 @@ b500: dc.b 7,7,1,2,0
         dc.b 13,11,1,15,0
         dc.b 11,11,1,0,0
 
-b750:
-        dc.b 5,7,1,2,0
+b750:   dc.b 5,7,1,2,0
         dc.b 7,7,1,3,0
         dc.b 5,11,1,0
         dc.b 10,7,1,5,0
@@ -18882,49 +19483,49 @@ b750:
         dc.b 13,11,1,14,0
         dc.b 11,11,1,0,0
 
-pu6: dc.b 1,9,1,2,0
+pu6:    dc.b 1,9,1,2,0
         dc.b 4,2,1,3,0
         dc.b 7,16,1,4,0
         dc.b 11,2,1,5,0
         dc.b 14,15,1,6,0
         dc.b 17,9,1,0,0
 
-pu5: dc.b 1,9,1,2,0
+pu5:    dc.b 1,9,1,2,0
         dc.b 4,3,1,3,0
         dc.b 7,15,1,4,0
         dc.b 11,3,1,5,0
         dc.b 14,14,1,6,0
         dc.b 17,9,1,0,0
 
-pu4: dc.b 2,9,1,2,0
+pu4:    dc.b 2,9,1,2,0
         dc.b 4,5,1,3,0
         dc.b 7,13,1,4,0
         dc.b 11,5,1,5,0
         dc.b 14,14,1,6,0
         dc.b 16,9,1,0,0
 
-pu3: dc.b 2,9,1,2,0
+pu3:    dc.b 2,9,1,2,0
         dc.b 4,6,1,3,0
         dc.b 7,12,1,4,0
         dc.b 11,7,1,5,0
         dc.b 13,13,1,6,0
         dc.b 16,9,1,0,0
 
-pu2: dc.b 2,9,1,2,0
+pu2:    dc.b 2,9,1,2,0
         dc.b 5,7,1,3,0
         dc.b 8,11,1,4,0
         dc.b 11,8,1,5,0
         dc.b 13,10,1,6,0
         dc.b 16,9,1,0,0
 
-pu1: dc.b 3,9,1,2,0
+pu1:    dc.b 3,9,1,2,0
         dc.b 6,8,1,3,0
         dc.b 8,10,1,4,0
         dc.b 11,9,1,5,0
         dc.b 13,10,1,6,0
         dc.b 15,9,1,0,0
 
-oneup: dc.b 8,4,1,2,0
+oneup:  dc.b 8,4,1,2,0
         dc.b 9,3,1,3,0
         dc.b 9,8,1,0
         dc.b 8,8,1,5,0
@@ -18946,25 +19547,19 @@ chevre: dc.b 9,5,1,2,0
         dc.b 9,9,7,3,0
         dc.b 9,13,1,0,0
 
-
-
-
 sample:
 samend:
         dc.w 0
 
+; *******************************************************************
+; Fuseball colors
+; *******************************************************************
 fbcols: dc.b 15,255,128,143,240
 
 spulsars: dc.l spuls6,spuls6,spuls6,spuls5,spuls4,spuls3,spuls2,spuls1
-        dc.l spuls1,spuls2,spuls3,spuls4,spuls5,spuls6,spuls6,spuls6
+          dc.l spuls1,spuls2,spuls3,spuls4,spuls5,spuls6,spuls6,spuls6
 
-
-
-
-
-
-scores:
-        dc.b 6,14
+scores: dc.b 6,14
         dc.b 5,0
         dc.b 7,2
         dc.b 5,1
@@ -18979,190 +19574,190 @@ scores:
         dc.b 4,1
         dc.b 4,4
 
-autom1: dc.b "demo",0
-autom2: dc.b "press FIRE to play",0
-premes1: dc.b "PRESS c FOR MORE, a TO QUIT",0
-premes2: dc.b "PRESS any fire button TO QUIT",0
-optmsg: dc.b "PRESS option FOR GAME OPTIONS",0
+autom1:      dc.b "demo",0
+autom2:      dc.b "press FIRE to play",0
+premes1:     dc.b "PRESS c FOR MORE, a TO QUIT",0
+premes2:     dc.b "PRESS any fire button TO QUIT",0
+optmsg:      dc.b "PRESS option FOR GAME OPTIONS",0
 
 
-bftest: dc.b "llama love",0
-llamacop: dc.b "DEVELOPED BY llamasoft",0
-ataricop: dc.b "(C) 1981,1994 ATARI CORP.",0
-ataricop1: dc.b "COPYRIGHT 1981,",0
-ataricop2: dc.b "1994 ATARI CORP.",0
-enlm1: dc.b "USE left AND right",0
-enlm2: dc.b "TO SELECT LETTER. PRESS fire",0
-enlm3: dc.b "WHEN LETTER IS CORRECT.",0
-conm1: dc.b "congratulations!",0
-conm2: dc.b "you got a hi-score!",0
-conm3: dc.b "enter three initials dude",0
+bftest:      dc.b "llama love",0
+llamacop:    dc.b "DEVELOPED BY llamasoft",0
+ataricop:    dc.b "(C) 1981,1994 ATARI CORP.",0
+ataricop1:   dc.b "COPYRIGHT 1981,",0
+ataricop2:   dc.b "1994 ATARI CORP.",0
+enlm1:       dc.b "USE left AND right",0
+enlm2:       dc.b "TO SELECT LETTER. PRESS fire",0
+enlm3:       dc.b "WHEN LETTER IS CORRECT.",0
+conm1:       dc.b "congratulations!",0
+conm2:       dc.b "you got a hi-score!",0
+conm3:       dc.b "enter three initials dude",0
 
-nkeym1: dc.b "no high score",0
-nkeym2: dc.b "but you got a key!",0
-nkeym3: dc.b "enter three initials for tag",0
+nkeym1:      dc.b "no high score",0
+nkeym2:      dc.b "but you got a key!",0
+nkeym3:      dc.b "enter three initials for tag",0
 
-conm4: dc.b "awesome blasting!",0
-conm5: dc.b "the boss score!",0
-conm6: dc.b "enter something EGOTISTICAL!",0
+conm4:       dc.b "awesome blasting!",0
+conm5:       dc.b "the boss score!",0
+conm6:       dc.b "enter something EGOTISTICAL!",0
 
-fightmsg: dc.b 'fight!',0
+fightmsg:    dc.b 'fight!',0
 
-legal: dc.b "abcdefghijklmnopqrstuvwxyz .!-?*",0
+legal:       dc.b "abcdefghijklmnopqrstuvwxyz .!-?*",0
 
-vertext: dc.b "t2k version 121193",0
-pautext: dc.b "paused",0
-option1: dc.l o1t1,o1t2,o1s1,o1s2,o1s3,o1s4,0
+vertext:     dc.b "t2k version 121193",0
+pautext:     dc.b "paused",0
+option1:     dc.l o1t1,o1t2,o1s1,o1s2,o1s3,o1s4,0
 
-puptxts: dc.l puptxt1,puptxt6,puptxt4,puptxt7,puptxt2,puptxt5,puptxt6,puptxt8
+puptxts:     dc.l puptxt1,puptxt6,puptxt4,puptxt7,puptxt2,puptxt5,puptxt6,puptxt8
 
-pupmes: dc.b "collect powerups!",0
-puptxt1: dc.b "particle laser!",0
-puptxt4: dc.b "jump enabled!",0
-puptxt2: dc.b "a.i. droid!",0
-puptxt5: dc.b "wicked!",0
-puptxt6: dc.b "zappo!",0
-puptxt7: dc.b "outstanding!",0
-puptxt8: dc.b "dude!",0
-ohtxt: dc.b "outta here!",0
-drtxt: dc.b "yes! yes! yes!",0
-warpytxt: dc.b "warp 5 levels!",0
+pupmes:      dc.b "collect powerups!",0
+puptxt1:     dc.b "particle laser!",0
+puptxt4:     dc.b "jump enabled!",0
+puptxt2:     dc.b "a.i. droid!",0
+puptxt5:     dc.b "wicked!",0
+puptxt6:     dc.b "zappo!",0
+puptxt7:     dc.b "outstanding!",0
+puptxt8:     dc.b "dude!",0
+ohtxt:       dc.b "outta here!",0
+drtxt:       dc.b "yes! yes! yes!",0
+warpytxt:    dc.b "warp 5 levels!",0
 
-wtxt1: dc.b "2 more for warp",0
-wtxt2: dc.b "1 more for warp",0
-wtxt3: dc.b "warp enabled",0
-wtxts: dc.l wtxt3,wtxt2,wtxt1
+wtxt1:       dc.b "2 more for warp",0
+wtxt2:       dc.b "1 more for warp",0
+wtxt3:       dc.b "warp enabled",0
+wtxts:       dc.l wtxt3,wtxt2,wtxt1
 
-o1t1: dc.b "select game type",0
-o1t2: dc.b "to play",0
-o1s1: dc.b "traditional ",0
-o1s2: dc.b "tempest plus",0
-o1s3: dc.b "tempest 2000",0
-o1s4: dc.b "tempest duel",0
+o1t1:        dc.b "select game type",0
+o1t2:        dc.b "to play",0
+o1s1:        dc.b "traditional ",0
+o1s2:        dc.b "tempest plus",0
+o1s3:        dc.b "tempest 2000",0
+o1s4:        dc.b "tempest duel",0
 
-o6t1: dc.b "play or practice",0
-o6t2: dc.b "tempest duel game",0
-o6s1: dc.b "tempest duel",0
-o6s2: dc.b "solo practice",0
+o6t1:        dc.b "play or practice",0
+o6t2:        dc.b "tempest duel game",0
+o6s1:        dc.b "tempest duel",0
+o6s2:        dc.b "solo practice",0
 
-option6: dc.l o6t1,o6t2,o6s1,o6s2,o3s3,0
-option7: dc.l o7t1,o7t2,o7s1,o7s2,o7s3,0
-option9: dc.l o9t1,o9t2,o9s1,o9s2,0
-option10: dc.l o10t1,o10t2,o10s1,o10s2,o10s3,0
-option11: dc.l o11t1,o11t2,o11s1,o11s2,0
+option6:     dc.l o6t1,o6t2,o6s1,o6s2,o3s3,0
+option7:     dc.l o7t1,o7t2,o7s1,o7s2,o7s3,0
+option9:     dc.l o9t1,o9t2,o9s1,o9s2,0
+option10:    dc.l o10t1,o10t2,o10s1,o10s2,o10s3,0
+option11:    dc.l o11t1,o11t2,o11s1,o11s2,0
 
-o11t1: dc.b "clear cartridge",0
-o11t2: dc.b "memory",0
-o11s1: dc.b "no! no! no!",0
-o11s2: dc.b "absolutely!",0
+o11t1:       dc.b "clear cartridge",0
+o11t2:       dc.b "memory",0
+o11s1:       dc.b "no! no! no!",0
+o11s2:       dc.b "absolutely!",0
 
-o10t1: dc.b "please choose type",0
-o10t2: dc.b "of match to play",0
-o10s1: dc.b "one round",0
-o10s2: dc.b "best of three",0
-o10s3: dc.b "best of five",0
+o10t1:       dc.b "please choose type",0
+o10t2:       dc.b "of match to play",0
+o10s1:       dc.b "one round",0
+o10s2:       dc.b "best of three",0
+o10s3:       dc.b "best of five",0
 
-bstymsg: dc.b "PRESS option FOR BEASTLY MODE!",0
+bstymsg:     dc.b "PRESS option FOR BEASTLY MODE!",0
 
-o9t1: dc.b "keys are available",0
-o9t2: dc.b "please choose",0
-o9s1: dc.b "use a key",0
-o9s2: dc.b "just start",0
-
-
-o7t1: dc.b "select options",0
-o7t2: dc.b "for this game",0
-o7s1: dc.b "1 player",0
-o7s2: dc.b "ai droid",0
-o7s3: dc.b "2 player team",0
+o9t1:        dc.b "keys are available",0
+o9t2:        dc.b "please choose",0
+o9s1:        dc.b "use a key",0
+o9s2:        dc.b "just start",0
 
 
-
-o2t1: dc.b "game options",0
-o2t2: dc.b "select, dude",0
-o2s1: dc.b "display setup",0
-o2s2: dc.b "control setup",0
-o2s3: dc.b "controller type",0
-
-o3t1: dc.b "display options",0
-o3t2: dc.b "please select",0
-o3s10: dc.b "interlace",0
-o3s11: dc.b "no interlace",0
-o3s20: dc.b "fat vectors",0
-o3s21: dc.b "skinny vectors",0
-o3s3: dc.b "exit",0
-
-o4t1: dc.b "firebutton options",0
-o4t2: dc.b "hit chosen button",0
-option4: dc.l o4t1,o4t2,o4s1,o4s2,o4s3,o3s3,0
-
-o5t1: dc.b "select controller",0
-o5t2: dc.b "type to use",0
-
-o5s10: dc.b "p1 joypad",0
-o5s11: dc.b "p1 rotary",0
-o5s20: dc.b "p2 joypad",0
-o5s21: dc.b "p2 rotary",0
-
-o5s2: dc.b "practice warp",0
+o7t1:        dc.b "select options",0
+o7t2:        dc.b "for this game",0
+o7s1:        dc.b "1 player",0
+o7s2:        dc.b "ai droid",0
+o7s3:        dc.b "2 player team",0
 
 
 
-gmes1: dc.b "caught you!",0
-gmes2: dc.b "shot you!",0
-gmes3: dc.b "fried you!",0
+o2t1:        dc.b "game options",0
+o2t2:        dc.b "select, dude",0
+o2s1:        dc.b "display setup",0
+o2s2:        dc.b "control setup",0
+o2s3:        dc.b "controller type",0
 
-zmes1: dc.b "eat electric",0
-zmes2: dc.b "death!",0
+o3t1:        dc.b "display options",0
+o3t2:        dc.b "please select",0
+o3s10:       dc.b "interlace",0
+o3s11:       dc.b "no interlace",0
+o3s20:       dc.b "fat vectors",0
+o3s21:       dc.b "skinny vectors",0
+o3s3:        dc.b "exit",0
 
-wmes1: dc.b "avoid the spikes",0
-wmes2: dc.b "superzapper",0
-wmesx: dc.b "recharge",0
+o4t1:        dc.b "firebutton options",0
+o4t2:        dc.b "hit chosen button",0
+option4:     dc.l o4t1,o4t2,o4s1,o4s2,o4s3,o3s3,0
 
-m7msg1: dc.b "speed boost",0
+o5t1:        dc.b "select controller",0
+o5t2:        dc.b "type to use",0
 
-wonprc: dc.b "practice over",0
+o5s10:       dc.b "p1 joypad",0
+o5s11:       dc.b "p1 rotary",0
+o5s20:       dc.b "p2 joypad",0
+o5s21:       dc.b "p2 rotary",0
 
-csmsg2: dc.b "up AND down TO SELECT LEVEL",0
-
-pvolt1: dc.b "USE up AND down TO ADJUST",0
-pvolt2: dc.b "music VOLUME",0
-pvolt3: dc.b "sound fx VOLUME",0
-pvolts: dc.l pvolt2,pvolt3
-
-fires: dc.l $20000000
- dc.l $02000000
- dc.l $00002000
-
-testpage: dc.b "ORIGINAL GAME DESIGNED BY/       dave theurer~"
-        dc.b "JAGUAR VERSION BY/      yak~"
-        dc.b "BITMAP ARTWORK BY/     joby~"
-        dc.b "TUNES BY/    imagitec design~"
-        dc.b "GAME TESTING BY/   joe, andrew, hans and goku~"
-        dc.b "VOICES BY/  ted and carrie tahquechi~"     
-        dc.b "PRODUCED BY/ john skruch*"
-
-
-victpage: dc.b "you beat the game!//now try to beat tempest - the beastly mode!//press option on the "
-        dc.b "level select screen to begin this harder version of the game.//all points scored in "
-        dc.b "beastly mode are doubled!//now go and have a nice cup of tea to calm down!*"
-
-victpage2: dc.b "totally awesome!//you beat the game in beastly mode!//you had better have about "
-        dc.b "six cups of tea after this!//with reflexes like that, you should join the air force and "
-        dc.b "become a fighter pilot?//outstanding tempest, dude!*"
+o5s2:        dc.b "practice warp",0
 
 
 
-fnlmsg: dc.b "final score",0
-nxrmsg: dc.b "press fire to play next round",0
-dudes: dc.b "tempest dudes",0
+gmes1:       dc.b "caught you!",0
+gmes2:       dc.b "shot you!",0
+gmes3:       dc.b "fried you!",0
+
+zmes1:       dc.b "eat electric",0
+zmes2:       dc.b "death!",0
+
+wmes1:       dc.b "avoid the spikes",0
+wmes2:       dc.b "superzapper",0
+wmesx:       dc.b "recharge",0
+
+m7msg1:      dc.b "speed boost",0
+
+wonprc:      dc.b "practice over",0
+
+csmsg2:      dc.b "up AND down TO SELECT LEVEL",0
+
+pvolt1:      dc.b "USE up AND down TO ADJUST",0
+pvolt2:      dc.b "music VOLUME",0
+pvolt3:      dc.b "sound fx VOLUME",0
+pvolts:      dc.l pvolt2,pvolt3
+
+fires:       dc.l $20000000
+ dc.l        $02000000
+ dc.l        $00002000
+
+testpage:   dc.b "ORIGINAL GAME DESIGNED BY/       dave theurer~"
+            dc.b "JAGUAR VERSION BY/      yak~"
+            dc.b "BITMAP ARTWORK BY/     joby~"
+            dc.b "TUNES BY/    imagitec design~"
+            dc.b "GAME TESTING BY/   joe, andrew, hans and goku~"
+            dc.b "VOICES BY/  ted and carrie tahquechi~"
+            dc.b "PRODUCED BY/ john skruch*"
 
 
-keyh1: dc.b "player access keys",0
-keyh2: dc.b "choose yourself",0
-warp2msg: dc.b "STAY ON THE GREEN TRACK",0
+victpage:   dc.b "you beat the game!//now try to beat tempest - the beastly mode!//press option on the "
+            dc.b "level select screen to begin this harder version of the game.//all points scored in "
+            dc.b "beastly mode are doubled!//now go and have a nice cup of tea to calm down!*"
 
-pobj: dc.w 10
+victpage2:  dc.b "totally awesome!//you beat the game in beastly mode!//you had better have about "
+            dc.b "six cups of tea after this!//with reflexes like that, you should join the air force and "
+            dc.b "become a fighter pilot?//outstanding tempest, dude!*"
+
+
+
+fnlmsg:      dc.b "final score",0
+nxrmsg:      dc.b "press fire to play next round",0
+dudes:       dc.b "tempest dudes",0
+
+
+keyh1:       dc.b "player access keys",0
+keyh2:       dc.b "choose yourself",0
+warp2msg:    dc.b "STAY ON THE GREEN TRACK",0
+
+pobj:   dc.w 10
         dc.w -4,-4,-2
         dc.w -3,-3,-1
         dc.w -2,-2,0
@@ -19174,18 +19769,20 @@ pobj: dc.w 10
         dc.w 3,3,3
         dc.w 4,4,2
 
-pobj2: dc.w 9
+pobj2:  dc.w 9
         dc.w -3,0,0,3,0,0,0,-3,0,0,3,0
         dc.w -1,0,0,1,0,0,0,-1,0,0,1,0
         dc.w 0,0,0
 
-pobj3:
-        dc.w 10
+pobj3:  dc.w 10
         dc.w -8,-4,0,8,-4,0,-8,4,0,8,4,0,0,8,0,0,-8,0
         dc.w -4,0,3,4,0,3,0,4,3,0,-4,3
         dc.w -4,0,-3,4,0,-3,0,4,-3,0,-4,-3
 
 
+; *******************************************************************
+; Bonus round level definitions
+; *******************************************************************
 courses: dc.l course1,course6,course3,course2,course7,course5,course4,course8
 
 course1: dc.l $08001000
@@ -19628,6 +20225,9 @@ course8: dc.l $03001003
         dc.l $0304f004
         dc.l $0300f0ff
 
+; *******************************************************************
+; Bonus round tunnel definitions
+; *******************************************************************
 tunnels: dc.l tunlvl,tunlvl7,tunlvl3,tunlvl2,tunlvl4,tunlvl5,tunlvl6,tunlvl8
 
 tunlvl: dc.b 0,0,1,1,2,2,2,2
@@ -19642,7 +20242,7 @@ tunlvl: dc.b 0,0,1,1,2,2,2,2
         dc.b -6,-6,-5,-4,-3,-2,-1,0
         dc.b 8,8,8,0,0,0,0,0
 
-tunlvl2: dc.b 0,0,2,2,-2,-2,2,2
+tunlvl2:dc.b 0,0,2,2,-2,-2,2,2
         dc.b 0,3,0,3,0,3,0,3
 
         dc.b 0,-3,0,-3,0,-3,0,-3
@@ -19654,7 +20254,7 @@ tunlvl2: dc.b 0,0,2,2,-2,-2,2,2
         dc.b -2,-2,-1,-1,8,-2,8,-2
         dc.b -7,-5,-7,0,0,0,0,0  
 
-tunlvl3: dc.b 0,0,2,2,2,2,2,2
+tunlvl3:dc.b 0,0,2,2,2,2,2,2
         dc.b -3,-3,-3,-3,-3,-3,-3,-3
 
         dc.b 4,4,4,4,4,4,4,4
@@ -19666,7 +20266,7 @@ tunlvl3: dc.b 0,0,2,2,2,2,2,2
         dc.b 0,0,0,0,6,-6,6,-6
         dc.b 7,7,7,7,0,0,0,0  
 
-tunlvl4: dc.b 0,0,0,0,0,0,0,0
+tunlvl4:dc.b 0,0,0,0,0,0,0,0
         dc.b 7,7,7,7,7,7,7,7
 
         dc.b 7,7,7,7,7,7,7,7
@@ -19678,7 +20278,7 @@ tunlvl4: dc.b 0,0,0,0,0,0,0,0
         dc.b -7,-7,-7,-7,-7,-7,-7,-7
         dc.b 8,8,8,8,0,0,0,0  
 
-tunlvl5: dc.b 0,0,2,4,6,2,6,4
+tunlvl5:dc.b 0,0,2,4,6,2,6,4
         dc.b -4,-2,-3,-1,-4,-2,-3,-1
 
         dc.b 2,3,-8,2,3,-8,2,4
@@ -19690,7 +20290,7 @@ tunlvl5: dc.b 0,0,2,4,6,2,6,4
         dc.b 0,1,2,3,4,5,6,7
         dc.b 8,9,10,11,0,0,0,0
 
-tunlvl6: dc.b 0,0,4,4,-12,4,4,-12
+tunlvl6:dc.b 0,0,4,4,-12,4,4,-12
         dc.b 0,-12,1,-12,2,-12,3,-12
 
         dc.b 4,-12,5,-12,6,-12,7,-12
@@ -19702,7 +20302,7 @@ tunlvl6: dc.b 0,0,4,4,-12,4,4,-12
         dc.b 8,8,8,8,9,9,9,9
         dc.b -12,-12,-12,-12,0,0,0,0
 
-tunlvl7: dc.b 0,0,1,1,1,1,2,2
+tunlvl7:dc.b 0,0,1,1,1,1,2,2
         dc.b 2,2,2,2,3,3,3,3
 
         dc.b 3,3,3,3,4,4,4,4
@@ -19714,7 +20314,7 @@ tunlvl7: dc.b 0,0,1,1,1,1,2,2
         dc.b -5,-5,-5,-5,-4,-4,-4,-4
         dc.b -3,-3,-2,-2,-1,0,0,0
 
-tunlvl8: dc.b 1,2,3,4,-8,-8,4,5
+tunlvl8:dc.b 1,2,3,4,-8,-8,4,5
         dc.b 6,7,-8,-8,0,0,4,-9
 
         dc.b 3,-2,6,2,7,-4,-7,2
@@ -19726,33 +20326,47 @@ tunlvl8: dc.b 1,2,3,4,-8,-8,4,5
         dc.b 7,0,-7,0,-7,-7,-7,13
         dc.b 13,7,7,-13,0,0,0,0
 
-
-
 px_bons: dc.l $6e0000,$2c002d,$6e002e,$2c002c,$6e005a,$2c002d
 
 
+; *******************************************************************
+; Cross delays
+; *******************************************************************
 crossdels: dc.b 8,4,3,2,1,1,1,1
+; *******************************************************************
+; Fli pauses
+; *******************************************************************
 pauses: dc.b $10,$08,$06,$05,$04,$03,$02,$01
 
-zs_stuff: dc.l $400,$400,$400,$400,$400,$400,$400,$400
- dc.l $400,$400,$400,$400,$400,$400,$400,$400
- dc.l $400,$400,$400,$400,$400,$400,$400,$400
- dc.l $400,$400,$400,$400,$400,$400,$400,$400
- dc.l $400,$400,$400,$400,$400,$400,$400,$400
- dc.l $400,$400,$400,$400,$400,$400,$400,$400
- dc.l $400,$400,$400,$400,$400,$400,$400,$400
+; *******************************************************************
+; Zoom speeds for each web
+; *******************************************************************
+zs_stuff:
+        dc.l $400,$400,$400,$400,$400,$400,$400,$400
+        dc.l $400,$400,$400,$400,$400,$400,$400,$400
+        dc.l $400,$400,$400,$400,$400,$400,$400,$400
+        dc.l $400,$400,$400,$400,$400,$400,$400,$400
+        dc.l $400,$400,$400,$400,$400,$400,$400,$400
+        dc.l $400,$400,$400,$400,$400,$400,$400,$400
+        dc.l $400,$400,$400,$400,$400,$400,$400,$400
 
+; *******************************************************************
+; Spiker Z speeds for each web
+; *******************************************************************
 sz_stuff:
- dc.l $d000,$d000,$e000,$f000,$10000,$11000,$12000,$13000
- dc.l $d000,$d000,$e000,$f000,$10000,$11000,$12000,$13000
- dc.l $d000,$d000,$e000,$f000,$10000,$11000,$12000,$13000
- dc.l $d000,$d000,$e000,$f000,$10000,$11000,$12000,$13000
-
+        dc.l $d000,$d000,$e000,$f000,$10000,$11000,$12000,$13000
+        dc.l $d000,$d000,$e000,$f000,$10000,$11000,$12000,$13000
+        dc.l $d000,$d000,$e000,$f000,$10000,$11000,$12000,$13000
+        dc.l $d000,$d000,$e000,$f000,$10000,$11000,$12000,$13000
         dc.l $14000,$14000,$15000,$15000,$16000,$16000,$16000,$16000
         dc.l $15000,$16000,$16000,$17000,$17000,$18000,$18000,$18000
         dc.l $15000,$16000,$16000,$17000,$17000,$18000,$18000,$18000
         
-fz_stuff: dc.l $a000,$a200,$a400,$a600,$a800,$aa00,$ac00,$ae00
+; *******************************************************************
+; Flipper z speeds for each web
+; *******************************************************************
+fz_stuff:
+        dc.l $a000,$a200,$a400,$a600,$a800,$aa00,$ac00,$ae00
         dc.l $a800,$aa00,$ac00,$ae00,$b000,$b200,$b400,$b600
         dc.l $b000,$b200,$b400,$b600,$b800,$ba00,$bc00,$be00
         dc.l $b000,$b200,$b400,$b600,$b800,$ba00,$bc00,$be00
@@ -19760,7 +20374,11 @@ fz_stuff: dc.l $a000,$a200,$a400,$a600,$a800,$aa00,$ac00,$ae00
         dc.l $c000,$c200,$c400,$c600,$c800,$ca00,$cc00,$ce00
         dc.l $d000,$d200,$d400,$d600,$d800,$da00,$dc00,$de00
 
-tz_stuff: dc.l $8000,$8000,$8800,$8800,$9000,$9000,$9800,$9800
+; *******************************************************************
+; Tanker z speeds for each web
+; *******************************************************************
+tz_stuff:
+        dc.l $8000,$8000,$8800,$8800,$9000,$9000,$9800,$9800
         dc.l $8000,$8000,$8800,$8800,$9000,$9000,$9800,$9800
         dc.l $8000,$8000,$9800,$9800,$a000,$a000,$b800,$b800
         dc.l $8000,$8000,$9800,$9800,$a000,$a000,$b800,$b800
@@ -19768,7 +20386,11 @@ tz_stuff: dc.l $8000,$8000,$8800,$8800,$9000,$9000,$9800,$9800
         dc.l $a000,$a000,$b800,$b800,$c000,$c000,$c800,$c800
         dc.l $a000,$a000,$b800,$b800,$c000,$c000,$c800,$c800
 
-fuz_stuff: dc.l $8000,$8000,$8000,$8000,$8000,$8000,$8800,$9000
+; *******************************************************************
+; Fuseball z speeds for each web
+; *******************************************************************
+fuz_stuff:
+        dc.l $8000,$8000,$8000,$8000,$8000,$8000,$8800,$9000
         dc.l $9000,$9800,$a000,$a800,$b000,$b800,$c000,$c800
         dc.l $a000,$a800,$b000,$b800,$c000,$c800,$d000,$d800
         dc.l $a000,$a800,$b000,$b800,$c000,$c800,$d000,$d800
@@ -19776,15 +20398,22 @@ fuz_stuff: dc.l $8000,$8000,$8000,$8000,$8000,$8000,$8800,$9000
         dc.l $c000,$c800,$d000,$d800,$e000,$e800,$f000,$f800
         dc.l $d000,$e800,$f000,$f800,$10000,$10800,$11000,$11800
 
+; *******************************************************************
+; Pulsar phase change delay for each web
+; *******************************************************************
 pudels: dc.w $0808,$0808,$0808,$0808
- dc.w $0808,$0707,$0606,$0505
- dc.w $0606,$0505,$0404,$0303
- dc.w $0606,$0505,$0404,$0303
- dc.w $0606,$0505,$0404,$0303
- dc.w $0606,$0505,$0404,$0303
- dc.w $0606,$0505,$0404,$0303
+        dc.w $0808,$0707,$0606,$0505
+        dc.w $0606,$0505,$0404,$0303
+        dc.w $0606,$0505,$0404,$0303
+        dc.w $0606,$0505,$0404,$0303
+        dc.w $0606,$0505,$0404,$0303
+        dc.w $0606,$0505,$0404,$0303
 
-pup_stuff: dc.w $0404,$0505,$0606,$0606
+; *******************************************************************
+; Power up delay for each web
+; *******************************************************************
+pup_stuff:
+        dc.w $0404,$0505,$0606,$0606
         dc.w $0606,$0606,$0707,$0707
         dc.w $0808,$0808,$0808,$0808
         dc.w $0808,$0808,$0808,$0808
@@ -19792,23 +20421,46 @@ pup_stuff: dc.w $0404,$0505,$0606,$0606
         dc.w $0a0a,$0a0a,$0a0a,$0a0a
         dc.w $0f0f,$0f0f,$0f0f,$0f0f
 
+; *******************************************************************
+; Colours for each web
+; *******************************************************************
+webcols:dc.w 2,240,$ff,1,160,$f8,$88
 
+; *******************************************************************
+; Flipper colors for each web
+; *******************************************************************
+flipcols:
+        dc.w 240,$48,$cb,$2b,$88,$fb,$80
 
-
-webcols: dc.w 2,240,$ff,1,160,$f8,$88
-flipcols: dc.w 240,$48,$cb,$2b,$88,$fb,$80
-
+; *******************************************************************
+; Pulsar header values
+; *******************************************************************
 pucycl: dc.b 0,0,0,1,2,3,4,5,5,4,3,2,1,0,0,0
+
+; *******************************************************************
+; Claw animation sequence in classic mode
+; *******************************************************************
 uclaws: dc.l claw1,claw2,claw3,claw4,claw5,claw6,claw7,claw8
 
-views: dc.w 0,0,0,0    ;(x,y,z,?)
+; *******************************************************************
+; Initial viewpoints for each joy pad
+; *******************************************************************
+views:  dc.w 0,0,0,0    ;(x,y,z,?)
         dc.w 0,-1,-23,0
         dc.w 0,-3,5,0
 
-pixcols: dc.b 0,0,$f0,0,0,$0f,0,0,0,$80,0,$ff  ;11
+; *******************************************************************
+; Lookup table for drawing a pixel
+; *******************************************************************
+pixcols:dc.b 0,0,$f0,0,0,$0f,0,0,0,$80,0,$ff  ;11
         dc.b 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0  ;30
         dc.b 0,0,0,0,0,$88,0,0,$55 
 
+; *******************************************************************
+; The 9 different objects in our object list. The first one is the
+; main one and it is this one that the GPU and Blitter draws most
+; stuff to.
+; *******************************************************************
 ObTypes:
         dc.w $60,279,4,0  ;384x280, 16bit
         dc.w $28,99,4,0    ;160x100
@@ -19820,20 +20472,30 @@ ObTypes:
         dc.w $60,32,4,0    ;32-pixel high bit of cry screen
         dc.w $60,48,4,0    ;48-pixel high bit of cry screen
 
-
         include "digits.dat"  ;actually now only the ship gfx
-sines:
-        .include "sines.dat"
-;p_sines: dcb.b 256,0
+
+; *******************************************************************
+; A sine table
+; *******************************************************************
+sines: .include "sines.dat"
+
+; *******************************************************************
+; A table for seeding random numbers
+; *******************************************************************
 rantab:
         .include "rantab.dat"
+; *******************************************************************
+; Table of the draw routines for all solid polygons in Tempest 2000
+; *******************************************************************
 solids: 
         dc.l rrts,cdraw_sflipper,draw_sfliptank,s_shot,draw_sfuseball,draw_spulsar,draw_sfusetank,ringbull,draw_spulstank  ;8
         dc.l draw_pixex,draw_pup1,draw_gate,draw_h2hclaw,draw_mirr,draw_h2hshot,draw_h2hgen,dxshot        ;16
         dc.l draw_pprex,draw_h2hball,draw_blueflip,ringbull,supf1,supf2,draw_beast,dr_beast3,dr_beast2        ;25
         dc.l draw_adroid            
 
-
+; *******************************************************************
+; Start of ROM
+; *******************************************************************
 romstart:
         dc.l 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 
@@ -19845,49 +20507,49 @@ romstart:
         .include "bfont.dat"
         .include "cfont.dat"
 
- dc.l $a00000,0,$1000,$800,$1400000,0,$20000
- dc.l $80000,0,$8000,$2000,$1400000,-$1400000,$80000
- dc.l 0,0,$1000,$100,0,0,$40000
- dc.l $10000
- dc.l wave_stack
- dc.w 3
+        dc.l $a00000,0,$1000,$800,$1400000,0,$20000
+        dc.l $80000,0,$8000,$2000,$1400000,-$1400000,$80000
+        dc.l 0,0,$1000,$100,0,0,$40000
+        dc.l $10000
+        dc.l wave_stack
+        dc.w 3
         dc.l web5,web11,web1,web2,web9,web3,web12,web7,web13,web4,web14,web10,web15,web6,web16,web8
         dc.l web5,web11,web1,web2,web9,web3,web18,web19,web20,web4,web14,web10,web17,web6,web16,web22
         dc.l web24,web23,web27,web25,web21,web28,web29,web30,web32,web33,web34,web35,web36,web37,web26,web31
         dc.l 0
- dc.l o2t1,o2t2,o2s1,o2s2,0,0
+        dc.l o2t1,o2t2,o2s1,o2s2,0,0
 
- dc.l pu1,pu2,pu3,pu4,pu5,pu6
- dc.w 50,50,$ffff,300,100,$8888,75,150,$2222,0
- dc.w 50,50,$ffff,1,300,100,$8888,$8f,75,150,$4444,$f0
- dc.w 160,88,$4000,$ff,224,88,$4000,$f0,191,119,$ffff,$88
- dc.w 224,88,$4000,$f0,224,152,$4000,$88,191,119,$ffff,$88
- dc.w 224,152,$4000,$88,160,152,$4000,$0,191,119,$ffff,$88
- dc.w 160,152,$4000,$0,160,88,$4000,$ff,191,119,$ffff,$88
+        dc.l pu1,pu2,pu3,pu4,pu5,pu6
+        dc.w 50,50,$ffff,300,100,$8888,75,150,$2222,0
+        dc.w 50,50,$ffff,1,300,100,$8888,$8f,75,150,$4444,$f0
+        dc.w 160,88,$4000,$ff,224,88,$4000,$f0,191,119,$ffff,$88
+        dc.w 224,88,$4000,$f0,224,152,$4000,$88,191,119,$ffff,$88
+        dc.w 224,152,$4000,$88,160,152,$4000,$0,191,119,$ffff,$88
+        dc.w 160,152,$4000,$0,160,88,$4000,$ff,191,119,$ffff,$88
 
- dc.w 160,88,$4000,$ff,224,88,$4000,$f0,191,119,$ffff,$88
- dc.w 224,88,$4000,$f0,224,152,$4000,$88,191,119,$ffff,$88
- dc.w 224,152,$4000,$88,160,152,$4000,$0,191,119,$ffff,$88
+        dc.w 160,88,$4000,$ff,224,88,$4000,$f0,191,119,$ffff,$88
+        dc.w 224,88,$4000,$f0,224,152,$4000,$88,191,119,$ffff,$88
+        dc.w 224,152,$4000,$88,160,152,$4000,$0,191,119,$ffff,$88
 
- dc.w 0,0,$4000,383,0,$4000,191,119,$ffff,$88
- dc.w 383,0,$4000,383,239,$4000,191,119,$ffff,$88
- dc.w 383,239,$4000,0,239,$4000,191,119,$ffff,$88
- dc.w 0,239,$4000,0,0,$4000,191,119,$ffff,$88
+        dc.w 0,0,$4000,383,0,$4000,191,119,$ffff,$88
+        dc.w 383,0,$4000,383,239,$4000,191,119,$ffff,$88
+        dc.w 383,239,$4000,0,239,$4000,191,119,$ffff,$88
+        dc.w 0,239,$4000,0,0,$4000,191,119,$ffff,$88
 
- dc.l $a000
- dc.w 4
- dc.w $1010
- dc.l $8000
- dc.l $8000
- dc.w 50
- dc.w $7070
- dc.l $18000
- dc.l $8000
- dc.w $3030
- dc.w $0404
- dc.l $8000
+        dc.l $a000
+        dc.w 4
+        dc.w $1010
+        dc.l $8000
+        dc.l $8000
+        dc.w 50
+        dc.w $7070
+        dc.l $18000
+        dc.l $8000
+        dc.w $3030
+        dc.w $0404
+        dc.l $8000
 
- dc.w $80,$16
+        dc.w $80,$16
         dc.w $40,$1c
         dc.w $2000,$100
         dc.w $800,$60
@@ -19903,31 +20565,32 @@ romstart:
         dc.w $800,$60
 
 
- dc.w 300
- dc.l screen1
- dc.l screen2
- dc.w $0505
- dc.l $10000
+        dc.w 300
+        dc.l screen1
+        dc.l screen2
+        dc.w $0505
         dc.l $10000
- dc.l $02000000
- dc.l $20000000
- dc.l $00002000
- dc.w $0404    ;Pulsar spark propagation delay
- dc.w $0808
- dc.w -1
- dc.w 6
- dc.w 2
- dc.l $f80000
- dc.w 2
- dc.l $100000
- dc.l o3t1,o3t2,o3s10,o3s20,o3s3,0
- dc.b "jump        a",0,0,0
- dc.b "fire        b",0,0,0
- dc.b "superzapper c",0,0,0
+        dc.l $10000
+        dc.l $02000000
+        dc.l $20000000
+        dc.l $00002000
+        dc.w $0404    ;Pulsar spark propagation delay
+        dc.w $0808
+        dc.w -1
+        dc.w 6
+        dc.w 2
+        dc.l $f80000
+        dc.w 2
+        dc.l $100000
+        dc.l o3t1,o3t2,o3s10,o3s20,o3s3,0
+        dc.b "jump        a",0,0,0
+        dc.b "fire        b",0,0,0
+        dc.b "superzapper c",0,0,0
 
- dc.l o5t1,o5t2,o5s10,o5s2,o3s3,0
+        dc.l o5t1,o5t2,o5s10,o5s2,o3s3,0
 
-defaults: dc.l 500017    ;0  -eeprom position
+defaults:
+        dc.l 500017    ;0  -eeprom position
         dc.b 'yak',0    ;4
         dc.l 400000    ;8
         dc.b 'ewe',0    ;12
@@ -19962,36 +20625,30 @@ defaults: dc.l 500017    ;0  -eeprom position
 
         dc.w 0,0,0,0,0
 
- dc.b "1: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
- dc.b "2: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
- dc.b "3: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
- dc.b "4: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
- dc.b "5: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
- dc.b "6: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
- dc.b "7: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
- dc.b "8: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
- dc.b "9: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
- dc.b "10:.......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
+        dc.b "1: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
+        dc.b "2: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
+        dc.b "3: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
+        dc.b "4: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
+        dc.b "5: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
+        dc.b "6: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
+        dc.b "7: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
+        dc.b "8: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
+        dc.b "9: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
+        dc.b "10:.......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
 
 
 
- dc.b "player 1 wins!",0
- dc.b "player one 0   player two 0",0
- dc.b "00000000 BONUS",0
+        dc.b "player 1 wins!",0
+        dc.b "player one 0   player two 0",0
+        dc.b "00000000 BONUS",0
 
- dc.b "aaa AT lvl   ",0,0,0,0,0,0,0
- dc.b "aaa AT lvl   ",0,0,0,0,0,0,0
- dc.b "aaa AT lvl   ",0,0,0,0,0,0,0
- dc.b "aaa AT lvl   ",0,0,0,0,0,0,0
+        dc.b "aaa AT lvl   ",0,0,0,0,0,0,0
+        dc.b "aaa AT lvl   ",0,0,0,0,0,0,0
+        dc.b "aaa AT lvl   ",0,0,0,0,0,0,0
+        dc.b "aaa AT lvl   ",0,0,0,0,0,0,0
 
- dc.l keyh1,keyh2,keym1,keym2,keym3,keym4,0
-
-
-
+        dc.l keyh1,keyh2,keym1,keym2,keym3,keym4,0
 romend: dc.l 0
-
-
-*----------- thangs
 
 .even
 .data
@@ -20008,63 +20665,58 @@ copstart:
 ; https://forums.atariage.com/topic/157184-imagitec-designs-mod-player-informations/
 ; *******************************************************************
 .include "moomoo.dat"
-
-
 .include "obj2d.s"
 .include "afont.s"
 .include "bfont.s"
 .include "cfont.s"
-
-
-
-
 ;  ***** END OF LONGALIGNED AREA
 
-
-ixcon: dc.l $a00000,0,$1000,$800,$1400000,0,$20000
-iycon: dc.l $80000,0,$8000,$2000,$1400000,-$1400000,$80000
-iacon: dc.l 0,0,$1000,$100,0,0,$40000
-grndvel: dc.l $10000
-wave_sp: dc.l wave_stack
-lives: dc.w 3
+ixcon:  dc.l $a00000,0,$1000,$800,$1400000,0,$20000
+iycon:  dc.l $80000,0,$8000,$2000,$1400000,-$1400000,$80000
+iacon:  dc.l 0,0,$1000,$100,0,0,$40000
+grndvel:dc.l $10000
+wave_sp:dc.l wave_stack
+lives:  dc.w 3
 raw_webs:
         dc.l web5,web11,web1,web2,web9,web3,web12,web7,web13,web4,web14,web10,web15,web6,web16,web8
         dc.l web5,web11,web1,web2,web9,web3,web18,web18,web13,web4,web14,web10,web20,web6,web16,web21
         dc.l web24,web23,web27,web25,web21,web28,web26,web29,web30,web31,web32,web33,web34,web35,web36,web37
         dc.l 0
-option2: dc.l o2t1,o2t2,o2s1,o2s2,o2s3,0
+option2:dc.l o2t1,o2t2,o2s1,o2s2,o2s3,0
 
-raw_pus: dc.l pu1,pu2,pu3,pu4,pu5,pu6
-testpoly: dc.w 50,50,$ffff,300,100,$8888,75,150,$2222,0
-testppoly: dc.w 50,50,$ffff,1,300,100,$8888,$8f,75,150,$4444,$f0
+raw_pus:dc.l pu1,pu2,pu3,pu4,pu5,pu6
+testpoly:
+        dc.w 50,50,$ffff,300,100,$8888,75,150,$2222,0
+testppoly:
+        dc.w 50,50,$ffff,1,300,100,$8888,$8f,75,150,$4444,$f0
 ppoly1: dc.w 160,88,$4000,$ff,224,88,$4000,$f0,191,119,$ffff,$88
 ppoly2: dc.w 224,88,$4000,$f0,224,152,$4000,$88,191,119,$ffff,$88
 ppoly3: dc.w 224,152,$4000,$88,160,152,$4000,$0,191,119,$ffff,$88
 ppoly4: dc.w 160,152,$4000,$0,160,88,$4000,$ff,191,119,$ffff,$88
 
-pypoly1: dc.w 160,88,$4000,$ff,224,88,$4000,$f0,191,119,$ffff,$88
-pypoly2: dc.w 224,88,$4000,$f0,224,152,$4000,$88,191,119,$ffff,$88
-pypoly3: dc.w 224,152,$4000,$88,160,152,$4000,$0,191,119,$ffff,$88
+pypoly1:dc.w 160,88,$4000,$ff,224,88,$4000,$f0,191,119,$ffff,$88
+pypoly2:dc.w 224,88,$4000,$f0,224,152,$4000,$88,191,119,$ffff,$88
+pypoly3:dc.w 224,152,$4000,$88,160,152,$4000,$0,191,119,$ffff,$88
 
-poly1: dc.w 0,0,$4000,383,0,$4000,191,119,$ffff,$88
-poly2: dc.w 383,0,$4000,383,239,$4000,191,119,$ffff,$88
-poly3: dc.w 383,239,$4000,0,239,$4000,191,119,$ffff,$88
-poly4: dc.w 0,239,$4000,0,0,$4000,191,119,$ffff,$88
+poly1:  dc.w 0,0,$4000,383,0,$4000,191,119,$ffff,$88
+poly2:  dc.w 383,0,$4000,383,239,$4000,191,119,$ffff,$88
+poly3:  dc.w 383,239,$4000,0,239,$4000,191,119,$ffff,$88
+poly4:  dc.w 0,239,$4000,0,0,$4000,191,119,$ffff,$88
 
-flip_zspeed: dc.l $a000
-flip_rospeed: dc.w 4
-flip_pause: dc.w $1010
-tank_zspeed: dc.l $8000
-spiker_zspeed: dc.l $8000
-spiker_build: dc.w 50
-a_firerate: dc.w $7070
-ashot_zspeed: dc.l $18000
-fuse_zspeed: dc.l $8000
-fuse_risetime: dc.w $3030
+flip_zspeed:     dc.l $a000
+flip_rospeed:    dc.w 4
+flip_pause:      dc.w $1010
+tank_zspeed:     dc.l $8000
+spiker_zspeed:   dc.l $8000
+spiker_build:    dc.w 50
+a_firerate:      dc.w $7070
+ashot_zspeed:    dc.l $18000
+fuse_zspeed:     dc.l $8000
+fuse_risetime:   dc.w $3030
 fuse_crossdelay: dc.w $0404
-pulsar_zspeed: dc.l $8000
+pulsar_zspeed:   dc.l $8000
 
-pgens: dc.w $80,$16
+pgens:  dc.w $80,$16
         dc.w $40,$1c
         dc.w $2000,$100
         dc.w $800,$60
@@ -20079,26 +20731,24 @@ pgens: dc.w $80,$16
         dc.w $2000,$100
         dc.w $800,$60
 
-
-pgenctr: dc.w 300
-cscreen: dc.l screen1
-dscreen: dc.l screen2
-droidel: dc.w $0505
-palad2: dc.l $10000
-palad3:
-        dc.l $10000
-fire_2: dc.l $20000000
-fire_1: dc.l $02000000
-fire_3: dc.l $00002000
+pgenctr:  dc.w 300
+cscreen:  dc.l screen1
+dscreen:  dc.l screen2
+droidel:  dc.w $0505
+palad2:   dc.l $10000
+palad3:   dc.l $10000
+fire_2:   dc.l $20000000
+fire_1:   dc.l $02000000
+fire_3:   dc.l $00002000
 prop_del: dc.w $0404    ;Pulsar spark propagation delay
 pupcount: dc.w $0808
-holiday: dc.w -1
-npolys: dc.w 6
+holiday:  dc.w -1
+npolys:   dc.w 6
 selected: dc.w 2
-delta_i: dc.l $f80000
-tunc: dc.w 2
-cg_cnt: dc.l $100000
-option3: dc.l o3t1,o3t2,o3s10,o3s20,o3s3,0
+delta_i:  dc.l $f80000
+tunc:     dc.w 2
+cg_cnt:   dc.l $100000
+option3:  dc.l o3t1,o3t2,o3s10,o3s20,o3s3,0
 
 o4s1: dc.b "jump        a",0,0,0
 o4s2: dc.b "fire        b",0,0,0
@@ -20129,467 +20779,436 @@ hscom1: dc.l 500002
         dc.b 'fur',0
         dc.b 'goaty boy',0
 
-keys: dc.b "yak",0
+keys:   dc.b "yak",0
         dc.b "cow",0
         dc.b "zoo",0
         dc.b "axe",0
 
-vols:
-         dc.b $ff,$ff
-firea: dc.w 0
-fireb: dc.w 1
-firec: dc.w 2
+vols:   dc.b $ff,$ff
+firea:  dc.w 0
+fireb:  dc.w 1
+firec:  dc.w 2
 sysflags: dc.w 0
-
         dc.w 0,0,0,0,0
 
-high_score_table:
 hstab1:
- dc.b "1: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
- dc.b "2: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
- dc.b "3: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
- dc.b "4: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
- dc.b "5: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
- dc.b "6: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
- dc.b "7: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
- dc.b "8: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
- dc.b "9: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
- dc.b "10:.......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
-
+        dc.b "1: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
+        dc.b "2: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
+        dc.b "3: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
+        dc.b "4: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
+        dc.b "5: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
+        dc.b "6: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
+        dc.b "7: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
+        dc.b "8: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
+        dc.b "9: .......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
+        dc.b "10:.......;;;;;;;;;;..........;;;;;;;;;;..........''''''''''...."
 
 wonmsg: dc.b "player 1 wins!",0
 rndmsg: dc.b "player one 0   player two 0",0
 csmsg1: dc.b "00000000 BONUS",0
 
-keym1: dc.b "aaa AT lvl   ",0,0,0,0,0,0,0
-keym2: dc.b "aaa AT lvl   ",0,0,0,0,0,0,0
-keym3: dc.b "aaa AT lvl   ",0,0,0,0,0,0,0
-keym4: dc.b "aaa AT lvl   ",0,0,0,0,0,0,0
+keym1:  dc.b "aaa AT lvl   ",0,0,0,0,0,0,0
+keym2:  dc.b "aaa AT lvl   ",0,0,0,0,0,0,0
+keym3:  dc.b "aaa AT lvl   ",0,0,0,0,0,0,0
+keym4:  dc.b "aaa AT lvl   ",0,0,0,0,0,0,0
 
-option8: dc.l keyh1,keyh2,keym1,keym2,keym3,keym4,0
-
+option8:dc.l keyh1,keyh2,keym1,keym2,keym3,keym4,0
 copend: dc.l 0
 
-*------ Data to be zeroed, or which is explicitly set up
-
+; *******************************************************************
+; Data to be zeroed, or which is explicitly set up
+; *******************************************************************
 zerstart:
 
-the_option: dc.l 0
-grnd: dc.l 0
-cwave: dc.w 0
-wave_ptr: dc.l 0
-wave_stack: dcb.l 32,0
-wave_tim: dc.w 0
+the_option:       dc.l 0
+grnd:             dc.l 0
+cwave:            dc.w 0
+wave_ptr:         dc.l 0
+wave_stack:       dcb.l 32,0
+wave_tim:         dc.w 0
 
 
-keyplay: dc.w 0
-akeys: dc.w 0
-ofree: dc.w 0
-activeobjects: dc.l 0
-freeobjects: dc.l 0
-i_activeobjects: dc.l 0
+keyplay:          dc.w 0
+akeys:            dc.w 0
+ofree:            dc.w 0
+activeobjects:    dc.l 0
+freeobjects:      dc.l 0
+i_activeobjects:  dc.l 0
 
-pad_now:
-          ; Current Joypad reading
-        dc.l  0,0  ; xxApxxBx RLDU741* xxCxxxox 2580369#
-pad_2: dc.l 0
+                  ; Current Joypad reading
+pad_now:          dc.l      0,0  ; xxApxxBx RLDU741* xxCxxxox 2580369#
+pad_2:            dc.l 0
 
-pad_shot:
-          ; OneShot Joypad reading
-        dc.l  0,0
+                  ; OneShot Joypad reading
+pad_shot:         dc.l      0,0
 
-term: dc.w 0    ;to terminate the mainloop
+term:             dc.w 0    ;to terminate the mainloop
 
-_demo: dc.l it
-;vertex_ram: dcb.l 6000,0
-;connect_ram: dcb.l 4000,0
-vertex_ptr: dc.l vertex_ram
-connect_ptr: dc.l connect_ram
-webs: dcb.l 48*50,0
-cweb: dc.w 0
-long: dc.l 0
-tv: dcb.l 2000,0
-skore: dc.b 0,0,0,0,0,0,0,0
-lbonus: dc.b 0,0,0,0,0,0,0,0
-score: dc.l skore
-web_z: dc.w 0
-web_x: dc.w 0
-web_ptab: dc.l 0
-web_otab: dc.l 0
-web_max: dc.w 0
-web_firstseg: dc.l $7000
-;prevline: dcb.l 100,$12345678  ;space for the prev line buffer in voxspace mode
-_pus: dc.l 0,0,0,0,0,0 
-spikes: dc.l 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-spikescratch: dc.l 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-evon: dc.w 0
-_oneup: dc.l 0
-_cube: dc.l 0
-_chevre: dc.l 0
-_ev: dc.l 0
-_la: dc.l 0
-_pu: dc.l 0
-szap_avail: dc.w 0
-szap_on: dc.w 0
-_sz: dc.w 0
-bulls: dc.l 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-bully: dc.w 0
-lanes: dc.l 0
+_demo:            dc.l it
+vertex_ptr:       dc.l vertex_ram
+connect_ptr:      dc.l connect_ram
+webs:             dcb.l 48*50,0
+cweb:             dc.w 0
+long:             dc.l 0
+tv:               dcb.l 2000,0
+skore:            dc.b 0,0,0,0,0,0,0,0
+lbonus:           dc.b 0,0,0,0,0,0,0,0
+score:            dc.l skore
+web_z:            dc.w 0
+web_x:            dc.w 0
+web_ptab:         dc.l 0
+web_otab:         dc.l 0
+web_max:          dc.w 0
+web_firstseg:     dc.l $7000
+_pus:             dc.l 0,0,0,0,0,0
+spikes:           dc.l 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+spikescratch:     dc.l 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+evon:             dc.w 0
+_oneup:           dc.l 0
+_cube:            dc.l 0
+_chevre:          dc.l 0
+_ev:              dc.l 0
+_la:              dc.l 0
+_pu:              dc.l 0
+szap_avail:       dc.w 0
+szap_on:          dc.w 0
+_sz:              dc.w 0
+bulls:            dc.l 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+bully:            dc.w 0
+lanes:            dc.l 0
 
-_bons: dc.l 0,0,0
+_bons:            dc.l 0,0,0
 
-afree: dc.w 12
-shots: dc.w 7,7
-ashots: dc.w 3
-_web: dcb.l 16,0
-_claw: dc.l 0
-_shot: dc.l 0
-_flipper: dc.l 0
-_zap: dc.l 0
-_fliptank: dc.l 0
-_fusetank: dc.l 0
-_pulstank: dc.l 0
-_spike: dc.l 0
-_spiker: dc.l 0
-_fuse1: dc.l 0
-_fuse2: dc.l 0
+afree:            dc.w 12
+shots:            dc.w 7,7
+ashots:           dc.w 3
+_web:             dcb.l 16,0
+_claw:            dc.l 0
+_shot:            dc.l 0
+_flipper:         dc.l 0
+_zap:             dc.l 0
+_fliptank:        dc.l 0
+_fusetank:        dc.l 0
+_pulstank:        dc.l 0
+_spike:           dc.l 0
+_spiker:          dc.l 0
+_fuse1:           dc.l 0
+_fuse2:           dc.l 0
 
+webcol:           dc.w 0
+flipcol:          dc.w 0
 
-webcol: dc.w 0
-flipcol: dc.w 0
+objects:          dcb.l 64*16,0    ;room for 64 64-byte Objects
 
+pudel:            dc.w $0808
+pucnt:            dc.w 0
 
+timer:            dc.w 0
 
-objects: dcb.l 64*16,0    ;room for 64 64-byte Objects
+connect:          dc.w 0
+claws:            dc.l 0,0,0,0,0,0,0,0
 
+pgenphase:        dc.w 0
 
+tmtyl:            dc.l 0
+vp_sf:            dc.l 0
+vp_sfs:           dc.l $10000
+span:             dc.l $3fff
+spany:            dc.w 0
+zapdone:          dc.w 0
+ud_score:         dc.w 0
+nbeasties:        dc.w 12
+beasties:         dcb.l 286,0
+startbonus:       dc.w 0
+warp_count:       dc.l 2
+warp_add:         dc.l $10000
+warp_flash:       dc.l 0
+warp_phase:       dc.w 0
+        dcb.l     200,0
+stack:            dc.l 0
+routine:          dc.l rrts
+fx:               dc.l rrts
+vadd:             dc.l 0
+vp_x:             dc.l 0
+vp_y:             dc.l 0
+vp_z:             dc.l 0
+vp_xtarg:         dc.l 0
+vp_ytarg:         dc.l 0
+vp_ztarg:         dc.l 0
+vp_zbase:         dc.l 0
 
-pudel: dc.w $0808
-pucnt: dc.w 0
-
-
-timer: dc.w 0
-
-connect: dc.w 0
-claws: dc.l 0,0,0,0,0,0,0,0
-
-
-
-
-pgenphase: dc.w 0
-
-
-
-tmtyl: dc.l 0
-vp_sf: dc.l 0
-vp_sfs: dc.l $10000
-span: dc.l $3fff
-spany: dc.w 0
-zapdone: dc.w 0
-ud_score: dc.w 0
-nbeasties: dc.w 12
-beasties: dcb.l 286,0
-startbonus: dc.w 0
-warp_count: dc.l 2
-warp_add: dc.l $10000
-warp_flash: dc.l 0
-warp_phase: dc.w 0
-        dcb.l 200,0
-stack: dc.l 0
-routine: dc.l rrts
-fx: dc.l rrts
-vadd: dc.l 0
-vp_x: dc.l 0
-vp_y: dc.l 0
-vp_z: dc.l 0
-vp_xtarg: dc.l 0
-vp_ytarg: dc.l 0
-vp_ztarg: dc.l 0
-vp_zbase: dc.l 0
-
-max_spikers: dc.w 0
-view: dc.w 0
-screaming: dc.w 0
-bink: dc.l 0
-clawv: dc.l 0
-clawa: dc.l 0
-sf_on: dc.w 1
-s_routine: dc.l 0
-sync: dc.w 0
-screen_ready: dc.w 0
-db_on: dc.w 0
-elist: dc.l 0
-gscreen: dc.l 0
+max_spikers:      dc.w 0
+view:             dc.w 0
+screaming:        dc.w 0
+bink:             dc.l 0
+clawv:            dc.l 0
+clawa:            dc.l 0
+sf_on:            dc.w 1
+s_routine:        dc.l 0
+sync:             dc.w 0
+screen_ready:     dc.w 0
+db_on:            dc.w 0
+elist:            dc.l 0
+gscreen:          dc.l 0
 mainloop_routine: dc.l 0
-imsk: dc.w 0
-paws: dc.l 0
-frames: dc.w 0
-count: dc.w 0
-locked: dc.w 0
-players: dc.w 2
-camrx: dc.w 0
-camry: dc.w 0
-camrz: dc.w 0
-camroll: dc.w 0
-entities: dc.w 0
-droid_data: dc.l 0
-bulland: dc.w 0
-bullmax: dc.w 0
-claud: dc.l 0
-diag: dc.l 0,0,0,0,0,0,0,0
-plc: dc.l 0
-flashcol: dc.w 0
-cursx: dc.w 0
-cursy: dc.w 0
+imsk:             dc.w 0
+paws:             dc.l 0
+frames:           dc.w 0
+count:            dc.w 0
+locked:           dc.w 0
+players:          dc.w 2
+camrx:            dc.w 0
+camry:            dc.w 0
+camrz:            dc.w 0
+camroll:          dc.w 0
+entities:         dc.w 0
+droid_data:       dc.l 0
+bulland:          dc.w 0
+bullmax:          dc.w 0
+claud:            dc.l 0
+diag:             dc.l 0,0,0,0,0,0,0,0
+plc:              dc.l 0
+flashcol:         dc.w 0
+cursx:            dc.w 0
+cursy:            dc.w 0
 
-pongang: dc.w 0
+pongang:          dc.w 0
 
-pongx: dc.l 0
-pongy: dc.l 0
-pongz: dc.l 0
-pongxv: dc.l 0
-pongyv: dc.l 0
-pongzv: dc.l 0
-pongscale: dc.l 0
-pongscale2: dc.l 0
-pongphase: dc.l 0
-pongphase2: dc.l 0
+pongx:            dc.l 0
+pongy:            dc.l 0
+pongz:            dc.l 0
+pongxv:           dc.l 0
+pongyv:           dc.l 0
+pongzv:           dc.l 0
+pongscale:        dc.l 0
+pongscale2:       dc.l 0
+pongphase:        dc.l 0
+pongphase2:       dc.l 0
 
-palad0: dc.l 0
-palad1: dc.l 0
-palphase1: dc.l 0
-palphase2: dc.l 0
+palad0:           dc.l 0
+palad1:           dc.l 0
+palphase1:        dc.l 0
+palphase2:        dc.l 0
 
-demo_routine: dc.l 0
-demobank: dc.l 0
-fxnum: dc.b 0,0,0,0,0,0,0,0
-numin: dc.l 0
-blanka: dc.w -1
-e_attract: dc.w 0
-wave_speed: dc.w 1
+demo_routine:     dc.l 0
+demobank:         dc.l 0
+fxnum:            dc.b 0,0,0,0,0,0,0,0
+numin:            dc.l 0
+blanka:           dc.w -1
+e_attract:        dc.w 0
+wave_speed:       dc.w 1
 
+laser_type:       dc.w 0
+jenable:          dc.w 0
 
+bonum:            dc.w 0
+priors:           dcb.l 4*64,0
+fpriority:        dc.l -1
+apriority:        dc.l -1
+oopss:            dc.l 0,0,0,0
+feedline:         dc.l 0
+centrx:           dc.l 0
+centry:           dc.l 0
+pc_1:             dc.l      0
+pc_2:             dc.l      0
+ranptr:           dc.w 0
+rpcopy:           dc.w 0
+selectable:       dc.w 0
+t2k:              dc.w 0
+pawsed:           dc.w 0
+wpt:              dc.w 0
+noclog:           dc.w 0
+cjump:            dc.l 0
+popo1:            dc.w 0
+popo2:            dc.w 0
+boltx:            dc.l 0
+bolty:            dc.l 0
+boltz:            dc.l 0
+bolt_lock:        dc.w 0
+shotspeed:        dc.l 0
+dotile:           dc.w 0
+polsizx:          dc.w 0
+polsizy:          dc.w 0
+polspd1:          dc.w 0
+polspd2:          dc.w 0
 
-laser_type: dc.w 0
-jenable: dc.w 0
-
-bonum: dc.w 0
-priors: dcb.l 4*64,0
-fpriority: dc.l -1
-apriority: dc.l -1
-oopss: dc.l 0,0,0,0
-feedline: dc.l 0
-centrx: dc.l 0
-centry: dc.l 0
-pc_1:
-        dc.l 0
-pc_2:
-        dc.l 0
-ranptr: dc.w 0
-rpcopy: dc.w 0
-selectable: dc.w 0
-t2k: dc.w 0
-pawsed: dc.w 0
-wpt: dc.w 0
-noclog: dc.w 0
-cjump: dc.l 0
-popo1: dc.w 0
-popo2: dc.w 0
-boltx: dc.l 0
-bolty: dc.l 0
-boltz: dc.l 0
-bolt_lock: dc.w 0
-shotspeed: dc.l 0
-dotile: dc.w 0
-polsizx: dc.w 0
-polsizy: dc.w 0
-polspd1: dc.w 0
-polspd2: dc.w 0
-
-msg: dc.l 0
-msgtim1: dc.w 0
-msgtim2: dc.w 0
-msgxv: dc.l 0
-msgyv: dc.l 0
-msgxs: dc.l 0
-msgys: dc.l 0
-m7x: dc.l 0
-m7y: dc.l 0
-m7yv: dc.l 0
-m7z: dc.l 0
-v_on: dc.w 0
-l_on: dc.w 0
-cg_ptr: dc.l 0
-cg_tim: dc.w 0
-noxtra: dc.w 0
-x_end: dc.w 0
-tbbptr: dc.w 0
-ltail: dc.l 0
-tunadd: dc.w 0
-tuncnt: dc.w 0
-victree: dc.w 0
-psycho: dc.w 0
-rocnt: dc.w 0
-warpy: dc.w 0
-selbutt: dc.l 0
-sbg: dc.w 0
-solidweb: dc.w 0
-l_solidweb: dc.w 0
-l_soltarg: dc.w 0
-weband: dc.w 0
-webbase: dc.w 0
-entxt: dc.w 0,0,0,0,0,0,0,0
-ennum: dc.w 0
-enmax: dc.w 0
-enl1: dc.l 0
-enl2: dc.l 0
-enl3: dc.l 0
-fw_x: dc.l 0
-fw_y: dc.l 0
-fw_z: dc.l 0
-fw_dx: dc.l 0
-fw_dy: dc.l 0
-fw_dz: dc.l 0
-fw_dur: dc.w 0
-fw_col: dc.w 0
-fw_del: dc.w 0
-fw_ptr: dc.l 0
-fw_sp: dc.l 0
-fw_stack: dc.l 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-fw_sphere: dc.w 0
-h2h: dc.w 0
-h2h_sign: dc.w 0
-h2hor: dc.w 0
-practise: dc.w 0
-l_ud: dc.w 0
-r_ud: dc.w 0
-l_sc: dc.w 0
-r_sc: dc.w 0
-_won: dc.w 0
-z: dc.w 0
-optpress: dc.w 0
-pauen: dc.w 0
-auto: dc.w 0
-attime: dc.w 0
-csmsg: dc.l 0
-fskore: dc.b 0,0,0,0,0,0,0,0
-inf_zap: dc.w 0
-sflip_prob1: dc.w 0
-sflip_prob2: dc.w 0
-sflip_prob3: dc.w 0
-show_warpy: dc.w 0
-bolev1: dc.w 0
-bolev2: dc.w 0
-bolev3: dc.w 0
-tunspd: dc.l 0
-sfxo: dc.l 0
-sfyo: dc.l 0
-butty: dc.l 0
-botty: dc.w 0
-zoomspeed: dc.l 0
-joby: dc.w 0
-t2k_max: dc.w 0
-t2k_high: dc.w 0
-trad_max: dc.w 0
-trad_high: dc.w 0
-topsel: dc.w 0
-vadj: dc.l 0
-pit0: dc.w $400
-pit1: dc.w $c00
-vset: dc.l 0
-modtimer: dc.w 0
-modnum: dc.w 0
-lastmod: dc.w 0
-_auto: dc.w 0
-sfx: dc.w 0
-sfx_pri: dc.w 0
-sfx_vol: dc.w 0
-sfx_pitch: dc.l 0
-tblock: dc.w 0
-rounds: dc.w 0
-p1wins: dc.w 0
-p2wins: dc.w 0
-beastly: dc.w 0
-gb: dc.w 0
-dnt: dc.w 0
-pframes: dc.w 0
-handl1: dc.w 0
-handl2: dc.w 0
-handl: dc.w 0
-zoopitch: dc.l 0
-modstop: dc.w 0
-wason: dc.w 0
-wapitch: dc.l 0
-pausprite: dc.w 0
-tunon: dc.w 0
-fxon: dc.w 0
-psmsgtim: dc.w 0
-oldvol: dc.w 0
-s_db: dc.w 0
-_pauen: dc.w 0
-misstit: dc.w 0
-wson: dc.w 0
-yespitch: dc.l 0
-yesnum: dc.w 0
-p2smarted: dc.w 0
-dying: dc.w 0
-lastlives: dc.w 0
-flock: dc.w 0
-unpaused: dc.w 0
-ppad: dc.l 0
-vvol1: dc.w 0
-vvol2: dc.w 0
-paucopy: dc.w 0
-warped: dc.w 0
-noup: dc.w 0
-lstcon: dc.w 0,0
-conswap: dc.w 0
-rot_cum: dc.l 0,0
-pitcount: dc.w 0
-roconon: dc.w 0
-roconsens: dc.l 0,0
-tuntime: dc.w 0
-whichclaw: dc.w 0
-mint: dc.w 0
-ppit1: dc.w 0
-roach: dc.l 0
-mfudj: dc.w 0
-palside: dc.w 0
-paltop: dc.w 0
-palfix1: dc.w 0
-palfix2: dc.w 0,0
-palfix3: dc.l 0
-bshotspeed: dc.l 0
-outah: dc.w 0
-chenable: dc.w 0
-finished: dc.w 0
-drawhalt: dc.w 0
-zerend: dc.l 0,0
-          dcb.l  32,0
-list1:
-        dcb.l  124,0
-
-          dcb.l  32,0
-list2:
-        dcb.l  124,0
-blist: dc.l list1
-dlist: dc.l list2
-ddlist: dc.l 0
+msg:              dc.l 0
+msgtim1:          dc.w 0
+msgtim2:          dc.w 0
+msgxv:            dc.l 0
+msgyv:            dc.l 0
+msgxs:            dc.l 0
+msgys:            dc.l 0
+m7x:              dc.l 0
+m7y:              dc.l 0
+m7yv:             dc.l 0
+m7z:              dc.l 0
+v_on:             dc.w 0
+l_on:             dc.w 0
+cg_ptr:           dc.l 0
+cg_tim:           dc.w 0
+noxtra:           dc.w 0
+x_end:            dc.w 0
+tbbptr:           dc.w 0
+ltail:            dc.l 0
+tunadd:           dc.w 0
+tuncnt:           dc.w 0
+victree:          dc.w 0
+psycho:           dc.w 0
+rocnt:            dc.w 0
+warpy:            dc.w 0
+selbutt:          dc.l 0
+sbg:              dc.w 0
+solidweb:         dc.w 0
+l_solidweb:       dc.w 0
+l_soltarg:        dc.w 0
+weband:           dc.w 0
+webbase:          dc.w 0
+entxt:            dc.w 0,0,0,0,0,0,0,0
+ennum:            dc.w 0
+enmax:            dc.w 0
+enl1:             dc.l 0
+enl2:             dc.l 0
+enl3:             dc.l 0
+fw_x:             dc.l 0
+fw_y:             dc.l 0
+fw_z:             dc.l 0
+fw_dx:            dc.l 0
+fw_dy:            dc.l 0
+fw_dz:            dc.l 0
+fw_dur:           dc.w 0
+fw_col:           dc.w 0
+fw_del:           dc.w 0
+fw_ptr:           dc.l 0
+fw_sp:            dc.l 0
+fw_stack:         dc.l 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+fw_sphere:        dc.w 0
+h2h:              dc.w 0
+h2h_sign:         dc.w 0
+h2hor:            dc.w 0
+practise:         dc.w 0
+l_ud:             dc.w 0
+r_ud:             dc.w 0
+l_sc:             dc.w 0
+r_sc:             dc.w 0
+_won:             dc.w 0
+z:                dc.w 0
+optpress:         dc.w 0
+pauen:            dc.w 0
+auto:             dc.w 0
+attime:           dc.w 0
+csmsg:            dc.l 0
+fskore:           dc.b 0,0,0,0,0,0,0,0
+inf_zap:          dc.w 0
+sflip_prob1:      dc.w 0
+sflip_prob2:      dc.w 0
+sflip_prob3:      dc.w 0
+show_warpy:       dc.w 0
+bolev1:           dc.w 0
+bolev2:           dc.w 0
+bolev3:           dc.w 0
+tunspd:           dc.l 0
+sfxo:             dc.l 0
+sfyo:             dc.l 0
+butty:            dc.l 0
+botty:            dc.w 0
+zoomspeed:        dc.l 0
+joby:             dc.w 0
+t2k_max:          dc.w 0
+t2k_high:         dc.w 0
+trad_max:         dc.w 0
+trad_high:        dc.w 0
+topsel:           dc.w 0
+vadj:             dc.l 0
+pit0:             dc.w $400
+pit1:             dc.w $c00
+vset:             dc.l 0
+modtimer:         dc.w 0
+modnum:           dc.w 0
+lastmod:          dc.w 0
+_auto:            dc.w 0
+sfx:              dc.w 0
+sfx_pri:          dc.w 0
+sfx_vol:          dc.w 0
+sfx_pitch:        dc.l 0
+tblock:           dc.w 0
+rounds:           dc.w 0
+p1wins:           dc.w 0
+p2wins:           dc.w 0
+beastly:          dc.w 0
+gb:               dc.w 0
+dnt:              dc.w 0
+pframes:          dc.w 0
+handl1:           dc.w 0
+handl2:           dc.w 0
+handl:            dc.w 0
+zoopitch:         dc.l 0
+modstop:          dc.w 0
+wason:            dc.w 0
+wapitch:          dc.l 0
+pausprite:        dc.w 0
+tunon:            dc.w 0
+fxon:             dc.w 0
+psmsgtim:         dc.w 0
+oldvol:           dc.w 0
+s_db:             dc.w 0
+_pauen:           dc.w 0
+misstit:          dc.w 0
+wson:             dc.w 0
+yespitch:         dc.l 0
+yesnum:           dc.w 0
+p2smarted:        dc.w 0
+dying:            dc.w 0
+lastlives:        dc.w 0
+flock:            dc.w 0
+unpaused:         dc.w 0
+ppad:             dc.l 0
+vvol1:            dc.w 0
+vvol2:            dc.w 0
+paucopy:          dc.w 0
+warped:           dc.w 0
+noup:             dc.w 0
+lstcon:           dc.w 0,0
+conswap:          dc.w 0
+rot_cum:          dc.l 0,0
+pitcount:         dc.w 0
+roconon:          dc.w 0
+roconsens:        dc.l 0,0
+tuntime:          dc.w 0
+whichclaw:        dc.w 0
+mint:             dc.w 0
+ppit1:            dc.w 0
+roach:            dc.l 0
+mfudj:            dc.w 0
+palside:          dc.w 0
+paltop:           dc.w 0
+palfix1:          dc.w 0
+palfix2:          dc.w 0,0
+palfix3:          dc.l 0
+bshotspeed:       dc.l 0
+outah:            dc.w 0
+chenable:         dc.w 0
+finished:         dc.w 0
+drawhalt:         dc.w 0
+zerend:           dc.l 0,0
+                  dcb.l 32,0
+list1:            dcb.l 124,0
+                  dcb.l 32,0
+list2:            dcb.l 124,0
+blist:            dc.l list1
+dlist:            dc.l list2
+ddlist:           dc.l 0
 
 
 .bss
 .phrase
 
-vertex_ram:
-        .ds.l 6000
-connect_ram:
-        .ds.l 4000
-wave_dur:
-        .ds.w 1
-wstuff:
-        .ds.w 64
-linebuff: ds.b 64 
+vertex_ram:       .ds.l     6000
+connect_ram:      .ds.l     4000
+wave_dur:         .ds.w     1
+wstuff:           .ds.w     64
+linebuff:         ds.b 64
 
-epromcopy: ds.b 128
+epromcopy:        ds.b 128
 
 
