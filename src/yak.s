@@ -2,6 +2,12 @@
 ; yak.s
 ; This is a cleaned-up and commented version of the main source code
 ; file for Tempest 2000.
+; - Fixed up indentation.
+; - Added comments and routine headers.
+; - All original variable and routine names are preserved.
+;
+; As a place to start reading, try 'dloop', which is the game's topmost
+; control loop
 ; *******************************************************************
         .include  'jaguar.inc'
         .extern  VideoIni
@@ -15,8 +21,11 @@
 ;  .globl ENABLETIMER
 ;  .globl DISABLETIMER
 
-        INIT_SOUND    EQU  $4040  ;jump table for the SFX/Tunes module
-        NT_VBL        EQU   $4046
+; *******************************************************************
+; Jump table for the SFX/Tunes module
+; *******************************************************************
+        INIT_SOUND    EQU  $4040
+        NT_VBL        EQU  $4046
         PT_MOD_INIT   EQU  $404c
         START_MOD     EQU  $4052
         STOP_MOD      EQU  $4058
@@ -28,37 +37,56 @@
         FADEDOWN      EQU  $407c
         ENABLE_FX     EQU  $4082
         DISABLE_FX    EQU  $4088
-        CHANGEFX      EQU  $409a  ;new in syn6
+        CHANGEFX      EQU  $409a              ;new in syn6
         HALT_DSP      EQU  $408e
         RESUME_DSP    EQU  $4094
         intmask       EQU  $40a0
 
-        .extern pal    ;set =1 by VIDINIT if pal is detected
+; *******************************************************************
+; Our GPU functions.
+; These are defined in yakgpu.s
+; *******************************************************************
+        .extern pal                           ;set =1 by VIDINIT if pal is detected
+        .extern gpuload                      ;from my GPU stuff
+        .extern gpurun ; Run the selected GPU module.
+        .extern gpuwait
 
-        .extern  gpuload    ;from my GPU stuff
-        .extern  gpurun
-        .extern  gpuwait
-        .extern  fastvector
+; *******************************************************************
+; The GPU shaders,
+; These are defined in yakgpu.s
+; *******************************************************************
+        .extern fastvector
         .extern xvector
         .extern demons
         .extern parrot
         .extern xparrot
-        .extern  texter
+        .extern texter
         .extern bovine
         .extern equine
         .extern equine2
 
+; *******************************************************************
+; Constants for Video
+; These are defined in vidinit.s
+; *******************************************************************
         .extern n_vde
         .extern n_vdb
 
+; *******************************************************************
+; Some global constants
+; *******************************************************************
         xcent  EQU (G_RAM+$efc)
         ycent  EQU (G_RAM+$ef8)
 
-        screensize   EQU $34800    ;was $2d000 for old 240-pixel-high screens
+        screensize   EQU $34800               ;was $2d000 for old 240-pixel-high screens
         TIMERINTBIT  equ 3
         samtab       EQU $9ac800
         modbase      EQU $8d6800
         tune1        EQU $8e6900
+
+; *******************************************************************
+; Constants for the joystick controller.
+; *******************************************************************
         allbutts     EQU $22002000
         allkeys      EQU $000f00ff
         acheat       EQU $000a000a
@@ -75,113 +103,119 @@
         allpad       EQU $00f00000
         somepad      EQU $00300000
         bigreset     EQU $00010001
-        page2        EQU $100000  ;position of ram page 2
+
+; *******************************************************************
+; Video-related constants.
+; *******************************************************************
+        page2        EQU $100000              ;position of ram page 2
         videomode    equ $6c1
         width        EQU 384
         height       EQU 240
         centx        EQU width/2
         centy        EQU height/2
-        ; beasty3-trunc.cry
-        pic          EQU $820000
-        ; beasty4.cry
-        pic2         EQU pic+$1f400
-        ; beasty5.cry
-        pic3         EQU pic2+$1f400
-        ; beasty6.cry
-        pic4         EQU pic3+$25800
-        ; beasty7.cry
-        pic5         EQU pic4+(640*128)
-        ; beasty8.cry
-        pic6         EQU pic5+(640*200)
-        vpang        equ G_RAM+$f00  ; viewpoint angles
 
-        digits       EQU pic2+92800  ;start address of zero digit
+; *******************************************************************
+; References to the sprite maps stored in RAM.
+; *******************************************************************
+        pic          EQU $820000              ;beasty3.cry
+        pic2         EQU pic+$1f400           ;beasty4.cry
+        pic3         EQU pic2+$1f400          ;beasty5.cry
+        pic4         EQU pic3+$25800          ;beasty6.cry
+        pic5         EQU pic4+(640*128)       ;beasty7.cry
+        pic6         EQU pic5+(640*200)       ;beasty8.cry
+
+; *******************************************************************
+; More constants used by the GPU
+; *******************************************************************
+        vpang        equ G_RAM+$f00           ;viewpoint angles
+        digits       EQU pic2+92800           ;start address of zero digit
         p_sines      equ $30000
-        field1       equ $31000  ;space for the starfield
+        field1       equ $31000               ;space for the starfield
         gpu_sem      EQU $30100
         gpu_mode     EQU G_RAM+$ffc
         gpu_screen   EQU G_RAM+$ff8
-        scaler       EQU G_RAM+$fd4  ; Scale of XY 2-D point
-        screen1      equ page2  ;a 16bit screen 384x200 at start of DRAM bank 1
-        screen2      equ screen1+screensize  ;same again
+        scaler       EQU G_RAM+$fd4           ;Scale of XY 2-D point
+        screen1      equ page2                ;a 16bit screen 384x200 at start of DRAM bank 1
+        screen2      equ screen1+screensize   ;same again
         screen3      equ $50000
-        screen4      equ screen1+$16800  ;a 256-colour screensworth
-        rmwcursor    equ screen2+screensize  ;to make a RMW object, size is 48x30 16-bit pixels,
+        screen4      equ screen1+$16800       ;a 256-colour screensworth
+        rmwcursor    equ screen2+screensize   ;to make a RMW object, size is 48x30 16-bit pixels,
         scoreimj     equ rmwcursor+$b40
         livesimj     equ scoreimj+4608
         screen5      equ livesimj+$100
         xsample      equ screen5+screensize
-        z_max        EQU (G_RAM+$fd8)  ; Distance along Z-axis at which depth cue intensity is zero
-        z_top        EQU (G_RAM+$fdc)  ; Intensity value at z=1
+        z_max        EQU (G_RAM+$fd8)         ;Distance along Z-axis at which depth cue intensity is zero
+        z_top        EQU (G_RAM+$fdc)         ;Intensity value at z=1
         webz         EQU 110
         in_buf       equ G_RAM+$f60
         INTPOS       equ (260*2)+11
-        TOP          equ 60    ;top of screen in halflines  (60=NTSC)
+        TOP          equ 60                   ;top of screen in halflines  (60=NTSC)
         SIDE         equ -8
         source_flags EQU (G_RAM+$ff4)
-        dest_flags   EQU (G_RAM+$ff0)  ; Blitter flags 4 source+dest
+        dest_flags   EQU (G_RAM+$ff0)         ;Blitter flags 4 source+dest
         backg        EQU (G_RAM+$fec)
-        _sysflags    EQU (G_RAM+$fd0)  ;Thick vector flags etc
+        _sysflags    EQU (G_RAM+$fd0)         ;Thick vector flags etc
 
 
 .text
 ; *******************************************************************
-; Initialisation starts here.
+; Init
+; Execution and Initialisation starts here.
 ; *******************************************************************
-        move.l #$70007,G_END  ;NEW mode
-        move.l #$70007,D_END  ;NEW mode
-        move #$100,$f14000  ;audio on
-        move #1,INT1
-        move.l #dumint,$100
-        move.l #stack,a7
-        jsr VideoIni
+        move.l #$70007,G_END           ;NEW mode
+        move.l #$70007,D_END           ;NEW mode
+        move #$100,$f14000             ;audio on
+        move #1,INT1                   ; Set up interrupts.
+        move.l #dumint,$100            ; Dummy interrupt.
+        ; Notice that we use a7 as our stack.
+        move.l #stack,a7               ; Set up our stack on the a7 register.
+        jsr VideoIni                   ; Video initialisation.
         jsr InitLists
-        move.l ddlist,d0    ;put a list on the OLP
+        move.l ddlist,d0               ;put a list on the OLP
         move.w #0,ODP
         swap d0
         move.l d0,OLP
 
-        lea romstart,a0    ; clear RAM; initialise RAM-based variables
+        lea romstart,a0                ;clear RAM
         lea copstart,a1
+
         move #(romend-romstart),d0
-        lsr #2,d0      ;moving longs
-crom:
-        move.l (a0)+,(a1)+    ;copy var defaults to ram
+        lsr #2,d0                      ;moving longs
+crom:   move.l (a0)+,(a1)+             ;copy var defaults to ram
         dbra d0,crom
         lea zerstart,a0
+
         move.l #(zerend-zerstart),d0
         lsr.l #2,d0
-cram:
-        clr.l (a0)+
+cram:   clr.l (a0)+
         sub.l #1,d0
-        bpl cram      ;zero out RAM
-
+        bpl cram                       ;zero out RAM
 
         move #32,afree
         move.b #9,intmask
         move #0,auto
         move #3,joby
-        move #15,t2k_max
-        move #15,trad_max
-        jsr INIT_SOUND    ;NEW Synth module
+        move #15,t2k_max               ; Maximum level that can be selected for T2K
+        move #15,trad_max              ; Maximum level that can be selected for Tempest classic.
+        jsr INIT_SOUND                 ;NEW Synth module
         clr.l d0
         move #1,d1
         jsr SET_VOLUME
         clr.l d0
         move #0,d1
         jsr SET_VOLUME
-        jsr InitBeasties  ;list of active windows
-        move #-1,db_on    ;double buffering flag - not on
-        clr modnum    ;set no tune pending
-        clr lastmod  
+        jsr InitBeasties               ;list of active windows
+        move #-1,db_on                 ;double buffering flag - not on
+        clr modnum                     ;set no tune pending
+        clr lastmod
         clr screen_ready
-        move.l #-1,gpu_sem  ;GPU idle semaphore
+        move.l #-1,gpu_sem             ;GPU idle semaphore
         move.l #$03e70213,pit0
         move.l #rrts,routine
         move.l #rrts,fx
 
-        ; Set up interupts
-        jsr scint    ;set intmask according to controller prefs
+        ;Set up interupts
+        jsr scint                      ;set intmask according to controller prefs
         move.l #Frame,$100
         move.w n_vde,d0
         or #1,d0
@@ -189,22 +223,22 @@ cram:
         move pit0,PIT0
         clr d0
         move.b intmask,d0
-        move.w  d0,INT1    ;enable frame int
+        move.w  d0,INT1                ;enable frame int
         move.w  sr,d0
         and.w  #$f8ff,d0
-        move.w  d0,sr    ;interrupts on
+        move.w  d0,sr                  ;interrupts on
 
-        jsr eepromload    ;get eeprom settings
+        jsr eepromload                 ;get eeprom settings
         jsr scint
-        bsr setfires    ;set up fire buttons that were saved
+        bsr setfires                   ;set up fire buttons that were saved
         jsr xkeys
-        lea hscom1,a0    ;and expand both score tables
+        lea hscom1,a0                  ;and expand both score tables
         jsr xscoretab
+
         lea sines,a0
-        lea p_sines,a1    ;make a positive-only sine table
-        move #255,d0    ;for use by the gpu
-mpstab:
-        move.b (a0)+,d1
+        lea p_sines,a1                 ;make a positive-only sine table
+        move #255,d0                   ;for use by the gpu
+mpstab: move.b (a0)+,d1
         ext d1
         add #$80,d1
         move.b d1,(a1)+
@@ -216,10 +250,10 @@ mpstab:
         move.b #$80,oldvol
 mu_on:
         jsr initobjects
-        jsr initprior    ;priority list for sorting poly objects
+        jsr initprior                  ;priority list for sorting poly objects
         jsr zscore
         jsr setlives
-        jsr iv      ;initialise vector ram pointers 
+        jsr iv                         ;initialise vector ram pointers
 
         clr CLUT
         clr CLUT+8
@@ -227,7 +261,7 @@ mu_on:
 
         move #$88ff,CLUT+2
 
-        move.w  #videomode,VMODE    ; Turn on the display
+        move.w  #videomode,VMODE       ;Turn on the display
 
         move.l #screen1,a0
         jsr clrscreen
@@ -239,7 +273,7 @@ mu_on:
         jsr iv
         bsr make_claws
         bsr make_webs
-        bsr make_bits    ;construct v-objects
+        bsr make_bits                  ;construct v-objects
         move #1,sf_on
         move #1,wave_speed
 
@@ -248,24 +282,24 @@ mu_on:
         move.l #it,_demo
         clr cweb
         clr cwave
-        move.l #$ff00,z_top    ;top intensity (z=1) **16 bits**
+        move.l #$ff00,z_top            ;top intensity (z=1) **16 bits**
         move.l #1300,z_max
 
 ; *******************************************************************
 ; rreset
+; Set up and display the title screen either on start up or when the
+; game is over.
 ; *******************************************************************
 rreset:
         tst wson
         beq nnnn
-        jsr zzoomoff
+        jsr zzoomoff                      ;Turn of all SFX
 nnnn:
-        jsr flushfx
-;  jsr DISABLE_FX    ;any SFX to off
-;  jsr ENABLE_FX  
+        jsr flushfx                       ;Flush any in-progress SFX
         tst z
         beq nrstlvl
         clr cwave
-        clr cweb    ;Key players, always reset the level
+        clr cweb                          ;Key players, always reset the level
         move #15,t2k_max
         move #15,t2k_high
         move #15,trad_max
@@ -274,27 +308,32 @@ nrstlvl:
         move.b vols+1,d0
         and.l #$ff,d0
         move #1,d1
-        jsr SET_VOLUME    ;set current FX volume
+        jsr SET_VOLUME                    ;set current FX volume
         jsr spall
         move.l #$f80000,delta_i
         move.l #screen1,a0
         jsr clrscreen
         move.l #screen2,a0
-        jsr clrscreen    ;clear off gunj
+        jsr clrscreen                     ;clear off gunj
         move.l #screen3,a0
         jsr clrscreen
-        move #1,modnum    ;request theme tune
-brdb:
-        move.l pad_now,d0
+        move #1,modnum                    ;request theme tune
+
+        ;Check if the player has the reset button pressed.
+        ;This will reset and clear the EEPROM which has
+        ;saved player keys and high score tables.
+brdb:   move.l pad_now,d0
         or.l pad_now+4,d0
         move.l d0,d1
         and.l #bigreset|optionbutton,d1
         cmp.l #bigreset|optionbutton,d1
-        beq clearee
-        and.l #bigreset,d0
-        bne brdb    ;debounce any 'big' reset  
+        beq clearee                       ;Clear the eeprom.
+        and.l #bigreset,d0                ;Check the reset button again.
+        bne brdb                          ;Debounce any 'big' reset
+
+        ;Initialize game state variables.
         clr tblock
-        clr z
+        clr z                             ;Clear the 'Stop and Reset' flag.
         clr h2h
         move.l #$2000,roconsens
         move.l #$2000,roconsens+4
@@ -316,58 +355,71 @@ brdb:
         clr inf_zap
         clr beastly
         clr gb
-        move keyplay,d0
-        bmi dntrstl
-        clr cwave
-        clr cweb    ;Key players, always reset the level
+
+        ;Check if the player is using a key.
+        ; "In Tempest 2000 you will be awarded Keys for your high scores. Whenever
+        ; you pass level 17 you will be asked to enter your initials. Keys will
+        ; take you back to the odd numbered web you last completed."
+        move keyplay,d0                   ;Are they using a key?
+        bmi dntrstl                       ;If not, start the title sequence.
+        clr cwave                         ;Otherwise clear the current wave..
+        clr cweb                          ;.. and the current level.
         move #15,t2k_max
         move #15,t2k_high
         move #15,trad_max
-        move #15,trad_high  
+        move #15,trad_high
 
-        ; Manage title screen, attract mode, version screen.
-dntrstl:move #-1,keyplay
-        bsr lsel    ;do attract/demo/lselect
-        tst z
-        bne rreset
+        ;Run the title screen, attract mode, version screen.
+dntrstl:
+        move #-1,keyplay
+        bsr lsel                          ;Do attract/demo/lselect
+        tst z                             ;Have we reset?
+        bne rreset                        ;If yes, resest.
 
-        ; Start a game
+        ;Otherwise the level has been selected, so we can start a game.
+        ;Start a game
         move.l #skore,score
-        move.l score,a0
-        clr.l (a0)+
-        clr.l (a0)+    ;reset score
-        move #3,lives
-        move #3,lastlives
-        move #2,warpy
-        clr bolev1
-        clr bolev2
-        clr bolev3
+        move.l score,a0                   ;Stash score in a0
+        clr.l (a0)+                       ;Reset score in a0
+        clr.l (a0)+                       ;Reset score in a0
+        move #3,lives                     ;Set lives to 3
+        move #3,lastlives                 ;Set last lives to 3
+        move #2,warpy                     ;Set warp
+        clr bolev1                        ;Clear bonus level 1
+        clr bolev2                        ;Clear bonus level 2
+        clr bolev3                        ;Clear bonus level 3
 
 ; *******************************************************************
 ; dloop
+; Topmost game control loop.
+; The routine 'it', aliased as '_demo' below,
+; will do the game setup and invoke 'mainloop'.
+; We come back here whenever we lose a life or complete the game.
+; When the game finishes we'll go back to the top of rreset.
 ; *******************************************************************
 dloop:
-        clr.l vp_x
-        clr.l vp_y
-        clr.l vp_z    ;Camera viewpoint as 16:16 fracs
+        ; Camera viewpoint as 16:16 fracs
+        clr.l vp_x     ; Clear x viewpoint
+        clr.l vp_y     ; Clear y viewpoint
+        clr.l vp_z     ; Clear z viewpoint
 ego:
-        move.l _demo,a0
-        move #1,pauen
-        clr finished
-        jsr (a0)
+        move.l _demo,a0 ; Stash 'it' in a0.
+        move #1,pauen  ; Enable Pause.
+        clr finished   ; Reset the 'finished' signal.
+        jsr (a0)       ; Run the 'it' routine which will invoke the 'mainloop'.
 
-        clr _pauen
-        tst gb
-        bne dobeastly
-        tst auto
-        bne zreset
-        tst z
-        bne zreset
-        tst h2h
-        bne h2hover
-        tst finished
-        bne treset
-        bra dloop
+        clr _pauen     ; Disable pause.
+        tst gb         ; Have we finished the game and earned beastly mode?
+        bne dobeastly  ; If so, set up beastly mode and start a new game.
+        tst auto       ; Are we in demo mode?
+        bne zreset     ; If so, fade and return to title screen.
+        tst z          ; Has the player done a hard reset?
+        bne zreset     ; If so, fade and return to title screen.
+        tst h2h        ; Are we in head-to-head mode?
+        bne h2hover    ; If so, do the head-to-head game over sequence.
+        tst finished   ; Is the game finished?
+        bne treset     ; If so, show game over and go back to title screen.
+        bra dloop      ; Otherwise we've just lost a life, so loop and start a new session.
 
 ; *******************************************************************
 ; Set up the NTSC/PAL options.
@@ -382,17 +434,18 @@ slopt:
         bclr.b #5,sysflags
         tst pal
         beq notpal1
+        ; Set screen adjustments for PAL
         move #6,palside
         move #10,paltop
-        move #40,palfix1
-        move #20,palfix2
-        move.l #$140000,palfix3
-        bset.b #5,sysflags  ;gpu can use bit 5 as a pal flag
+        move #40,palfix1         ; Y centre fix for rectangles in PAL
+        move #20,palfix2         ; Y centre fix for text in PAL
+        move.l #$140000,palfix3  ; Y centre fix for PAL
+        bset.b #5,sysflags       ; gpu can use bit 5 as a pal flag
 notpal1: rts
 
 ; *******************************************************************
 ; h2hover
-; Head to Head game is over
+; Game Over in Head-to-Head mode.
 ; *******************************************************************
 h2hover:
         move.l #screen3,a0
@@ -457,22 +510,20 @@ zaqw: move.b d2,wonmsg+7    ;set who won...
         lea afont,a1
         move #110,d0
         jsr centext      ;display it
-        
 
-raww:
-        jsr settrue3
+raww:   jsr settrue3
         move #1,mfudj
         move.l #$f70000,delta_i
         move.l #glopyr,demo_routine
         move.l #rrts,routine
         jsr attract
-        tst z
+        tst z          ; Has the player done a hard reset?
         bmi z1
         bne rreset
 z1:
         clr z
         jsr fade
-        tst z
+        tst z          ; Has the player done a hard reset?
         bmi z2
         bne rreset
 z2:
@@ -488,8 +539,10 @@ z2:
 
 ; *******************************************************************
 ; dobeastly
+; Set up 'beastly mode'. This is a mode we enter when we complete the
+; entire game for the first time.
 ; *******************************************************************
-dobeastly: 
+dobeastly:
         move.l #screen3,a0
         move.l a0,gpu_screen
         jsr clrscreen
@@ -521,7 +574,8 @@ stvpa:
         tst pal
         beq certnotpal
         add palfix2,d5
-certnotpal: move #63,d0
+certnotpal:
+        move #63,d0
         move #63,d1
         bsr ppolysi
         bset.b #2,sysflags
@@ -541,25 +595,25 @@ glocube:
         move.l #(PITCH1|PIXEL16|WID384),d0
         move.l d0,source_flags
         move.l d0,dest_flags
-        lea in_buf,a0
-        move.l cscreen,(a0)    ;source screen is already-displayed screen
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
+        move.l cscreen,(a0)      ;source screen is already-displayed screen
         move.l #384,4(a0)
         move.l #240,d0
         add palfix1,d0
-        move.l d0,8(a0)    ;X and Y dest rectangle size
+        move.l d0,8(a0)          ;X and Y dest rectangle size
         move.l #$1ec,12(a0)
-        move.l #$1ec,16(a0)    ;X and Y scale as 8:8 fractions
-        move.l #0,20(a0)      ;initial angle in brads
-        move.l #$c00000,24(a0)    ;source x centre in 16:16
+        move.l #$1ec,16(a0)      ;X and Y scale as 8:8 fractions
+        move.l #0,20(a0)         ;initial angle in brads
+        move.l #$c00000,24(a0)   ;source x centre in 16:16
         move.l #$780000,d0
         add.l palfix3,d0
-        move.l d0,28(a0)    ;y centre the same
-        move.l #$0,32(a0)    ;offset of dest rectangle
+        move.l d0,28(a0)         ;y centre the same
+        move.l #$0,32(a0)        ;offset of dest rectangle
         move.l delta_i,36(a0)    ;change of i per increment
-        move.l #2,gpu_mode    ;op 2 of this module is Scale and Rotate
-        move.l #demons,a0
-        jsr gpurun      ;do it
-        jsr gpuwait    
+        move.l #2,gpu_mode       ;op 2 of this module is Scale and Rotate
+        move.l #demons,a0 ; Load the GPU module in antelope.gas.
+        jsr gpurun               ; Run the selected GPU module.
+        jsr gpuwait
         move frames,d0
         lea sines,a0
         lsr #2,d0
@@ -593,24 +647,24 @@ glopyr:
         move.l #(PITCH1|PIXEL16|WID384),d0
         move.l d0,source_flags
         move.l d0,dest_flags
-        lea in_buf,a0
-        move.l cscreen,(a0)    ;source screen is already-displayed screen
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
+        move.l cscreen,(a0)      ;source screen is already-displayed screen
         move.l #384,4(a0)
         move.l #240,d0
         add palfix1,d0
-        move.l d0,8(a0)    ;X and Y dest rectangle size
+        move.l d0,8(a0)          ;X and Y dest rectangle size
         move.l #$1ec,12(a0)
-        move.l #$1ec,16(a0)    ;X and Y scale as 8:8 fractions
-        move.l d6,20(a0)      ;initial angle in brads
-        move.l #$c00000,24(a0)    ;source x centre in 16:16
+        move.l #$1ec,16(a0)      ;X and Y scale as 8:8 fractions
+        move.l d6,20(a0)         ;initial angle in brads
+        move.l #$c00000,24(a0)   ;source x centre in 16:16
         move.l #$780000,d0
         add.l palfix3,d0
-        move.l d0,28(a0)    ;y centre the same
-        move.l #$0,32(a0)    ;offset of dest rectangle
+        move.l d0,28(a0)         ;y centre the same
+        move.l #$0,32(a0)        ;offset of dest rectangle
         move.l delta_i,36(a0)    ;change of i per increment
-        move.l #2,gpu_mode    ;op 2 of this module is Scale and Rotate
-        move.l #demons,a0
-        jsr gpurun      ;do it
+        move.l #2,gpu_mode       ;op 2 of this module is Scale and Rotate
+        move.l #demons,a0 ; Load the GPU module in antelope.gas.
+        jsr gpurun               ; Run the selected GPU module.
         jsr gpuwait
 
         lea sines,a0
@@ -619,8 +673,8 @@ glopyr:
         move.b 0(a0,d0.w),d6
         ext d6
         asr #1,d6
-        move #64,d0      ;glowing pyramid (selector?)
-        move #80,d1  
+        move #64,d0              ;glowing pyramid (selector?)
+        move #80,d1
         add #192,d6
         move #120,d7
         tst flock
@@ -636,6 +690,8 @@ echck:
 
 ; *******************************************************************
 ; clearee
+; Clear the EEPROM
+; This contains saved high scores and other settings.
 ; *******************************************************************
 clearee:
         move.l #rrts,routine
@@ -656,27 +712,37 @@ dbonce:
         jsr do_choose
         tst selected
         beq rreset
-        lea defaults,a0    ;reset defaults
-        lea hscom1,a1
-        move #57,d0
-crset:
-        move (a0)+,(a1)+    ;copy var defaults to ram
-        dbra d0,crset
-        jsr spall      ;(makesure PAL bit is set)
+        lea defaults,a0    ; Point default hiscores to a0
+        lea hscom1,a1      ; Point stored hiscores to a1
 
-        jsr eepromsave      ;save the defaults back to eeprom
-        lea hscom1,a0    ;and expand both score tables
-        jsr xscoretab
-        jsr xkeys
-        jsr setfires
-        jsr scint      ;actually reset stuff that changed
-        jsr intune
+        ; Copy the default hiscores to hiscore storage
+        move #57,d0
+crset:  move (a0)+,(a1)+    ;copy var defaults to ram
+        dbra d0,crset
+
+        jsr spall           ; (makesure PAL bit is set)
+        jsr eepromsave      ; Save the defaults back to eeprom
+        lea hscom1,a0       ; and expand both score tables
+        jsr xscoretab       ; Initialize the high score table
+        jsr xkeys           ; Load the default player keys
+        jsr setfires        ; Load the default fire button settings
+        jsr scint           ; actually reset stuff that changed
+        jsr intune          ; Reset the tunes.
         bra rreset      ;go away
 
+; *******************************************************************
+; treset
+; Reset tempest. Show the game over screen and then go back to the
+; title screen.
+; *******************************************************************
 treset:
         bsr gameover
         bra rreset
 
+; *******************************************************************
+; zreset
+; Do a melto-vision fade and go back to the title screen.
+; *******************************************************************
 zreset: jsr fade
         bra rreset
 
@@ -690,93 +756,87 @@ eeek:
 ; lsel
 ; Manage title screen, attract mode, version screen.
 ; *******************************************************************
-lsel:
-        clr _auto
+lsel:   clr _auto
         clr dnt
         tst misstit
         beq dtiti
         clr misstit
         bra stropt
 
-dtiti:
-        bsr spall
-        bsr versionscreen
+dtiti:  bsr spall            ; Set up PAL/NTSC options.
+        bsr versionscreen    ; Display the main title screen.
         move #1,auto
-        tst z
+        tst z                ;Has the player done a hard reset?
         bmi atra1
         bne rrrts
         bra stropt
-atra1:
-        clr z
+atra1:  clr z
         bsr showscores
-        tst z
+        tst z                ;Has the player done a hard reset?
         bmi atra2
         bne rrrts
         beq stropt
-atra2:
-        clr z
-        bsr yakscreen  ; title screen with yak
-        tst z
+atra2:  clr z
+        bsr yakscreen        ;title screen with yak
+        tst z                ;Has the player done a hard reset?
         bmi setauto
         bne rrrts
         beq stropt
-stropt:
-        jsr DISABLE_FX    ;any SFX to off
+
+stropt: jsr DISABLE_FX       ;any SFX to off
         jsr ENABLE_FX
 
-        bsr optionscreen  ; screen with game start options
+        bsr optionscreen     ;screen with game start options
         clr auto
-        tst z
+        tst z                ;Has the player done a hard reset?
         beq gselg
         bmi setauto
         bra rrrts
 
-setauto: clr z
+setauto:clr z
         clr cwave
         clr cweb
         move #15,t2k_max
         move #15,t2k_high
         move #15,trad_max
-        move #15,trad_high    ;always reset these after attract mode
+        move #15,trad_high   ;always reset these after attract mode
         move #1,auto
         move #1,_auto
         move #3,lives
         move #3,lastlives
         move #2,selected
         bsr selsa
-        jsr rannum
-        and #$0f,d0
-        add #7,d0
-        move d0,cwave
-        move d0,cweb
-        move.l #screen3,a0
-        jsr clrscreen
-        bra lvlset
+        jsr rannum          ; Get a random number between 0 and 255.
+        and #$0f,d0         ; Reduce it one between 0 and 15.
+        add #7,d0           ; Add 7 to the result.
+        move d0,cwave       ; Use that as the level index for the wave..
+        move d0,cweb        ; .. and the web.
+        move.l #screen3,a0  ; Set the screen for us.
+        jsr clrscreen       ; Clear the screen
+        bra lvlset          ; Start playing attract mode.
 
-gselg:
-        move solidweb,-(a7)
+        ; Display the select level screen. When level is selected,
+        ; return.
+gselg:  move solidweb,-(a7)
         move #-1,lives
         clr solidweb
-        bsr getlvl
-        move #3,lives
-        move #3,lastlives
-        move (a7)+,solidweb
-        rts
+        bsr getlvl          ; Get the player to select a level.
+        move #3,lives       ; Set lives to 3.
+        move #3,lastlives   ; Set last lives to 3.
+        move (a7)+,solidweb ; Restore the solidweb
+        rts                 ; Return and start the game.
 
-lvlset:
-        move #1,players
+        ; Start playing attract mode, with 1 player life.
+lvlset: move #1,players     ; Just 1 player
         move #$1c,bulland
         move #7,bullmax
         move #1,entities
         clr pawsed
         clr.l paws
         clr noxtra
-;  move #-1,db_on
         move.l #gamefx,fx
         bsr setweb
         bra circa
-
-
 
 ; *******************************************************************
 ; getlvl
@@ -807,7 +867,7 @@ keepset:
         move d0,topsel
         cmp #15,d0
         bgt not2k
-        move #0,d0 
+        move #0,d0
         bra not2k
 
 sh2h:
@@ -818,7 +878,6 @@ not2k:
         move d0,cwave
         move d0,cweb
         lea beasties,a0      ;the main screen
-;  move.l #screen1,d2
         move.l gpu_screen,d2
         move #SIDE,d0
         sub palside,d0
@@ -840,7 +899,7 @@ not2k:
         clr.l csmsg
 nbmsg:
         lea cfont,a1
-        lea csmsg2,a0  
+        lea csmsg2,a0
         move #36,d0
         jsr centext
 
@@ -857,19 +916,6 @@ nbmsg:
         move #$24,d3
         move #$24,d4
         jsr makeit_trans    ;put up some TC screen for status display
-
-;  tst h2h
-;  bne nbmsg
-;  bsr setcsmsg      ;set the CS message
-;  lea afont,a1
-;  move.l csmsg,a0  
-;  move #20,d0
-;  jsr centext
-;  clr.l csmsg
-;nbmsg:  lea cfont,a1
-;  lea csmsg2,a0  
-;  move #36,d0
-;  jsr centext
 
         jsr clvp
 
@@ -901,6 +947,9 @@ alrzero:
         jsr mainloop
         jmp fade
 
+; *******************************************************************
+; draw_oo
+; *******************************************************************
 draw_oo:
         bsr draw_o
         btst.b #2,sysflags
@@ -913,7 +962,8 @@ draw_oo:
         tst pal
         beq gnopal2
         add palfix2,d0
-gnopal2: jmp centext
+gnopal2:jmp centext
+        ; Returns
 
 ; *******************************************************************
 ; draw_o
@@ -926,9 +976,6 @@ draw_o: cmp #1,webcol
         bsr swebpsych
         bra do_2
 do_1:
-;  cmp #1,wpt
-;  bne do_2
-;  bsr swebcol
 do_2:
         jsr draw_objects
         tst.l csmsg
@@ -945,16 +992,17 @@ do_2:
         move.l #screen3,a1
         jsr ecopy    ;just blit a clear bit
 
-
         lea afont,a1
-        move.l csmsg,a0  
+        move.l csmsg,a0
         clr.l csmsg
         tst h2h
         bne rrrts
         move #20,d0
         jmp centext
+        ;Returns
 
 ; *******************************************************************
+; setcsmsg
 ; Populate the bonus score, e.g. BONUS 00001000
 ; *******************************************************************
 setcsmsg:
@@ -973,7 +1021,7 @@ sstb:
 gotadig:
         move.l a0,csmsg
 gadig:
-         add.b #'0',d1
+        add.b #'0',d1
         move.b d1,(a0)+
         move.b (a1)+,d1
         dbra d0,gadig
@@ -1017,13 +1065,13 @@ waitfor:
         bne zbackward
         bra not2p
 
-ojoj:
-        btst.b #5,pad_now+1
+ojoj:   btst.b #5,pad_now+1
         bne zforward
         btst.b #4,pad_now+1
         bne zbackward
-not2p:
-        btst.b #2,sysflags
+
+        ; Looks like a cheat code?
+not2p:  btst.b #2,sysflags
         beq nobeastyy
         tst h2h
         bne nobeastyy
@@ -1032,12 +1080,14 @@ not2p:
         beq nobeastyy
         move #1,beastly
         bra gooff
-nobeastyy: move.l #allbutts,d0
+
+nobeastyy:
+         move.l #allbutts,d0
         and.l pad_now,d0
         beq noxxo
         clr beastly
-gooff:
-        clr _pauen
+
+gooff:  clr _pauen
         clr pauen
         move.l #rrts,routine
         move #1,term
@@ -1046,7 +1096,7 @@ gooff:
 
 noxxo:
         tst h2h
-        bne rrrts  
+        bne rrrts
         btst.b #3,sysflags
         bne rrrts
 
@@ -1085,7 +1135,7 @@ zbackward:
         sub h2h,d1
         add d1,d0
         cmp topsel,d0
-        ble gzn  
+        ble gzn
         rts
 gzn:
          move.l #znext,routine
@@ -1236,6 +1286,10 @@ settrue:
         move.l d2,gpu_screen
 strue:
         move #TOP,d1
+; *******************************************************************
+; stru
+; Set up a GPU object starting at the top left of the screen.
+; *******************************************************************
 stru:
         move #SIDE,d0
         sub palside,d0
@@ -1255,10 +1309,7 @@ stru:
 ; Unused code
 ; *******************************************************************
 
-sthang:
-;  lea parrot,a0
-;  jsr gpuload
-        bsr settrue
+sthang: bsr settrue
         clr pongx
         move #60,pongxv
         move #10,pongyv
@@ -1269,9 +1320,9 @@ sthang:
 sthiing: move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
-        lea fastvector,a0
+        lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 
         lea chev,a1
         lea p_sines,a4
@@ -1333,9 +1384,9 @@ stunl:
          move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
-        lea fastvector,a0
+        lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 
         move pongz,d1
         and.l #$0f,d1
@@ -1440,9 +1491,9 @@ sflip:
          move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
 ;  move.l #$0,backg
-        lea fastvector,a0
+        lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 
         lea prevshape,a0
         lea nextshape,a1
@@ -1457,7 +1508,7 @@ sflip:
         swap d1
         clr d1
         lsr.l #1,d1
-        add.l #$10000,d1 
+        add.l #$10000,d1
         move frames,pucnt    ;simulate pucnt in game
 
         move pongx,d2
@@ -1476,12 +1527,16 @@ shok:
         move.l #9,d5
         jmp (a2)
 
+; *******************************************************************
+; shapes
+; *******************************************************************
 shapes: dc.l draw_sflipper,draw_sfliptank,draw_sfuseball,draw_spulsar,draw_sfusetank,draw_spulstank,s_shot,draw_spshot,s_sattest
         dc.l -1
 
 ; *******************************************************************
 ; draw_h2hgen
 ; A member of the solids list.
+; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_h2hgen:
         lea leaf,a1
@@ -1492,6 +1547,8 @@ draw_h2hgen:
 ; *******************************************************************
 ; s_shot
 ; A member of the solids list.
+; A member of the 'shapes' list
+; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 s_shot:
         lea chevron,a1
@@ -1502,7 +1559,7 @@ s_shot:
 s_multi:
         movem.l d0-d1/a1,-(a7)
         bsr drawsolidxy
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         movem.l (a7)+,d0-d1/a1
         add.b d6,d0
         dbra d7,s_multi
@@ -1527,20 +1584,33 @@ towards:
 ; *******************************************************************
 ; draw_h2hshot
 ; A member of the solids list.
+; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_h2hshot:
         tst 36(a6)
         bpl cringbull
         bra gringbull
 
+; *******************************************************************
+; supf1
+; Called during the draw_objects sequence as a member of the solids list.
+; *******************************************************************
 supf1:
         lea s_flip1,a1
         bra ccdraw
 
+; *******************************************************************
+; supf2
+; Called during the draw_objects sequence as a member of the solids list.
+; *******************************************************************
 supf2:
         lea s_flip2,a1
         bra ccdraw
 
+; *******************************************************************
+; draw_blueflip
+; Called during the draw_objects sequence as a member of the solids list.
+; *******************************************************************
 draw_blueflip:
         lea blueflipper,a1
         bra ccdraw
@@ -1548,6 +1618,7 @@ draw_blueflip:
 ; *******************************************************************
 ; draw_adroid
 ; A member of the solids list.
+; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_adroid:
         cmp #2,20(a6)  ;check for are we zapping someone
@@ -1562,7 +1633,7 @@ draw_adroid:
         move.l d3,(a0)+
 ;  add.l #$f0000,d1
         move #webz+80,d6
-        swap d6  
+        swap d6
         move.l d6,(a0)+  ;XYZ source
         move.l d2,(a0)+
         move.l d3,(a0)+
@@ -1577,20 +1648,28 @@ draw_adroid:
         and.l #$ff,d0
         or #$01,d0
         move.l d0,(a0)+    ;rnd seed
-        move.l #0,gpu_mode
-        move.l #bovine,a0
-        jsr gpurun    ;do it
-        jsr gpuwait
-        jsr WaitBlit
+        move.l #0,gpu_mode ; Select 'fline' in ox.gas.
+        move.l #bovine,a0 ; Load the GPU module in ox.gas.
+        jsr gpurun    ; Run the selected GPU module.
+        jsr gpuwait ; Wait for the GPU to finish.
+        jsr WaitBlit ; Wait for the blitter to finish.
         movem.l (a7)+,d0-d5
 dadr:
         lea adroid,a1
         bra drawsolidxy
 
+; *******************************************************************
+; dr_beast3
+; Called during the draw_objects sequence as a member of the solids list.
+; *******************************************************************
 dr_beast3:
         lea hornm3,a1
         bra drawsolidxy
 
+; *******************************************************************
+; dr_beast2
+; Called during the draw_objects sequence as a member of the solids list.
+; *******************************************************************
 dr_beast2:
         lea hornm2,a1
         bra drawsolidxy
@@ -1598,6 +1677,7 @@ dr_beast2:
 ; *******************************************************************
 ; draw_beast
 ; A member of the solids list.
+; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_beast:
         move #0,d6
@@ -1605,14 +1685,14 @@ draw_beast:
         and #3,d7
         cmp #1,24(a6)  ;is it in Flipto mode?
         bne dntdbl
-        lsl #1,d0  ;angle x2 
+        lsl #1,d0  ;angle x2
 dntdbl:
         lea beastybits,a0
 drbeast:
         move.l (a0)+,a1
         movem.l d0-d7/a0,-(a7)
         bsr ccdraw
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         movem.l (a7)+,d0-d7/a0
         add #1,d6
         cmp d7,d6    ;check Level
@@ -1625,6 +1705,7 @@ beastybits:
 ; *******************************************************************
 ; cdraw_sflipper
 ; A member of the solids list.
+; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 cdraw_sflipper:
         lea s_flipper,a1
@@ -1653,6 +1734,7 @@ draw_sflipper:
 ; *******************************************************************
 ; draw_mirr
 ; A member of the solids list.
+; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_mirr:
         lea mirr,a1
@@ -1669,7 +1751,9 @@ draw_spshot:
 
 ; *******************************************************************
 ; draw_pup1
+; Draw a power-up
 ; A member of the solids list.
+; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_pup1:
         tst 48(a6)
@@ -1682,13 +1766,15 @@ draw_pup1:
         clr d0
         swap d0
         bsr drawsolidxy
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         movem.l (a7)+,d1-d3
         bra pupring
 
 ; *******************************************************************
 ; draw_spulsar
 ; A member of the solids list.
+; A member of the 'shapes' list
+; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_spulsar:
         cmp #3,34(a6)  ;check for flipper-mode
@@ -1708,6 +1794,8 @@ upulsa:
 ; *******************************************************************
 ; draw_spulstank
 ; A member of the solids list.
+; A member of the 'shapes' list
+; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_spulstank:
         move pucnt,d2
@@ -1719,7 +1807,7 @@ draw_spulstank:
         move.l 0(a0,d2.w),a1
         movem.l d0-d1/a1,-(a7)
         bsr drawsolidxy
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         movem.l (a7)+,d0-d1/a1
         add.b #$80,d0
         bra drawsolidxy
@@ -1727,6 +1815,8 @@ draw_spulstank:
 ; *******************************************************************
 ; draw_sfuseball
 ; A member of the solids list.
+; A member of the 'shapes' list
+; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_sfuseball:
         move ranptr,-(a7)
@@ -1747,10 +1837,10 @@ dsfb1:
         move.l (a7)+,d0
         move.b 0(a6,d7.w),d6
         move.b d6,5(a1)
-        move.b d6,21(a1)  ;colour leg of fuseball   
+        move.b d6,21(a1)  ;colour leg of fuseball
         movem.l d0-d1,-(A7)
         jsr drawsolidxy
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         movem.l (a7)+,d0-d1
         add.b #$33,d0
         dbra d7,fleg
@@ -1760,6 +1850,8 @@ dsfb1:
 ; *******************************************************************
 ; draw_sfusetank
 ; A member of the solids list.
+; A member of the 'shapes' list
+; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_sfusetank:
         lea fbcols,a6
@@ -1770,23 +1862,27 @@ futank:
         lea fbpiece2,a1
         move.b 0(a6,d7.w),d6
         move.b d6,5(a1)
-        move.b d6,21(a1)  ;colour leg of fuseball   
+        move.b d6,21(a1)  ;colour leg of fuseball
         movem.l d0-d1,-(A7)
         bsr drawsolidxy
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         movem.l (a7)+,d0-d1
         movem.l d0-d1,-(a7)
         lea fbpiece1,a1
         move.b 0(a6,d7.w),d6
         move.b d6,5(a1)
-        move.b d6,21(a1)  ;colour leg of fuseball   
+        move.b d6,21(a1)  ;colour leg of fuseball
         bsr drawsolidxy
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         movem.l (a7)+,d0-d1
         add.b #$33,d0
         dbra d7,futank
         rts
 
+; *******************************************************************
+; s_sattest
+; A member of the 'shapes' list
+; *******************************************************************
 s_sattest:
         lea fbcols,a6
         move #15,d7
@@ -1799,18 +1895,18 @@ ssat:
         lea fbpiece2,a1
         move.b 0(a6,d7.w),d2
         move.b d2,9(a1)
-        move.b d2,25(a1)  ;colour leg of fuseball   
+        move.b d2,25(a1)  ;colour leg of fuseball
         movem.l d0-d1,-(A7)
         bsr drawsolid
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         movem.l (a7)+,d0-d1
         movem.l d0-d1,-(a7)
         lea fbpiece1,a1
         move.b 0(a6,d7.w),d2
         move.b d2,9(a1)
-        move.b d2,25(a1)  ;colour leg of fuseball   
+        move.b d2,25(a1)  ;colour leg of fuseball
         bsr drawsolid
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         movem.l (a7)+,d0-d1
         add.b d6,d0
         move (a7)+,d7
@@ -1821,6 +1917,8 @@ ssat:
 ; *******************************************************************
 ; draw_sfliptank
 ; A member of the solids list.
+; A member of the 'shapes' list
+; Called during the draw_objects sequence as a member of the draw_vex list.
 ; *******************************************************************
 draw_sfliptank:
         lea s_fliptank2,a1
@@ -1866,7 +1964,7 @@ pulser:
 ; d2-d3=XY, d4-d5=Centre position
 ; *******************************************************************
 drawsolid:
- 
+
         clr.l d2
         clr.l d3
         move.l #9,d4
@@ -1876,19 +1974,19 @@ drawsolid:
 ; drawsolidxy
 ; *******************************************************************
 drawsolidxy:
-        lea in_buf,a0
-        move.l a1,(a0)+
-        move.l d2,(a0)+
-        move.l d3,(a0)+
-        move.l d1,(a0)+
-        move.l d4,(a0)+
-        move.l d5,(a0)+
-        move.l d0,(a0)
+        lea in_buf,a0        ;Point our GPU RAM input buffer at a0.
+        move.l a1,(a0)+      ;pointer to our polygon data structure
+        move.l d2,(a0)+      ;x position to draw polygon
+        move.l d3,(a0)+      ;y position to draw polygon
+        move.l d1,(a0)+      ;z position to draw polygon
+        move.l d4,(a0)+      ;x position of polygon's origin
+        move.l d5,(a0)+      ;y position of polygon's origin
+        move.l d0,(a0)       ;angle
 
-        move.l #0,gpu_mode
-        lea equine,a0
-        jsr gpurun      ;do clear screen
-        jsr gpuwait
+        move.l #0,gpu_mode   ;Op 0 is 'polyo2d' in horse.gas.
+        lea equine,a0        ;Load the GPU module in horse.gas.
+        jsr gpurun           ;do clear screen
+        jsr gpuwait          ;Wait for the GPU to finish.
         rts
 
 ; *******************************************************************
@@ -1902,7 +2000,6 @@ gameover:
         move.l #rrts,routine
         clr _pauen
         clr pauen
-;  move #-1,db_on
         move #1,modnum
         tst h2h
         bne ddthis
@@ -1930,7 +2027,7 @@ ddthis:
         clr.l pongz
         move #10,timer
         bsr gogame
-        cmp #1,z
+        cmp #1,z          ; Has the player done a hard reset?
         beq rrrts
         jsr dohiscores
         jmp eepromsave
@@ -1943,7 +2040,7 @@ gofeed:
         move.l #(PITCH1|PIXEL16|WID384),d0
         move.l d0,source_flags
         move.l d0,dest_flags
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         add.l #$2000,pongz
         move pongz,d0
         and.l #$0f,d0
@@ -1963,9 +2060,9 @@ gofeed:
         move.l #$0,32(a0)    ;offset of dest rectangle
         move.l delta_i,36(a0)    ;change of i per increment
         move.l #2,gpu_mode    ;op 2 of this module is Scale and Rotate
-        move.l #demons,a0
-        jsr gpurun      ;do it
-        jsr gpuwait
+        move.l #demons,a0 ; Load the GPU module in antelope.gas.
+        jsr gpurun      ; Run the selected GPU module.
+        jsr gpuwait ; Wait for the GPU to finish.
 
 
 
@@ -1986,9 +2083,9 @@ gofeed:
         add.l #$8000,d1
         add.l #$8000,d2
 
- 
-        ; Game Over 
-        lea in_buf,a0
+
+        ; Game Over
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l #pic2,(a0)+  ;srce screen for effect
         move.l #$150094,(a0)+  ;srce start pixel address
         move.l #$440091,(a0)+  ;srce size
@@ -2002,9 +2099,9 @@ gofeed:
         move.l d0,(a0)+
         move.l #$600000,d0
         move.l d0,(a0)+  ;Dest x,y,z
-        lea parrot,a0
+        lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 
         tst timer
         bmi babb
@@ -2028,7 +2125,7 @@ clearfeed:
         move.l #(PITCH1|PIXEL16|WID384),d0
         move.l d0,source_flags
         move.l d0,dest_flags
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l cscreen,(a0)    ;source screen is already-displayed screen
         move.l #384,4(a0)
         move.l #240,d0
@@ -2045,9 +2142,9 @@ clearfeed:
         move.l #$0,32(a0)    ;offset of dest rectangle
         move.l delta_i,36(a0)
         move.l #2,gpu_mode    ;op 2 of this module is Scale and Rotate
-        move.l #demons,a0
-        jsr gpurun      ;do it
-        jsr gpuwait
+        move.l #demons,a0 ; Load the GPU module in antelope.gas.
+        jsr gpurun      ; Run the selected GPU module.
+        jsr gpuwait ; Wait for the GPU to finish.
 
         move #10,d1
         jsr rand
@@ -2072,51 +2169,55 @@ clearfeed:
 
 ; *******************************************************************
 ; versionscreen
-; Draws the main title screen.
+; Draws the main title screen. This is the one that says 'Tempest 2000'.
 ; *******************************************************************
 versionscreen:
         move.l #rrts,routine
         jsr InitBeasties
-        lea beasties,a0    ;set main screen to 16-bit
+        lea beasties,a0        ; Set main screen to 16-bit
         move.l #screen2,d2
         move.l d2,gpu_screen
         move #TOP-16,d1
         bsr stru
 
-        move.l #screen3,gpu_screen
-        jsr clearscreen  
+        ; Set screen 3 as our gpu screen.
+        move.l #screen3,gpu_screen  ; Set screen3 as gpu screen.
+        jsr clearscreen             ; Clear it.
 
+        ; Paint the '2000' in Tempest 2000. This is sourced
+        ; from the image map in beasty7.cry (pic5).
+        move #4,d0        ; X position in source picture pic5
+        move #84,d1       ; Y position in source picture (pic5).
+        move #197,d2      ; Width to copy
+        move #65,d3       ; Height to copy
+        move #92,d4       ; X pos on screen to copy to.
+        move #120-15,d5   ; Y pos on screen to copy to.
+        tst pal           ; Test are we on a PAL screen?
+        beq mypal         ; If not, nothing required.
+        add #10,d5        ; If we are, add an offset to Y destination.
+mypal:  move.l #pic5,a0   ; Load pic5(beasty7.cry) to the source memory block.
+        move.l #screen3,a1 ; Select screen3 as our destination block.
+        jsr CopyBlock     ; Copy the selected rectangle from pic5 to our gpu screen.
 
-        move #4,d0
-        move #84,d1
-        move #197,d2
-        move #65,d3
-        move #92,d4
-        move #120-15,d5
-        tst pal
-        beq mypal
-        add #10,d5
-mypal:
-        move.l #pic5,a0
-        move.l #screen3,a1
-        jsr CopyBlock  
+        ; Write "Copyright 1981" to screen.
+        lea afont,a1      ; Select afont image map for our font.
+        lea ataricop1,a0  ; Load "Copyright 1981" string to a0
+        move #190-8,d0    ; Set the Y Pos.
+        add palfix2,d0    ; Adjust for PAL.
+        jsr centext       ; Write the text in a0 to the screen.
 
-        lea afont,a1
-        lea ataricop1,a0  
-        move #190-8,d0
-        add palfix2,d0
-        jsr centext
-        lea afont,a1
-        lea ataricop2,a0  
-        move #207-5,d0
-        add palfix2,d0
-        jsr centext
+        ; Write "1994 Atari Corp" to screen.
+        lea afont,a1      ; Select afont image map for our font.
+        lea ataricop2,a0  ; Load "1994 Atari Corp" string to a0.
+        move #207-5,d0    ; Set the Y pos of the text.
+        add palfix2,d0    ; Adjust for PAL.
+        jsr centext       ; Write the text in a0 to the screen.
 
-        lea cfont,a1
-        lea llamacop,a0  
-        move #40-10,d0
-        jsr centext
-
+        ; Write "DEVELOPED BY llamasoft" to screen.
+        lea cfont,a1      ; Load the selected font map.
+        lea llamacop,a0   ; Write "DEVELOPED BY llamasoft" string to a0.
+        move #40-10,d0    ; Set the Y pos.
+        jsr centext       ; Write the text in a0 to the screen.
 
         move #TOP-16,d1
         jsr settrue33
@@ -2141,7 +2242,7 @@ mypal:
 ; v_ersion
 ; *******************************************************************
 v_ersion:
- move pongxv,d0
+        move pongxv,d0
         and #$ff,d0
         lea sines,a0
         move.b 0(a0,d0.w),d7
@@ -2157,7 +2258,7 @@ versiondraw:
         move.l #(PITCH1|PIXEL16|WID384),d0    ;Feedback
         move.l d0,source_flags
         move.l d0,dest_flags
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l a5,(a0)    ;source screen is already-displayed screen
         move.l #384,4(a0)
         move.l #240,d0
@@ -2180,7 +2281,7 @@ versiondraw:
         move.b 0(a2,d0.w),d2
         ext d2
         swap d2
-        clr d2  
+        clr d2
         asr.l #5,d1
         asr.l #4,d2
         add.l #$c10000,d1
@@ -2191,10 +2292,10 @@ versiondraw:
         move.l #$0,32(a0)    ;offset of dest rectangle
         move.l delta_i,36(a0)
         move.l #2,gpu_mode    ;op 2 of this module is Scale and Rotate
-        move.l #demons,a0
-        jsr gpurun      ;do it
-        jsr gpuwait
-        jsr WaitBlit
+        move.l #demons,a0 ; Load the GPU module in antelope.gas.
+        jsr gpurun      ; Run the selected GPU module.
+        jsr gpuwait ; Wait for the GPU to finish.
+        jsr WaitBlit ; Wait for the blitter to finish.
 
         tst v_on
         beq dopyr      ;allows Excellent voctory thang to get @ it
@@ -2204,7 +2305,7 @@ versiondraw:
 
 dopyr:
         move #64,d0      ;glowing pyramid (selector?)
-        move #80,d1  
+        move #80,d1
         move #192,d6
         move #120,d7
 ; *******************************************************************
@@ -2221,15 +2322,15 @@ dop:
 ppyr:
         move.l #2,gpu_mode
         move.l #pypoly1,in_buf
-        lea parrot,a0
+        lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         move.l #pypoly2,in_buf
-        lea parrot,a0
+        lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         move.l #pypoly3,in_buf
-        lea parrot,a0
+        lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do clear screen
         jmp gpuwait
 
@@ -2240,7 +2341,7 @@ ppyr:
 ; *******************************************************************
 centext:
         move.l a0,d2
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l d2,(a0)    ;Set up texter: address of text $
         move.l a1,4(a0)    ;font data structure
         move.l #0,8(a0)
@@ -2257,8 +2358,8 @@ centext:
         swap d0
         move d7,d0
         move.l d0,32(a0)    ;set text origin
-        lea texter,a0
-        jsr gpurun
+        lea texter,a0 ; Load the GPU module in stoat.gas.
+        jsr gpurun ; Run the selected GPU module.
         jmp gpuwait
 
 ; *******************************************************************
@@ -2291,7 +2392,7 @@ firesel:
         clr selected
 fslp:
         bsr do_choose
-        tst z
+        tst z          ; Has the player done a hard reset?
         bne firsend
         cmp #3,selected
         beq firsend    ;user selected exit
@@ -2344,7 +2445,7 @@ rotset:
         clr selected
 bglp:
         bsr do_choose
-        tst z
+        tst z          ; Has the player done a hard reset?
         bne fago
         cmp #2,selected
         beq firsend    ;go save any changed controller shit
@@ -2375,6 +2476,10 @@ scono1:
         move.l #o5s21,d0
 scono2:
         move.l d0,option5+12
+
+; *******************************************************************
+; scint
+; *******************************************************************
 scint:
 
         move.b sysflags,d0
@@ -2406,7 +2511,7 @@ optionscreen:
         clr.l pc_1
         clr.l pc_2
 dcc:
-        tst z
+        tst z          ; Has the player done a hard reset?
         bne rrrts
         move.l #option1,the_option
         move #2,selected
@@ -2415,7 +2520,7 @@ dcc:
         move #$0f,weband
         move #3,selectable
         bsr do_choose
-        tst z
+        tst z          ; Has the player done a hard reset?
         bne fago
         tst optpress
         bne gameopt
@@ -2426,7 +2531,7 @@ dcc:
         move #2,selectable
         move.l #option6,the_option
         bsr do_choose
-        tst z
+        tst z          ; Has the player done a hard reset?
         bne fago
         cmp #2,selected
         beq dcc        ;#2, was Exit, back to main title
@@ -2461,7 +2566,7 @@ gameopt:
         move #1,selectable
         move.l #option2,the_option
         bsr do_choose
-        tst z
+        tst z          ; Has the player done a hard reset?
         bne fago
         jsr eepromsave
         move selected,d0
@@ -2469,7 +2574,7 @@ gameopt:
         cmp #1,d0
         bne nxtsl
         bsr firesel
-        tst z
+        tst z          ; Has the player done a hard reset?
         bne fago
         bra dcc
 nxtsl:
@@ -2491,7 +2596,7 @@ dispop:
         move.l #$60000,vp_sfs
         jsr clvp
         move cweb,-(a7)
-        move #14,cweb    ;set Yaks head web  
+        move #14,cweb    ;set Yaks head web
         jsr initobjects
         bsr setweb
         bsr circa    ;init circular *field
@@ -2505,7 +2610,7 @@ dispop:
 dcc2:
         bsr do_choose
         clr tblock
-        tst z
+        tst z          ; Has the player done a hard reset?
         bne dcc3
         move selected,d0
         bne vop11
@@ -2553,7 +2658,7 @@ dweeb1:
 dweeb2:
         move.l d0,option3+12
         rts
-        
+
 ; *******************************************************************
 ; selse
 ; *******************************************************************
@@ -2562,7 +2667,7 @@ selse:
         move #$1c,bulland
         move #7,bullmax
         move #1,entities
-          cmp #2,selected
+        cmp #2,selected
         beq npling
         tst selected
         beq opling      ;no Droidy or 2pl in trad Tempest
@@ -2673,7 +2778,7 @@ oselector:
         and.l #a147,d0    ; Check for cheat combo.
         cmp.l #a147,d0    ; Cheat combo selected?
         bne nchen         ; No, skip.
-        tst chenable      ; Is cheating enabled?
+        tst chenable      ; Is cheating already enabled?
         bne nchen         ; No, skip.
         move #1,chenable  ; Enable cheating!
         jsr sayex    ;say Excellent for cheat-enable
@@ -2711,7 +2816,7 @@ selector2:
         clr.l rot_cum
         bra jcononly
 stup:
-        bset #5,d0  
+        bset #5,d0
         clr.l rot_cum
 jcononly:
         and #$30,d0
@@ -2771,7 +2876,7 @@ optiondraw:
         move.l d0,source_flags
         move.l #(PITCH1|PIXEL16|WID384),d0
         move.l d0,dest_flags    ;inform GPU of source/dest screentypes
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l pongx,4(a0)      ;L Phase init 0
         move.l #$4000,8(a0)    ;L Amp
         move.l pongy,12(a0)      ;R Phase
@@ -2781,10 +2886,10 @@ optiondraw:
         move.l #pic3+(640*11),(a0)    ;Input from pic buffer 3
         add.l #$10000,pongx
         add.l #$12000,pongy
-        jsr WaitBlit
-        lea demons,a0
+        jsr WaitBlit ; Wait for the blitter to finish.
+        lea demons,a0 ; Load the GPU module in antelope.gas.
         jsr gpurun      ;do horizontal ripple warp
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 
 ; *******************************************************************
 ; opts
@@ -2833,10 +2938,10 @@ dropts:
         move d5,d0
         swap d0
         move.l d0,32(a0)
-        lea texter,a0
-        jsr gpurun
-        jsr gpuwait
-        lea in_buf,a0
+        lea texter,a0 ; Load the GPU module in stoat.gas.
+        jsr gpurun ; Run the selected GPU module.
+        jsr gpuwait ; Wait for the GPU to finish.
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
 nxopts:
         add #20,d5
         dbra d7,dropts
@@ -2854,19 +2959,19 @@ dropts2:
         swap d0
         move #$60,d0
         move.l d0,32(a0)
-        lea texter,a0
-        jsr gpurun
-        jsr gpuwait
-        lea in_buf,a0
+        lea texter,a0 ; Load the GPU module in stoat.gas.
+        jsr gpurun ; Run the selected GPU module.
+        jsr gpuwait ; Wait for the GPU to finish.
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         add #30,d5
         dbra d7,dropts2
-        rts  
+        rts
 
 ; *******************************************************************
 ; text2_setup
 ; *******************************************************************
 text2_setup:
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l #bfont,4(a0)
         bra tsu
 
@@ -2874,7 +2979,7 @@ text2_setup:
 ; text_setup
 ; *******************************************************************
 text_setup:
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l #afont,4(a0)    ;font data structure
 tsu:
         move.l #0,8(a0)
@@ -3016,13 +3121,13 @@ _tunn:
         bsr gogame
         clr noxtra
         move #-1,beasties+140
-        tst z
+        tst z          ; Has the player done a hard reset?
         bne rrrts
         bsr ofade
-        
+
         move.l #$ffffffff,warp_flash
         rts
- 
+
 ; *******************************************************************
 ; tunrun
 ; A 'routine' routine.
@@ -3037,7 +3142,7 @@ tunrun:
         move.l iacon+4,d0
         add.l d0,iacon
         bra weewee
-        
+
 sjoycon:
         move.b pad_now+1,d0
         rol.b #2,d0
@@ -3134,9 +3239,9 @@ tundraw:
         move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
-        lea fastvector,a0
+        lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 
         lea in_buf,a0      ;This is Starplane code
         move.l #32,(a0)      ;no. of stars
@@ -3174,9 +3279,9 @@ stalp:
         movem.l (a7)+,d4-d7
         add #$08,d4
         move.l a0,-(a7)
-        lea equine2,a0
+        lea equine2,a0 ; Load the GPU module in donky.gas.
         jsr gpurun      ;do starplane
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         move.l (a7)+,a0
         dbra d6,stalp
 
@@ -3219,7 +3324,7 @@ dingy:
         move.b d0,1(a1)      ;set #-pixels
         lea 4(a1),a1
         lea 16(a2),a2
-        dbra d7,xpgdat      ;loop for both pg's  
+        dbra d7,xpgdat      ;loop for both pg's
 
         tst pawsed
         bne nomo
@@ -3313,7 +3418,7 @@ xono:
         move d2,d1
 xono2:
         cmp #$20,d1
-        bgt notover  
+        bgt notover
 
         move.b #0,2(a1)      ;change colour of track
         move #$dc20,(a1)
@@ -3342,25 +3447,25 @@ odeer:
         clr.l vp_ytarg
 over:
         add.l #$10000,pongzv
-        
+
         dbra d6,inst
 
 skippit:
 nomo:
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l #field1,(a0)    ;circ buffer base
         move.l #0,d0
         move.l d0,4(a0)      ;global Phase
 
-        
+
         move.l pongzv,8(a0)
         move.l vp_x,12(a0)
         move.l vp_y,16(a0)
-        move.l #2,gpu_mode
+        move.l #2,gpu_mode ; Select 'starseg' in ox.gas
         jsr ssys
-        lea bovine,a0
+        lea bovine,a0 ; Load the GPU module in ox.gas.
         jsr gpurun      ;do star tunnel
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 
         tst pawsed
         bne restuff
@@ -3370,7 +3475,7 @@ nomo:
 
 
         move pongxv,d1
-        bmi restuff  
+        bmi restuff
         lea field1,a0
         move #$3f,d0
 claps:
@@ -3380,7 +3485,7 @@ claps:
         sub #1,pongxv
         bpl rrrts
         move #-1,x_end
-        rts  
+        rts
 
 restuff0:
         add #6,iacon
@@ -3438,7 +3543,7 @@ nmoo2:
         move.l (A7)+,d1
         bsr run_tbb    ;store position in the tbb
 
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
 
 
         move.l #3,gpu_mode
@@ -3481,18 +3586,18 @@ xxxooo:
         jsr rannum
         and.l #$1f,d0
         move.l d0,32(a0)
-        move.l #$88,28(a0)  
+        move.l #$88,28(a0)
         move d2,d0
 snoxy:
-        lea bovine,a0
-        jsr gpurun
-        jsr gpuwait
+        lea bovine,a0 ; Load the GPU module in ox.gas.
+        jsr gpurun ; Run the selected GPU module.
+        jsr gpuwait ; Wait for the GPU to finish.
         move.l (a7)+,a0
 nxtox:
         addq #1,d4
         sub.l #$10000,d1
         sub.b #$08,d7
-        sub #1,d0  
+        sub #1,d0
         cmp ltail,d4
         ble pobjs
         tst psmsgtim
@@ -3581,9 +3686,9 @@ text_o_draw:
         move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
-        lea fastvector,a0
+        lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 
         move m7y,d1
         and #$1ff,d1
@@ -3595,10 +3700,10 @@ todr1:
         add #$a0,d1
         swap d1
         clr d1
-        
 
-        move.l #1,gpu_mode
-        lea in_buf,a0
+
+        move.l #1,gpu_mode ; Select 'mode7' in ox.gas.
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l #pic4,(a0)+
         move.l m7z,(a0)+
         move grnd,d0
@@ -3612,17 +3717,17 @@ todr1:
         move frames,d0
         and.l #$ff,d0
         move.l d0,(a0)+
-        lea bovine,a0
+        lea bovine,a0 ; Load the GPU module in ox.gas.
         jsr gpurun      ;do mode7 screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l m7x,d0
         neg.l d0
         move.l d0,12(a0)
-        lea bovine,a0
+        lea bovine,a0 ; Load the GPU module in ox.gas.
         jsr gpurun      ;do mode7 screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 
         add #1,m7y
 
@@ -3637,12 +3742,14 @@ m7test2:
         move #$03,pongz
         move.l #$a000,grndvel
         move #3,rocnt
-        move bolev3,d0  
+        move bolev3,d0
         add #1,bolev3
         bra m7go
 
 ; *******************************************************************
 ; Do a bonus game?
+; Initialize and run the bonus level where we fly through space with a
+; crosshair and navigating through wormholes/tunnels.
 ; *******************************************************************
 m7scr:
         clr psycho
@@ -3669,7 +3776,7 @@ m7go:
         lsl #1,d0
         lsl #8,d0
         and.l #$ffff,d0
-        add.l d0,grndvel    ;speed up in levels  
+        add.l d0,grndvel    ;speed up in levels
 
 
         jsr initobjects
@@ -3727,7 +3834,7 @@ nopalll:
 
         clr.l vp_x
         move.l #$4000,vp_y
-        
+
 
         clr.l vp_z
 
@@ -3736,8 +3843,8 @@ nopalll:
         move pauen,_pauen
         bsr gogame
         move #-1,beasties+140
-        tst z
-        bne rrrts  
+        tst z          ; Has the player done a hard reset?
+        bne rrrts
         move.l #$ffffffff,warp_flash
         move.l #2,warp_count
         clr.l vp_x
@@ -3753,7 +3860,7 @@ nopalll:
         move #48,d3
         move #$000,d4
         jsr BlitBlock    ;clear the crosshair that was already there
-        
+
         jsr sayex    ;say Excellent
 
         move.l #screen3,gpu_screen
@@ -3764,7 +3871,7 @@ nopalll:
         cmp #90,cwave
         bge sttoat2      ;Warp not after l90
         add #4,cwave
-        add #4,cweb  
+        add #4,cweb
 
         lea beasties+128,a0
         move.l #screen3+(768*64),d2
@@ -3791,7 +3898,7 @@ sttoat2:
         move pauen,_pauen
         bsr gogame
         move #-1,beasties+140
-        tst z
+        tst z          ; Has the player done a hard reset?
         bne rrrts
         bsr ofade
         move.l #$ffffffff,warp_flash
@@ -3843,6 +3950,9 @@ bobo:
         bsr yh
         rts
 
+; *******************************************************************
+; vicrun
+; *******************************************************************
 vicrun:
         tst pawsed
         bne rrrts
@@ -3885,7 +3995,7 @@ m7run:
         asr.l #3,d1
         move.l d1,vp_y
         neg.l d0
-        move.l d0,m7x  
+        move.l d0,m7x
         move.b pad_now+5,d0
         rol.b #2,d0
         and #$03,d0
@@ -3995,7 +4105,7 @@ isso:
 
 ; *******************************************************************
 ; run_gate
-; A member of the draw_vex list.
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_gate:
         add #1,28(a6)
@@ -4019,7 +4129,7 @@ lamag1:
         neg d0
 lamag2:
         cmp #8,d0
-        bpl mist 
+        bpl mist
         add d1,d0
         move d0,-(a7)
         move #$20,d1
@@ -4079,7 +4189,7 @@ nanna:
 llaleg:
         neg d0
         add #2,d0
-        bsr xbon 
+        bsr xbon
 ;  bsr xbonx
         move.l (A7)+,a6
         bra ennd
@@ -4099,40 +4209,34 @@ ennd:
 
 ; *******************************************************************
 ; fade
-;
+; This is melt-o-vision.
+; https://www.trademarkia.com/melt-o-vision-74534584
 ; go into FADE after merging screen3 to current screen and turning off BEASTIES+64
 ; *******************************************************************
-fade:
-
-        tst beasties+76
+fade:   tst beasties+76
         bmi ofade
         move.l #screen3,a0
         move.l gpu_screen,a1
-        moveq #0,d0
-        moveq #0,d1
-        move #384,d2
-        move #240,d3
-        add palfix1,d3
-        moveq #0,d4
-        moveq #0,d5
+        moveq #0,d0       ; X position in source screen
+        moveq #0,d1       ; Y position in source screen
+        move #384,d2      ; Width
+        move #240,d3      ; Height
+        add palfix1,d3    ; Adjust for PAL
+        moveq #0,d4       ; X position in destination screen.
+        moveq #0,d5       ; Y position in destination screen.
         tst mfudj
         beq pmf2
         sub #8,d3
-pmfade:
-        tst mfudj
-        beq pmf2 
+
+pmfade: tst mfudj
+        beq pmf2
         add #8,d5
         clr mfudj
 pmf2:
         jsr MergeBlock
         move #-1,beasties+76
 
-; *******************************************************************
-; ofade
-; *******************************************************************
-ofade:
-;  move pauen,-(a7)
-        clr _pauen      ;can't pause in fade
+ofade:  clr _pauen                  ;can't pause in fade
         move.l #ffade,demo_routine
         move.l #failcount,routine
         move #150,pongx
@@ -4141,7 +4245,6 @@ ofade:
         sub #$03,d0
         and #$ff,d0
         move d0,pongz
-;  clr pongz
         move.l #$f80000,delta_i
         move z,-(a7)
         clr z
@@ -4149,21 +4252,30 @@ ofade:
         move.l #screen3,a0
         jsr clrscreen
         move (a7)+,z
-;  move #-1,db_on
-;  move #1,screen_ready
         move #1,sync
-;  move (a7)+,pauen
         rts
 
+; *******************************************************************
+; gatefx
+; *******************************************************************
 gatefx:
         dc.l rrts,zup,zdn,spup,vicend
 
+; *******************************************************************
+; zup
+; *******************************************************************
 zup:
         move.l #-$80000,iycon+4
         rts
+; *******************************************************************
+; zdn
+; *******************************************************************
 zdn:
         move.l #$80000,iycon+4
         rts
+; *******************************************************************
+; spup
+; *******************************************************************
 spup:
         move.l d1,-(a7)
         add.l #5,yespitch
@@ -4180,6 +4292,9 @@ spup:
 agagg:
         move.l (a7)+,d1
         rts
+; *******************************************************************
+; vicend
+; *******************************************************************
 vicend:
         move.l #failfade,demo_routine
         move.l #viccount,routine
@@ -4192,6 +4307,7 @@ vicend:
 ; *******************************************************************
 ; draw_gate
 ; A member of the solids list.
+; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_gate:
         tst psycho
@@ -4230,18 +4346,19 @@ zqz:
         jmp gpuwait
 
 zappy:
-        clr d6  
+        clr d6
         lea dchev,a1
         clr.l d0
         bra zqz
 pyrri:
          lea epyr,a1
         clr.l d0
-        bra zqz  
+        bra zqz
 
 ; *******************************************************************
 ; dsclaw
 ; A member of the draw_vex list.
+; Called during the draw_objects sequence as a member of the draw_vex list.
 ; *******************************************************************
 dsclaw:
         move.l 4(a6),d2
@@ -4275,7 +4392,7 @@ noicon:
         move.l #$130000,d4
         move.l #128,d3
         move.l #6,gpu_mode
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l d3,(a0)+    ;# pixels per ring
         move.l 4(A6),d0
         sub.l vp_x,d0
@@ -4295,7 +4412,7 @@ noicon:
         clr d0
         swap d0
         move.l d0,(a0)+    ;phase
-        lea xparrot,a0
+        lea xparrot,a0 ; Load the GPU module in 'xcamel.gas'.
         jsr gpurun      ;do clear screen
         jmp gpuwait
 
@@ -4311,7 +4428,7 @@ polygate:
         bra s_multi
 
 gibbits:
-        dc.l g1,g2  
+        dc.l g1,g2
 
 
 ; *******************************************************************
@@ -4339,6 +4456,8 @@ failcount:
 ; *******************************************************************
 ; ffade
 ; A demo_routine
+; Used to implement the melto-vision rotate and fade effect for the
+; entire screen.
 ; *******************************************************************
 ffade:
         add #1,pongy
@@ -4355,27 +4474,27 @@ failfade:
         move.l #(PITCH1|PIXEL16|WID384),d0
         move.l d0,source_flags
         move.l d0,dest_flags
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move pongz,d0
         and.l #$ff,d0
-        move.l cscreen,(a0)    ;source screen is already-displayed screen
-        move.l #384,4(a0)
-        move.l #240,d1
+        move.l cscreen,(a0)      ;source screen is already-displayed screen
+        move.l #384,4(a0)        ; Width
+        move.l #240,d1           ; Height
         add palfix1,d1
-        move.l d1,8(a0)    ;X and Y dest rectangle size
+        move.l d1,8(a0)          ;X and Y dest rectangle size
         move.l #$1f4,12(a0)
-        move.l #$1f4,16(a0)    ;X and Y scale as 8:8 fractions
-        move.l d0,20(a0)      ;initial angle in brads
-        move.l #$c00000,24(a0)    ;source x centre in 16:16
+        move.l #$1f4,16(a0)      ;X and Y scale as 8:8 fractions
+        move.l d0,20(a0)         ;initial angle in brads
+        move.l #$c00000,24(a0)   ;source x centre in 16:16
         move.l #$780000,d0
         add.l palfix3,d0
-        move.l d0,28(a0)    ;y centre the same
-        move.l #$0,32(a0)    ;offset of dest rectangle
+        move.l d0,28(a0)         ;y centre the same
+        move.l #$0,32(a0)        ;offset of dest rectangle
         move.l delta_i,36(a0)    ;change of i per increment
-        move.l #2,gpu_mode    ;op 2 of this module is Scale and Rotate
-        move.l #demons,a0
-        jsr gpurun      ;do it
-        jmp gpuwait
+        move.l #2,gpu_mode       ;op 2 of this module is Scale and Rotate
+        move.l #demons,a0        ; Load the demons module (antelope.gas).
+        jsr gpurun               ; Run it.
+        jmp gpuwait              ; Wait until GPU finished.
 
 ; *******************************************************************
 ; m7test
@@ -4387,30 +4506,33 @@ m7test:
         move.l #(PITCH1|PIXEL16|WID384),d0
         move.l d0,source_flags
         move.l d0,dest_flags
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move pongz,d0
         and.l #$ff,d0
-        move.l cscreen,(a0)    ;source screen is already-displayed screen
-        move.l #384,4(a0)
-        move.l #240,d1
+        move.l cscreen,(a0)      ;source screen is already-displayed screen
+        move.l #384,4(a0)        ;Width
+        move.l #240,d1           ;Height
         add palfix1,d1
-        move.l d1,8(a0)    ;X and Y dest rectangle size
+        move.l d1,8(a0)          ;X and Y dest rectangle size
         move.l #$1d4,12(a0)
-        move.l #$1e4,16(a0)    ;X and Y scale as 8:8 fractions
-        move.l d0,20(a0)      ;initial angle in brads
-        move.l #$c00000,24(a0)    ;source x centre in 16:16
+        move.l #$1e4,16(a0)      ;X and Y scale as 8:8 fractions
+        move.l d0,20(a0)         ;initial angle in brads
+        move.l #$c00000,24(a0)   ;source x centre in 16:16
         move.l #$780000,d0
         add.l palfix3,d0
-        move.l d0,28(a0)    ;y centre the same
-        move.l #$0,32(a0)    ;offset of dest rectangle
+        move.l d0,28(a0)         ;y centre the same
+        move.l #$0,32(a0)        ;offset of dest rectangle
         move.l delta_i,36(a0)    ;change of i per increment
-        move.l #2,gpu_mode    ;op 2 of this module is Scale and Rotate
-        move.l #demons,a0
-        jsr gpurun      ;do it
-        jsr gpuwait
+        move.l #2,gpu_mode       ;op 2 of this module is Scale and Rotate
+        move.l #demons,a0        ; Load the demons module (antelope.gas).
+        jsr gpurun               ; Run it.
+        jsr gpuwait              ; Wait until GPU finished.
 
 
-        lea in_buf,a0
+        ; Generate a sphere of particles using the psphere shader in ox.gas
+        ; Prepare the GPU RAM with the following inputs:
+        ; x,y,z,xyrad,xyphase,yzphase,xycount,yzcount,xystep,yzstep,col
+        lea in_buf,a0 ; Point our GPU RAM input buffer at a0
         move.l #0,(a0)
         move.l #0,4(a0)
         move.l #$400000,8(a0)
@@ -4419,48 +4541,46 @@ m7test:
         sub #$3f,d7
         bpl haha1
         neg d7
-haha1:
-        add #4,d7
+haha1:  add #4,d7
         and.l #$ff,d7
-        move.l d7,12(a0)  ;rad
-        move.l #0,16(a0)  ;phase 1
+        move.l d7,12(a0)     ;rad
+        move.l #0,16(a0)     ;phase 1
         move frames,d7
         and.l #$ff,d7
-        move.l d7,20(a0)  ;phase 2
-        move.l #$80,24(a0)  ;pixels/ring
-        move.l #$10,28(a0)  ;rings/sphere
-        move.l #$2,32(a0)  ;pixel spacing
-        move.l #$8,36(a0)  ;twist per ring
-;  asl #1,d7  
-        bsr pulser
-        and.l #$f0,d6
+        move.l d7,20(a0)     ;phase 2
+        move.l #$80,24(a0)   ;pixels/ring
+        move.l #$10,28(a0)   ;rings/sphere
+        move.l #$2,32(a0)    ;pixel spacing
+        move.l #$8,36(a0)    ;twist per ring
 
-        move.l d6,40(a0)  ;colour
+        bsr pulser        ; Calculate the pulse colour
+        and.l #$f0,d6     ; Top 4 bits only
+        move.l d6,40(a0)  ; Store it in the memory passed to GPU
+
         move frames,d0
         and #$7f,d0
         sub #$3f,d0
         bpl wwear
         neg d0
-wwear:
-        and.l #$ff,d0
+wwear:  and.l #$ff,d0
         move.l d0,44(a0)
-        move.l #4,gpu_mode
-        lea bovine,a0
-        jsr gpurun      ;do clear screen
-        jsr gpuwait
-        jmp dob
-        
-        
+        move.l #4,gpu_mode ; Op Code 4 is 'psphere' in ox.gas.
+        lea bovine,a0      ; Load the shader module in ox.gas
+        jsr gpurun      ; Run the GPU shader module.
+        jsr gpuwait     ; Wait for GPU to finish.
+        jmp dob         ; Jump to 'draw objects'.
+
+
 ; *******************************************************************
 ; npsu1
 ; *******************************************************************
 npsu1:
-         move.l #0,gpu_mode
+        move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
-        lea fastvector,a0
+        lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 
 
         move.l #3,gpu_mode  ;mode 3 is starfield1
@@ -4475,14 +4595,14 @@ npsu1:
         move.l d0,in_buf+16  ;address off the starfield data structure
         move.l warp_count,in_buf+20
         move.l warp_add,in_buf+24
-        lea fastvector,a0
+        lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun    ;do gpu routine
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 
 
 
-        move.l #1,gpu_mode
-        lea in_buf,a0
+        move.l #1,gpu_mode ; Op1 is 'mode7' in ox.gas.
+        lea in_buf,a0 ; Point out GPU RAM input buffer at a0
         move.l #pic4,(a0)+
         move.l m7z,(a0)+
         move grnd,d0
@@ -4496,9 +4616,9 @@ npsu1:
         move frames,d0
         and.l #$ff,d0
         move.l d0,(a0)+
-        lea bovine,a0
+        lea bovine,a0 ; Load the GPU module in ox.gas.
         jsr gpurun      ;do mode7 screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 
         jmp dob      ;draw objects
 
@@ -4527,7 +4647,7 @@ npsu1:
 ;  bra joyz
         rts
 
-        lea in_buf,a0
+        lea in_buf,a0 ; Point out GPU RAM input buffer at a0
         move.l #pic3,(a0)+
         move.l #$d0000,(a0)+
         move frames,d0
@@ -4540,9 +4660,9 @@ npsu1:
         move.l d1,(a0)+
         move.l #0,(a0)+
         move.l m7y,(a0)+
-        lea bovine,a0
+        lea bovine,a0 ; Load the GPU module in ox.gas.
         jsr gpurun      ;do mode7 screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 
 joyz:
         btst.b #5,pad_now
@@ -4587,7 +4707,7 @@ m7decy:
         sub #4,m7x
         add.l #$4000,vp_y
         rts
-        
+
 m7yinc:
         add #4,m7yv
         rts
@@ -4634,16 +4754,11 @@ rndbox:
         move.l #screen5,a0
         jmp fxBlock
 
-
-
-swebtest:
-;
-; Check the current score for a HS, do text entries as necessary and display HST
-
-
 ; *******************************************************************
 ; dohiscores
 ; Do the hight scores.
+;
+; Check the current score for a HS, do text entries as necessary and display HST
 ; *******************************************************************
 dohiscores:
         clr ud_score
@@ -4681,7 +4796,7 @@ setscore:
         movem.l d1/a0,-(a7)
         bsr getinitials
         movem.l (a7)+,d1/a0  ;get player initials
-        tst z
+        tst z          ; Has the player done a hard reset?
         bne rrrts    ;abort if player did reset
         lea entxt,a1
         move (a1)+,(a0)+
@@ -4690,7 +4805,7 @@ setscore:
         move.b d4,(a0)+    ;this will be level got to
 
         tst d1
-        bne setdsplay    
+        bne setdsplay
         bsr getbrag
 
         lea hscom1,a0
@@ -4707,7 +4822,7 @@ setdsplay:
         lea hscom1,a0
         jsr xscoretab
         jsr xkeys
-        tst z
+        tst z          ; Has the player done a hard reset?
         bne rrrts
         bsr showscores
         rts
@@ -4758,9 +4873,9 @@ newkey:
         move.l #nkeym1,enl1
         move.l #nkeym2,enl2
         move.l #nkeym3,enl3
-        bsr initgo  
+        bsr initgo
         bra setdsplay
-        
+
 stditals:
         move #3,ennum
         move #3,fw_sphere
@@ -4866,9 +4981,7 @@ txenter:
 ;  move #-1,db_on
         clr sync
         bsr wnb
-;  bsr InitBeasties
         jsr initobjects
-;  bsr hisettrue
         move #1,mfudj
 
         move ennum,enmax
@@ -4884,30 +4997,30 @@ clent:
         clr.l pongx    ;use as offset into legal text $
 
         move.l #screen3,gpu_screen
-        jsr clearscreen  
+        jsr clearscreen
 
         lea afont,a1
-        move.l enl1,a0  
+        move.l enl1,a0
         move #40,d0
         jsr centext
-        move.l enl2,a0  
+        move.l enl2,a0
         move #60,d0
         jsr centext
         lea cfont,a1
-        move.l enl3,a0  
+        move.l enl3,a0
         move #80,d0
         jsr centext
 
         lea cfont,a1
-        move.l #enlm1,a0  
+        move.l #enlm1,a0
         move #180,d0
         jsr centext
 
-        move.l #enlm2,a0  
+        move.l #enlm2,a0
         move #190,d0
         jsr centext
 
-        move.l #enlm3,a0  
+        move.l #enlm3,a0
         move #200,d0
         jsr centext
 
@@ -4924,7 +5037,7 @@ wnb:
         move.l pad_now,d0
         or.l pad_now+4,d0
         and.l #allbutts,d0
-        bne wnb  
+        bne wnb
         rts
 
 txen:
@@ -4938,14 +5051,14 @@ txen:
 flann:
         and.l #allbutts,d0
         beq jtxen
-        
+
         move pongx+2,d0
         lsr #6,d0
-        and #$1f,d0  
+        and #$1f,d0
         cmp #30,d0    ;this is DEL
         beq doolete
         cmp #31,d0
-        bne ischaa  
+        bne ischaa
         move.l pongxv,a0
         move.b #0,(a0)
         bra xxen
@@ -4996,7 +5109,7 @@ dechar:
         bra inc_aa
 tgoto:
         jsr fw_run
-        jsr rob    
+        jsr rob
         move pongy,d0
         ext.l d0
         add.l d0,pongx
@@ -5013,10 +5126,10 @@ txendraw:
         move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
-        lea fastvector,a0
+        lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
-        bsr WaitBlit
+        jsr gpuwait ; Wait for the GPU to finish.
+        bsr WaitBlit ; Wait for the blitter to finish.
 
         jsr dob      ;draw Objects
 
@@ -5027,7 +5140,7 @@ txendraw:
         sub.l #$100,d7
         lea bfont,a1    ;font to draw chars in
         move.l 4(a1),d1    ;char size
-        move.l (a1),d2    ;char screen base      
+        move.l (a1),d2    ;char screen base
 sletloop:
         move.l d7,d0
         bmi sletooo
@@ -5048,7 +5161,7 @@ slet01:
         sub #32,d0
         lsl #2,d0
         move.l 8(a1,d0.w),d0  ;get char address
-        lea in_buf,a0
+        lea in_buf,a0 ; Point out GPU RAM input buffer at a0
         move.l d2,(a0)    ;char base
         move.l d0,4(a0)    ;start pixel
         move.l d1,8(a0)    ;size
@@ -5069,7 +5182,7 @@ hnotpal:
         move.l #4,gpu_mode
         lea xparrot,a0    ;xparrot is REX w/o 3D
         jsr gpurun    ;do pixex draw
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 sletooo:
         add.l #$40,d7
         add #1,d5
@@ -5078,7 +5191,7 @@ sletooo:
 sletend:
         cmp.l #rrts,routine
         beq stettin
-        
+
         move.l pongxv,a0
         move pongx+2,d0
         lsr #6,d0
@@ -5137,7 +5250,7 @@ showscores:
         move #1,d0 ; x position in pic5
         move #1,d1 ; y position in pic5
         move #223,d2 ; width of block to copy
-        move #79,d3  ; height of block to copy 
+        move #79,d3  ; height of block to copy
         move #70,d4  ; x pos of destination
         move #10+8,d5 ; y pos of destination
         jsr CopyBlock
@@ -5175,7 +5288,7 @@ ctl:
         clr webbase
         move cweb,-(a7)
         clr sf_on
-        move #14,cweb    ;set Yaks head web  
+        move #14,cweb    ;set Yaks head web
         jsr initobjects
         move #1,tblock
         bsr setweb
@@ -5204,10 +5317,10 @@ swebby:
         move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
-        lea fastvector,a0
+        lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
-        bsr WaitBlit
+        jsr gpuwait ; Wait for the GPU to finish.
+        bsr WaitBlit ; Wait for the blitter to finish.
 
         ; This actually draws the web.
         lea _web,a0
@@ -5217,7 +5330,7 @@ swebby:
 
         ; Do the 'falling star' plane behind the rotating web.
 starri:
-        lea in_buf,a0
+        lea in_buf,a0 ; Point out GPU RAM input buffer at a0
         move.l #32,(a0)      ;no. of stars
         move.l #84,20(a0)    ;seed Y
         move.l #1,gpu_mode
@@ -5247,12 +5360,12 @@ stlp:
         movem.l (a7)+,d4-d7
         add #$08,d4
         move.l a0,-(a7)
-        lea equine2,a0
+        lea equine2,a0 ; Load the GPU module in donky.gas.
         jsr gpurun      ;do starplane
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         move.l (a7)+,a0
         dbra d6,stlp
-        rts  
+        rts
 
 ;********************************************************
 ; yakscreen
@@ -5336,10 +5449,10 @@ yhead:
         move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
-        lea fastvector,a0
+        lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
-        bsr WaitBlit
+        jsr gpuwait ; Wait for the GPU to finish.
+        bsr WaitBlit ; Wait for the blitter to finish.
 
         add.l #$8000,warp_add
         add.l #$18000,pongyv
@@ -5356,7 +5469,7 @@ yhead:
         clr d1
         clr d2
         asr.l #2,d1
-        asr.l #2,d2 
+        asr.l #2,d2
         move.l #3,gpu_mode  ;mode 3 is starfield1
         move.l d1,in_buf+4
         move.l d2,in_buf+8
@@ -5365,9 +5478,9 @@ yhead:
         move.l d0,in_buf+16  ;address off the starfield data structure
         move.l warp_count,in_buf+20
         move.l warp_add,in_buf+24
-        lea fastvector,a0
+        lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun    ;do gpu routine
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 
         ; Paint the Yak head.
         lea pic2,a2
@@ -5397,7 +5510,7 @@ notatari:
         asl #6,d4
         and #$ff,d4
 dyakhead:
-        lea in_buf,a0
+        lea in_buf,a0 ; Point out GPU RAM input buffer at a0
         move.l a2,(a0)+  ;srce screen for effect
         move.l d0,(a0)+  ;srce start pixel address
         move.l d1,(a0)+  ;srce size
@@ -5430,14 +5543,14 @@ dyakhead:
         tst.l d0
         bmi xane      ;no point in drawing -ves
         move.l d0,(a0)+  ;Dest x,y,z
-        lea parrot,a0
+        lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 xane:
         movem.l (a7)+,d0-d1
         dbra d7,dyakhead
         rts
-        
+
 ; *******************************************************************
 ; yh
 ; Calls the 'rex' shader in camel.gas (i.e. gpu_mode 4).
@@ -5445,7 +5558,7 @@ xane:
 ; *******************************************************************
 yh:
         move.l #4,gpu_mode  ;Multiple images stretching towards you in Z
-        lea in_buf,a0
+        lea in_buf,a0 ; Point out GPU RAM input buffer at a0
         move.l a2,(a0)+  ;srce screen for effect
         move.l d0,(a0)+  ;srce start pixel address
         move.l d1,(a0)+  ;srce size
@@ -5457,7 +5570,7 @@ yh:
         move.l #0,(a0)+
         move.l #0,(a0)+
         move.l d6,(a0)+  ;Dest x,y,z
-        lea parrot,a0
+        lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do clear screen
         jmp gpuwait
 
@@ -5475,16 +5588,16 @@ rexdemo:
         clr pongx
 
 
-        bra mp_demorun  
+        bra mp_demorun
 
 rxdemo:
         move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
-        lea fastvector,a0
+        lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
-        bsr WaitBlit
+        jsr gpuwait ; Wait for the GPU to finish.
+        bsr WaitBlit ; Wait for the blitter to finish.
 
 
 ; *******************************************************************
@@ -5492,7 +5605,7 @@ rxdemo:
 ; *******************************************************************
 rexfb:
         move.l #4,gpu_mode
-        lea in_buf,a0
+        lea in_buf,a0 ; Point our GPU RAM input buffer at a0
         move.l #pic,(a0)+  ;srce screen for effect
         move.l #$10001,(a0)+  ;srce start pixel address
         move.l #$6c0120,(a0)+  ;srce size
@@ -5506,7 +5619,7 @@ rexfb:
         swap d0
         clr d0
         lsr.l d2,d0
-        add.l #$14000,d0 
+        add.l #$14000,d0
         move.l d0,(a0)+    ;x-scale
 
         move pongy,d1
@@ -5548,18 +5661,19 @@ rexfb:
 nopaldude:
         move.l d0,(a0)+
         move.l #$1100000,(a0)+
-        lea parrot,a0
+        lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         add.l #$40000,pongx
         add.l #$31230,pongy
         add.l #$8415,pongz
         add.l #$e8d2,pongxv
-        rts  
+        rts
 
 ; *******************************************************************
 ; Display the One-Up graphic
 ; A member of the draw_vex list.
+; Called during the draw_objects sequence as a member of the draw_vex list.
 ; *******************************************************************
 draw_oneup:
         move.l #4,gpu_mode  ;Multiple images stretching towards you in Z
@@ -5571,7 +5685,7 @@ draw_oneup:
         clr d5
         lsr.l #2,d5
 doneup:
-        lea in_buf,a0
+        lea in_buf,a0 ; Point our GPU RAM input buffer at a0
         move.l #pic2,(a0)+  ;srce screen for effect
         move.l #$000094,(a0)+  ;srce start pixel address
         move.l #$150032,(a0)+  ;srce size
@@ -5582,7 +5696,7 @@ doneup:
         move.l #0,(a0)+    ;no shear
         move.l #0,(a0)+
         move.l #1,(a0)+    ;Mode 1 = Centered
-        move.l 4(a6),d0
+        move.l 4(a6),d0 ; Get the source X position.
         sub.l vp_x,d0
         move.l d0,(a0)+
         move.l 8(a6),d0
@@ -5591,9 +5705,9 @@ doneup:
         move.l d6,d0
         sub.l vp_z,d0
         move.l d0,(a0)+  ;Dest x,y,z
-        lea parrot,a0
+        lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         sub.l d5,d6
         bmi rrts      ;no point in drawing -ves
         dbra d7,doneup
@@ -5601,7 +5715,7 @@ doneup:
         add.l d5,d6
         move #5,d7
 doneup2:
-        lea in_buf,a0
+        lea in_buf,a0 ; Point our GPU RAM input buffer at a0
         move.l #pic2,(a0)+  ;srce screen for effect
         move.l #$0000c6,(a0)+  ;srce start pixel address
         move.l #$15000f,(a0)+  ;srce size
@@ -5612,7 +5726,7 @@ doneup2:
         move.l #0,(a0)+    ;no shear
         move.l #0,(a0)+
         move.l #1,(a0)+    ;Mode 1 = Centered
-        move.l 4(a6),d0
+        move.l 4(a6),d0 ; Get the source X position.
         sub.l vp_x,d0
         move.l d0,(a0)+
         move.l 8(a6),d0
@@ -5622,9 +5736,9 @@ doneup2:
         move.l d6,d0
         sub.l vp_z,d0
         move.l d0,(a0)+  ;Dest x,y,z
-        lea parrot,a0
+        lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         sub.l d5,d6
         bmi rrts      ;no point in drawing -ves
         dbra d7,doneup2
@@ -5633,11 +5747,11 @@ doneup2:
 ; *******************************************************************
 ; drawsphere
 ; A member of the draw_vex list.
+; Called during the draw_objects sequence as a member of the draw_vex list.
 ; *******************************************************************
 drawsphere:
-
-        lea in_buf,a0
-        move.l 4(a6),d0
+        lea in_buf,a0 ; Point our GPU RAM input buffer at a0
+        move.l 4(a6),d0 ; Get the source X position.
         sub.l vp_x,d0
         move.l d0,(a0)
         move.l 8(a6),d0
@@ -5674,8 +5788,8 @@ drawsphere:
         neg.l d2
         add.l #$ff,d2    ;calculate i decreasing
         move.l d2,44(a0)
-        move.l #4,gpu_mode
-        lea bovine,a0
+        move.l #4,gpu_mode ; Op4 is 'psphere' in ox.gas.
+        lea bovine,a0 ; Load the GPU module in ox.gas.
         jsr gpurun      ;do clear screen
         jmp gpuwait
 
@@ -5689,10 +5803,12 @@ sphertypes:
 ; *******************************************************************
 ; draw_pixex
 ; A member of the draw_vex and solids list.
+; Called during the draw_objects sequence as a member of the draw_vex list.
+; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_pixex:
         move.l #4,gpu_mode
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l #pic,(a0)+  ;srce screen for effect
         move.l 36(a6),(a0)+  ;srce start pixel address
         move.l 46(a6),(a0)+  ;srce size
@@ -5703,7 +5819,7 @@ draw_pixex:
         move.l #0,(a0)+    ;no shear
         move.l #0,(a0)+
         move.l #1,(a0)+    ;Mode 1 = Centered
-        move.l 4(a6),d0
+        move.l 4(a6),d0 ; Get the source X position.
         sub.l vp_x,d0
         move.l d0,(a0)+
         move.l 8(a6),d0
@@ -5712,13 +5828,15 @@ draw_pixex:
         move.l 12(a6),d0
         sub.l vp_z,d0
         move.l d0,(a0)+  ;Dest x,y,z
-        lea parrot,a0
+        lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do clear screen
         jmp gpuwait
 
 ; *******************************************************************
 ; dxshot
 ; A member of the draw_vex and solids list.
+; Called during the draw_objects sequence as a member of the draw_vex list.
+; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 dxshot:
         move 30(a6),d4
@@ -5733,13 +5851,13 @@ dxshot:
 
 ; *******************************************************************
 ; draw_pring
-; A member of the draw_vex list.
+; Called during the draw_objects sequence as a member of the draw_vex list.
 ; *******************************************************************
 draw_pring:
         move.l #$80000,d4
         move.l #4,d3
         move.l #6,gpu_mode
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l d3,(a0)+    ;# pixels per ring
         move.l 4(A6),d0
         sub.l vp_x,d0
@@ -5761,18 +5879,19 @@ dprdpr:
         move.l d4,(a0)+  ;radius 16:16
         and.l #$ff,d0
         move.l d0,(a0)+    ;phase
-        lea xparrot,a0
+        lea xparrot,a0 ; Load the GPU module in 'xcamel.gas'.
         jsr gpurun      ;do clear screen
         jmp gpuwait
 
 ; *******************************************************************
 ; pupring
+; Draw the ring around a power up.
 ; *******************************************************************
 pupring:
         move.l #6,gpu_mode
         move #3,d4
 prloo:
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l #12,(a0)+    ;# pixels per ring
         move.l d2,(a0)+
         move.l d3,(a0)+
@@ -5789,9 +5908,9 @@ prloo:
         move frames,d0
         and.l #$ff,d0
         move.l d0,(a0)+    ;phase
-        lea xparrot,a0
+        lea xparrot,a0 ; Load the GPU module in 'xcamel.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         sub.l #$80000,d1
         dbra d4,prloo
         rts
@@ -5802,7 +5921,7 @@ prloo:
 opupring:
         movem.l d0-d3,-(a7)
         move.l #6,gpu_mode
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l #20,(a0)+    ;# pixels per ring
         move.l d2,(a0)+
         move.l d3,(a0)+
@@ -5818,15 +5937,15 @@ opupring:
         move frames,d0
         and.l #$ff,d0
         move.l d0,(a0)+    ;phase
-        lea xparrot,a0
+        lea xparrot,a0 ; Load the GPU module in 'xcamel.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         movem.l (a7)+,d0-d3
         move #3,d4
         move 48(a6),d7
         move.l #7,gpu_mode
 prloo4:
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l #24,(a0)+    ;# pixels per ring
         move.l d2,(a0)+
         move.l d3,(a0)+
@@ -5843,18 +5962,18 @@ prloo4:
         clr d0
         move.l d0,(a0)+  ;radius 16:16
         move.l #0,(a0)+    ;phase
-        lea xparrot,a0
+        lea xparrot,a0 ; Load the GPU module in 'xcamel.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         dbra d4,prloo4
         rts
 
 ; *******************************************************************
 ; draw_prex
-; A mamber of the draw_vex list.
+; Called during the draw_objects sequence as a member of the draw_vex list.
 ; *******************************************************************
 draw_prex:
-        move.l 4(a6),d0
+        move.l 4(a6),d0 ; Get the source X position.
         move.l 8(a6),d1
         move.l 12(a6),d2
         sub.l vp_x,d0
@@ -5871,7 +5990,7 @@ draw_prex:
 prexloop:
         movem.l d0-d5,-(a7)
 
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l d4,(a0)+    ;# pixels per ring
         move.l d0,(a0)+
         move.l d1,(a0)+
@@ -5885,9 +6004,9 @@ prexloop:
         move frames,d0
         and.l #$ff,d0
         move.l d0,(a0)+    ;phase
-        lea xparrot,a0
+        lea xparrot,a0 ; Load the GPU module in 'xcamel.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         movem.l (a7)+,d0-d5
         sub.l #$40000,d2
         asl.l #1,d3
@@ -5897,6 +6016,7 @@ prexloop:
 
 ; *******************************************************************
 ; draw_pprex
+; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_pprex:
         clr.l d0
@@ -5910,7 +6030,7 @@ draw_pprex:
 pprexloop:
         movem.l d0-d5,-(a7)
 
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l d4,(a0)+    ;# pixels per ring
         move.l d2,(a0)+
         move.l d3,(a0)+
@@ -5924,9 +6044,9 @@ pprexloop:
         move frames,d0
         and.l #$ff,d0
         move.l d0,(a0)+    ;phase
-        lea equine,a0
+        lea equine,a0 ; Load the GPU module in horse.gas.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         movem.l (a7)+,d0-d5
         sub.l #$40000,d1
         asl.l #1,d0
@@ -5937,6 +6057,9 @@ pprexloop:
 
 ; *******************************************************************
 ; dmpix
+; Called during the draw_objects sequence as a member of the draw_vex list.
+; Draws the source image coming towards you and breaking up into
+; pixels.
 ; *******************************************************************
 dmpix:
         move.l 16(a6),a2
@@ -5949,7 +6072,7 @@ dmpix:
         clr d5
         lsr.l #2,d5
 dmup:
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l a2,(a0)+  ;srce screen for effect
         move.l 36(a6),(a0)+  ;srce start pixel address
         move.l 40(a6),(a0)+  ;srce size
@@ -5960,7 +6083,7 @@ dmup:
         move.l #0,(a0)+    ;no shear
         move.l #0,(a0)+
         move.l #1,(a0)+    ;Mode 1 = Centered
-        move.l 4(a6),d0
+        move.l 4(a6),d0 ; Get the source X position.
         sub.l vp_x,d0
         move.l d0,(a0)+
         move.l 8(a6),d0
@@ -5969,9 +6092,9 @@ dmup:
         move.l d6,d0
         sub.l vp_z,d0
         move.l d0,(a0)+  ;Dest x,y,z
-        lea parrot,a0
+        lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         sub.l d5,d6
         bmi rrts      ;no point in drawing -ves
         dbra d7,dmup
@@ -5979,15 +6102,18 @@ dmup:
 
 ; *******************************************************************
 ; draw_mpixex
+; Called during the draw_objects sequence as a member of the draw_vex list.
+; Draws the 'Excellent' message coming towards you and breaking up into
+; pixels.
 ; *******************************************************************
 draw_mpixex:
         move.l #pic,a2
 giff:
-         move.l #4,gpu_mode  ;Multiple images stretching towards you in Z
+        move.l #4,gpu_mode  ;Multiple images stretching towards you in Z
         move #0,d7
         move.l 12(a6),d6
 mpixex:
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l a2,(a0)+  ;srce screen for effect
         move.l 36(a6),(a0)+  ;srce start pixel address
         move.l 46(a6),(a0)+  ;srce size
@@ -5998,7 +6124,7 @@ mpixex:
         move.l #0,(a0)+    ;no shear
         move.l #0,(a0)+
         move.l #1,(a0)+    ;Mode 1 = Centered
-        move.l 4(a6),d0
+        move.l 4(a6),d0 ; Get the source X position.
         sub.l vp_x,d0
         move.l d0,(a0)+
         move.l 8(a6),d0
@@ -6007,21 +6133,21 @@ mpixex:
         move.l d6,d0
         sub.l vp_z,d0
         move.l d0,(a0)+  ;Dest x,y,z
-        lea parrot,a0
+        lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 
         sub.l #$100000,d6
         bmi rrts      ;no point in drawing -ves
         dbra d7,mpixex
-        rts 
+        rts
 
 ; *******************************************************************
 ; gringbull
 ; *******************************************************************
 gringbull:
         move.l #3,gpu_mode  ;Multiple images stretching towards you in Z
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l #pic2,(a0)+  ;srce screen for effect
         move.l #$8300d7,(a0)+  ;srce start pixel address
         bra ringa2
@@ -6031,12 +6157,16 @@ gringbull:
 ; *******************************************************************
 cringbull:
         move.l #3,gpu_mode
-        bra ringa  
+        bra ringa
 
+; *******************************************************************
+; ringbull
+; Called during the draw_objects sequence as a member of the solids list.
+; *******************************************************************
 ringbull:
         move.l #4,gpu_mode  ;Multiple images stretching towards you in Z
 ringa:
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l #pic2,(a0)+  ;srce screen for effect
         move.l #$7300d7,(a0)+  ;srce start pixel address
 ringa2:
@@ -6050,7 +6180,7 @@ ringa2:
         move.l d2,(a0)+
         move.l d3,(a0)+
         move.l d1,(a0)+  ;Dest x,y,z
-        lea parrot,a0
+        lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do clear screen
         jmp gpuwait
 
@@ -6061,7 +6191,7 @@ ringa2:
 polyr:
         move.l #testpoly,in_buf
         bsr itpoly
-;  lea parrot,a0
+;  lea parrot,a0 ; Load the GPU module in camel.gas.
 ;  jsr gpuload    ;load the GPU code for the demos
 
         lea beasties,a0    ;set main screen to 16-bit
@@ -6080,7 +6210,7 @@ polyr:
 
         move.l #polydemo,demo_routine
         move.l #rrts,fx
-        bra mp_demorun  
+        bra mp_demorun
 
 
 ; *******************************************************************
@@ -6091,18 +6221,18 @@ polydemo:
         move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
 ;  clr.l backg
-        lea fastvector,a0
+        lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         move.l #1,gpu_mode    ;mode to draw poly
         move rpcopy,ranptr    ;reset RNG to known value
         move #19,d0
 pollies:
         move d0,-(a7)
         bsr rtpoly
-        lea xparrot,a0
+        lea xparrot,a0 ; Load the GPU module in 'xcamel.gas'.
         jsr gpurun      ;do horizontal ripple warp
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         move (a7)+,d0
         dbra d0,pollies
         rts
@@ -6114,7 +6244,7 @@ pollies:
 ppolyr:
         move.l #testppoly,in_buf
         bsr itppoly
-;  lea parrot,a0
+;  lea parrot,a0 ; Load the GPU module in camel.gas.
 ;  jsr gpuload    ;load the GPU code for the demos
 
         lea beasties,a0    ;set main screen to 16-bit
@@ -6134,7 +6264,7 @@ ppolyr:
 
         move.l #ppolydemo,demo_routine
         move.l #rrts,fx
-        bra mp_demorun  
+        bra mp_demorun
 
 
 ; *******************************************************************
@@ -6142,7 +6272,7 @@ ppolyr:
 ; Unused code
 ; *******************************************************************
 ppolyr2:
-; lea parrot,a0
+; lea parrot,a0 ; Load the GPU module in camel.gas.
 ;  jsr gpuload    ;load the GPU code for the demos
 
         lea beasties,a0    ;set main screen to 16-bit
@@ -6177,14 +6307,14 @@ ppolyr2:
         move #2,polspd1
         move #3,polspd2
         bsr ppolysize
-        bra mp_demorun  
+        bra mp_demorun
 
 ; *******************************************************************
 ; polyr2
 ; Unused code
 ; *******************************************************************
 polyr2:
-; lea parrot,a0
+; lea parrot,a0 ; Load the GPU module in camel.gas.
 ;  jsr gpuload    ;load the GPU code for the demos
 
         lea beasties,a0    ;set main screen to 16-bit
@@ -6214,7 +6344,7 @@ polyr2:
         move #383,d0
         move #239,d1
         bsr polysize
-        bra mp_demorun  
+        bra mp_demorun
 
 polysize:
         move d0,d2
@@ -6232,8 +6362,8 @@ polysize:
         move d1,28(a0)
         move d0,40(a0)
         move d1,42(a0)
-        move d1,48(a0)  
-        move d1,62(a0)  
+        move d1,48(a0)
+        move d1,62(a0)
         move #3,d4
 psize:
         move d2,12(a0)
@@ -6267,8 +6397,8 @@ ppolysi:
         move d1,34(a0)
         move d0,48(a0)
         move d1,50(a0)
-        move d1,58(a0)  
-        move d1,74(a0)  
+        move d1,58(a0)
+        move d1,74(a0)
         move #3,d4
 ppsize:
         move d2,16(a0)
@@ -6309,7 +6439,7 @@ makepyr:
         add d7,d1
         add d6,d2
         add d7,d3
-          
+
         move d2,centrx
         move d3,centry
         lea pypoly1,a0
@@ -6367,21 +6497,21 @@ makepyr:
 ppolydemo2:
         move.l #2,gpu_mode
         move.l #ppoly1,in_buf
-        lea parrot,a0
+        lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         move.l #ppoly2,in_buf
-        lea parrot,a0
+        lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         move.l #ppoly3,in_buf
-        lea parrot,a0
+        lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         move.l #ppoly4,in_buf
-        lea parrot,a0
+        lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 
         move polspd1,d0
         asr #4,d0
@@ -6447,24 +6577,25 @@ sintens:
 
 ; *******************************************************************
 ; polydemo2
+; Unused code
 ; *******************************************************************
 polydemo2:
         move.l #poly1,in_buf
-        lea xparrot,a0
+        lea xparrot,a0 ; Load the GPU module in 'xcamel.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         move.l #poly2,in_buf
-        lea xparrot,a0
+        lea xparrot,a0 ; Load the GPU module in 'xcamel.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         move.l #poly3,in_buf
-        lea xparrot,a0
+        lea xparrot,a0 ; Load the GPU module in 'xcamel.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         move.l #poly4,in_buf
-        lea xparrot,a0
+        lea xparrot,a0 ; Load the GPU module in 'xcamel.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 
         add #1,pongphase
         move pongxv,d0
@@ -6593,10 +6724,9 @@ xinc:
 ppolydemo:
         move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
-;  clr.l backg
-        lea fastvector,a0
+        lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 ppolyfb:
         move.l #testppoly,in_buf
         move.l #2,gpu_mode    ;mode to draw pretty poly
@@ -6605,9 +6735,9 @@ ppolyfb:
 ppollies:
         move d0,-(a7)
         bsr rtppoly
-        lea parrot,a0
+        lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do horizontal ripple warp
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         move (a7)+,d0
         dbra d0,ppollies
         rts
@@ -6683,7 +6813,7 @@ rtp:
         and #$3f,d0
         move d0,d5
         add #64,d5
-        
+
         jsr rannum
         add d6,d0
         and #$ff,d0
@@ -6758,7 +6888,7 @@ tilfb:
 ; Unused?
 ; *******************************************************************
 pyrfb:
-        move.l #0,gpu_mode
+        move.l #0,gpu_mode ; Op 0 is 'fline' in ox.gas.
         move.l #192,xcent
         move.l #120,d6
         add palfix2,d6
@@ -6779,11 +6909,11 @@ pyrfb:
         and.l #$ff,d0
         or #$01,d0
         move.l d0,(a0)+
-        move.l #bovine,a0
-        jsr gpurun    ;do it
-        jsr gpuwait
-        jsr WaitBlit
-        
+        move.l #bovine,a0 ; Load the GPU module in ox.gas.
+        jsr gpurun    ; Run the selected GPU module.
+        jsr gpuwait ; Wait for the GPU to finish.
+        jsr WaitBlit ; Wait for the blitter to finish.
+
 
         lea in_buf,a0      ;set up func/linedraw
         move.l #-$800000,(a0)+
@@ -6800,10 +6930,10 @@ pyrfb:
         and.l #$ff,d0
         or #$01,d0
         move.l d0,(a0)+
-        move.l #bovine,a0
-        jsr gpurun    ;do it
-        jsr gpuwait
-        jsr WaitBlit
+        move.l #bovine,a0 ; Load the GPU module in ox.gas.
+        jsr gpurun    ; Run the selected GPU module.
+        jsr gpuwait ; Wait for the GPU to finish.
+        jsr WaitBlit ; Wait for the blitter to finish.
 
         lea in_buf,a0      ;set up func/linedraw
         move.l #00000,(a0)+
@@ -6820,10 +6950,10 @@ pyrfb:
         and.l #$ff,d0
         or #$01,d0
         move.l d0,(a0)+
-        move.l #bovine,a0
-        jsr gpurun    ;do it
-        jsr gpuwait
-        jsr WaitBlit
+        move.l #bovine,a0 ; Load the GPU module in ox.gas.
+        jsr gpurun    ; Run the selected GPU module.
+        jsr gpuwait ; Wait for the GPU to finish.
+        jsr WaitBlit ; Wait for the blitter to finish.
 
         move pongx,d0
         move frames,d1
@@ -6849,6 +6979,7 @@ feedme:
 
 ; *******************************************************************
 ; feed
+; Unused code?
 ; *******************************************************************
 feed:
         bsr settrue
@@ -6863,12 +6994,13 @@ feed:
 
 ; *******************************************************************
 ; feedback
+; Unused code?
 ; *******************************************************************
 feedback:
         move.l #(PITCH1|PIXEL16|WID384),d0
         move.l d0,source_flags
         move.l d0,dest_flags
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l cscreen,(a0)    ;source screen is already-displayed screen
         move.l #384,4(a0)
         move.l #240,d0
@@ -6886,7 +7018,7 @@ feedback:
         move.l d0,20(a0)      ;initial angle in brads
         move pongyv,d0
         swap d0
-        clr d0  
+        clr d0
         move.l d0,24(a0)    ;source x centre in 16:16
         move pongzv,d0
         add palfix2,d0
@@ -6896,9 +7028,9 @@ feedback:
         move.l #$0,32(a0)    ;offset of dest rectangle
         move.l delta_i,36(a0)
         move.l #2,gpu_mode    ;op 2 of this module is Scale and Rotate
-        move.l #demons,a0
-        jsr gpurun      ;do it
-        jsr gpuwait
+        move.l #demons,a0 ; Load the GPU module in antelope.gas.
+        jsr gpurun      ; Run the selected GPU module.
+        jsr gpuwait ; Wait for the GPU to finish.
 
         move.b pad_now,d0
         and #$22,d0      ;check 2 buttons down (set delta i to 0)
@@ -6932,7 +7064,7 @@ skank00:
 
 skank0:
         btst.b #5,pad_now+2
-        beq skank  
+        beq skank
 
         lea dxscl,a0
         lea ixscl,a1
@@ -6962,7 +7094,7 @@ njoy:
         swap d1
         clr d1
         lsr.l #1,d1
-        add.l #$10000,d1 
+        add.l #$10000,d1
         move frames,pucnt    ;simulate pucnt in game
 
         move pongx,d2
@@ -7039,7 +7171,7 @@ rorota:
         move.l d1,in_buf+12
         move.l d1,in_buf+16    ;change scales
         rts        ;do it again
-        
+
 ; *******************************************************************
 ; scarper
 ; Unused code?
@@ -7097,9 +7229,9 @@ sner:
 
 
         move.l #5,gpu_mode    ;To make sine pattern screen
-        lea demons,a0
-        jsr gpurun      ;do it
-        jmp gpuwait  
+        lea demons,a0 ; Load the GPU module in antelope.gas.
+        jsr gpurun      ; Run the selected GPU module.
+        jmp gpuwait
 
 voxel:
         rts
@@ -7117,10 +7249,10 @@ drun:
 scapa:
         movem.l d0-d4,-(a7)
         bsr db        ;sync with frame int, receive new drawscreen base
-        bsr WaitBlit
+        bsr WaitBlit ; Wait for the blitter to finish.
         move.l demobank,a0
-        jsr gpurun      ;do it
-        jsr gpuwait
+        jsr gpurun      ; Run the selected GPU module.
+        jsr gpuwait ; Wait for the GPU to finish.
         move #1,screen_ready
         movem.l (a7)+,d0-d4
         move.l demo_routine,a0
@@ -7128,7 +7260,7 @@ scapa:
         btst.b #0,pad_now+1
 ;  bne fxsel      ;go select a new effect if player hits option
         bne mandy
-        bra scapa    
+        bra scapa
 
 ; *******************************************************************
 ; mp_demorun
@@ -7146,21 +7278,21 @@ mp_scapa:
         btst.b #0,pad_now+1
 ;  bne fxsel      ;go select a new effect if player hits option
         bne mandy
-        bra mp_scapa    
+        bra mp_scapa
 
 
 ; *******************************************************************
 ; attract
 ; Called periodically during attract mode to detect button presses
 ; and run whatever background attract mode is active, e.g. the yak head,
-; specified by demo_routine. 
+; specified by demo_routine.
 ; *******************************************************************
 attract:
         move #500,attime
 attr:
         clr ud_score
         move #1,screen_ready    ;as above, attract mode version
-        clr db_on    
+        clr db_on
         clr e_attract
         clr optpress
 ;  move pauen,_pauen
@@ -7181,7 +7313,7 @@ dbnce:
 intime:
         tst optpress
         bne gogx
-        tst z
+        tst z          ; Has the player done a hard reset?
         bne gogx
         tst e_attract
         bne arts
@@ -7193,7 +7325,7 @@ arts:
         clr _pauen
         move.l #rrts,routine
         move.l d0,selbutt
-        rts  
+        rts
 thang:
         bsr db        ;sync with frame int, receive new drawscreen base, do user routine
         move.l demo_routine,a0
@@ -7205,9 +7337,9 @@ mooocow:
         tst unpaused
         beq nunpa
         jsr eepromsave
-        clr unpaused  
+        clr unpaused
 nunpa:
-         move #1,screen_ready
+        move #1,screen_ready
         rts
 
 ; *******************************************************************
@@ -7219,7 +7351,7 @@ gogame:
         clr x_end
 gog:
         bsr thang
-        tst z
+        tst z          ; Has the player done a hard reset?
         bne gogx
         tst x_end
         beq gog
@@ -7435,11 +7567,12 @@ curset:
 
 ; *******************************************************************
 ; it
-; Invoked as '_demo'.
-; Start a demo game in attract mode
+; This is where the player's game is initiated from. After a bit of
+; setup it invokes the main game loop 'mainloop' via 'stdinit' for
+; single-player mode and via 'goin' for head-to-head mode.
+; Invoked as '_demo' from 'dloop'.
 ; *******************************************************************
-it:
-        move.l #$ff00,z_top    ;top intensity (z=1) **16 bits**
+it:     move.l #$ff00,z_top    ;top intensity (z=1) **16 bits**
         move.l #1300,z_max    ;(distance to 0-intensity)*4
         move.l #skore,score
         move #1,ud_score
@@ -7451,16 +7584,17 @@ it:
         tst lives
         bpl zarka
         move #1,finished
-        rts       ; was bra treset
-zarka:
-        bsr setlives
+        rts
+
+        ; Set up and play a single-player game.
+zarka:  bsr setlives
         bsr initobjects
         bsr setweb      ;the Web is not an object
-        tst h2h
-        beq stdinit      ;check for H2H mode
-h2hin:
-        bsr h2hclaws
+        tst h2h         ; Are we in head-to-head mode?
+        beq stdinit     ; If not, start a single-player game.
 
+        ; Set up and play a head-to-head game.
+h2hin:  bsr h2hclaws
         move.l gpu_screen,-(a7)
         move.l #screen3,gpu_screen
         jsr clearscreen
@@ -7477,9 +7611,8 @@ h2hin:
         move #$24,d4
         jsr makeit_trans    ;put up some TC screen for status display
 
-
-        move #19,d0    
-        move #20,d1  
+        move #19,d0
+        move #20,d1
         move #16,d6
         move #52,d7
         move.l #$40000,pc_1
@@ -7487,8 +7620,8 @@ h2hin:
         bsr makepyr      ;make a pyramid for hit points display
         jsr ppyr      ;draw that pyramid
 
-        move #19,d0    
-        move #20,d1  
+        move #19,d0
+        move #20,d1
         move #48,d6
         move #52,d7
         move.l #$840000,pc_1
@@ -7505,15 +7638,13 @@ h2hin:
         move #-1,_won
         move #8,afree
 
-
-        bra go_in      ;go do H2H mode
-        
+        bra go_in      ; Start the game and enter 'mainloop'.
 
 ; *******************************************************************
 ; stdinit
+; Initialize and start a single-player game.
 ; *******************************************************************
 stdinit:
-
         lea beasties+64,a0
         move.l #screen3,d2
         move #SIDE,d0
@@ -7529,21 +7660,22 @@ stdinit:
 
         move.l freeobjects,_claw
         move players,plc  ;player loop counter
-zipp:
-        move.l freeobjects,a6
+zipp:   move.l freeobjects,a6
         move plc,d7
         bsr setclaw    ;init claw object and put it on the web
         bsr insertobject
         bsr makedroid    ;init the droid
         sub #1,plc
         bne zipp
-go_in:
-        move.l #rotate_web,routine
+
+        ; The common entry point for single-player and head-to-head games.
+go_in:  move.l #rotate_web,routine
         move.l #0,warp_count
         move.l #draw_objects,mainloop_routine
         move pauen,_pauen
         clr db_on
-        bra mainloop
+        bra mainloop      ; Enter the mainloop until we lose a life.
+        ; Returns
 
 ; *******************************************************************
 ; setweb
@@ -7562,7 +7694,7 @@ setweb:
         move #1,(a0)+    ;STD draw
         lea 4(a0),a0    ;skip unused stuff
         move webcol,(a0)+    ;blue, the proper colour for a Tempest web
-        move #-2,(a0)+    ;scaler Big 2  
+        move #-2,(a0)+    ;scaler Big 2
 
 sweb:
         tst h2h
@@ -7653,11 +7785,11 @@ rsetw:
         move d1,d2
         sub #48,d2
         and #$0f,d1
-        add #48,d1    ;logical level no.    
+        add #48,d1    ;logical level no.
         swap d2
         clr d2
         lsr.l #7,d2
-        bra iwo   
+        bra iwo
 
 dontwrap:
         lea waves,a0         ; Store the waves array in a0.
@@ -7777,7 +7909,7 @@ painted:
 setp3:
         lsl #1,d3
         move d3,sflip_prob3
-        
+
 neveer:
         cmp #127,d1
         ble inrng0
@@ -7785,7 +7917,7 @@ neveer:
 inrng0:
         move d1,d2
         lsl #1,d2
-        move d2,sflip_prob2  
+        move d2,sflip_prob2
         cmp #63,d1
         ble inrnge
         move #63,d1
@@ -7826,11 +7958,11 @@ gnotpal:
 sass:
         move.l d0,shotspeed
         move.l d0,bshotspeed
-        bsr clzapa  
+        bsr clzapa
         tst t2k
         beq nt2k_reset
         move #$1c,bulland
-        move #7,bullmax  
+        move #7,bullmax
 nt2k_reset:
         rts
 
@@ -7856,6 +7988,9 @@ sfc_routine:
         move d0,36(A0)
         rts
 
+; *******************************************************************
+; Routines for each bonus level
+; *******************************************************************
 bonies:
         dc.l m7scr, _tunn, m7test2, _tunn
 
@@ -7868,18 +8003,20 @@ sweb0:
         beq swip1
         cmp #99,cwave
         blt wwoo
-        clr _pauen
-        clr pauen
-        move #1,term    ;quit if someone beat t2k
-        move #1,gb
-        rts  
-wwoo:
-        tst warpy
+
+        ; The player has beaten Tempest 2000!
+        clr _pauen      ; Disable pause
+        clr pauen       ; Disable pause
+        move #1,term    ; Signal to exit mainloop.
+        move #1,gb      ; Signal to allow beastly mode.
+        rts
+
+wwoo:   tst warpy
         bpl swip1
         move #2,warpy
         move.l #screen3,a0
         move #192,d0      ;Clear screen a0
-        clr d1  
+        clr d1
         move #192,d2
         move #32,d3
         move #$000,d4
@@ -7920,7 +8057,7 @@ abon1:
         clr d1
 abon2:
         move.b d2,(a0)    ;new score dig
-        dbra d0,addbon    ;loop all digits  
+        dbra d0,addbon    ;loop all digits
 sweb00:
         move.l #zoom3,routine
         move #1,sync
@@ -8007,26 +8144,26 @@ fields:
 circa:
         bsr slebon    ;set level bonus
 
-;  lea testmap,a1
-;  bra initmstarfield  ;mapped star field init
-
         clr.l d4
         move cwave,d4
         asl.l #8,d4
         asl.l #6,d4
         add.l #$60000,d4
-;  move.l #$72000,d4
         move.l d4,d5
         move cwave,d0
         and #$7f,d0
         add #$40,d0
         move d0,d7
         swap d7
-        bra ips
+        bra ips          ; Set up the starfield.
 
-slebon:
+; *******************************************************************
+; slebon
+; Set level bonus
 ;
 ; set level bonus at 5800+(level*100)
+; *******************************************************************
+slebon:
 
         clr.l lbonus
         clr.l lbonus+4
@@ -8059,15 +8196,10 @@ xleb2:
         tst d2
         bne xleb2
 
-;  tst d1
-;  beq dlebon
-;  bra xlebon
 dlebon:
         move.l #lbonus,score
-;  move #1,ud_score
         bra setcsmsg
         rts
-;  bra ashowscore    ;show level bonus as score
 
 ; *******************************************************************
 ; siney
@@ -8083,7 +8215,7 @@ siney:
 sinies:
         and #$ff,d0
         move d0,d4
-;  and #$01f,d4  
+;  and #$01f,d4
 ondd:
         add #$01,d4
         asl #1,d4
@@ -8099,9 +8231,14 @@ ondd:
         clr d5
         clr.l d6
         move.l #$400000,d7
+
+; *******************************************************************
+; ips
+; Indirect call for initpstarfield
+; *******************************************************************
 ips:
         bra initpstarfield
-        
+
 
 ; *******************************************************************
 ; makedroid
@@ -8138,6 +8275,7 @@ mkdroid:
 
 ; *******************************************************************
 ; rundroid
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 rundroid:
         clr whichclaw
@@ -8160,7 +8298,7 @@ always_2:
         tst locked
         bne nodfire
         tst shots+2
-        bmi nodfire    
+        bmi nodfire
         cmp #1,34(a6)
         bne nodfire
         sub #1,shots+2
@@ -8182,7 +8320,7 @@ movedroid:
         add.l d0,4(a6)
         move.l 24(a6),d0
         add.l d0,8(a6)      ;Move droid along its vector.
-        sub #1,44(a6)      ;dec timer, will fall thru to zero and seek a new targ.  
+        sub #1,44(a6)      ;dec timer, will fall thru to zero and seek a new targ.
         cmp #8,44(a6)      ;half way along the logical lane no. needs to change over
         bne rrts
         move 48(a6),16(a6)    ;do that very Thang
@@ -8229,8 +8367,8 @@ droim:
         move.l d5,24(a6)    ;store the vector
         move d0,48(a6)      ;dest channel-#
         move #16,44(a6)      ;# steps
-        rts  
-        
+        rts
+
 ; *******************************************************************
 ; lor
 ; left or right
@@ -8385,7 +8523,7 @@ set_rezclaw:
         move #$f000,36(a6)
         move #2,44(a6)
         move #17,54(a6)
-        move #0,34(a6)    
+        move #0,34(a6)
         move #-1,38(a6)
         move #0,52(a6)
         rts
@@ -8397,10 +8535,10 @@ set_rezclaw:
 make_bits:
         move.l #$00,d0      ;parameters for object - XYZ scale...
         move.l #$01,d1
-        move.l #$01,d2  
+        move.l #$01,d2
         move.l #0,d3      ;..local centre x,y,z...
         move.l #0,d4
-        move.l #0,d5  
+        move.l #0,d5
         clr.l d6
         clr d7
         lea ev,a1
@@ -8420,10 +8558,10 @@ make_bits:
         move.l a0,_pu
         move.l #$00,d0      ;parameters for object - XYZ scale...
         move.l #$01,d1
-        move.l #$01,d2  
+        move.l #$01,d2
         move.l #9,d3      ;..local centre x,y,z...
         move.l #9,d4
-        move.l #0,d5  
+        move.l #0,d5
         clr.l d6
         clr d7        ;standard stuff...
         lea shot,a1
@@ -8532,7 +8670,7 @@ make_claws:
         lea claws,a5
         move.l #$00,d0      ;parameters for object - XYZ scale...
         move.l #$01,d1
-        move.l #$01,d2  
+        move.l #$01,d2
         move.l #9,d3      ;..local centre x,y,z...
         move.l #9,d4
         move.l #0,d5
@@ -8543,7 +8681,7 @@ mclaws:
         clr d7
         move.l (a6)+,a1
         movem.l d0-d6,-(a7)
-        bsr make_vo3d  
+        bsr make_vo3d
         movem.l (a7)+,d0-d6
         move.l a0,(a5)+
         move (a7)+,d7
@@ -8606,10 +8744,10 @@ fire:
         tst szap_on
         bne rrts      ;someone smarted, but it's already happening
         clr p2smarted
-        and.l d0,d2      ;did player 2 smart?    
+        and.l d0,d2      ;did player 2 smart?
         beq snglsmart
         move #1,p2smarted    ;Player 2 smarted!
-        bra gsmart    
+        bra gsmart
 snglsmart:
         and.l d0,d1
         beq rrts
@@ -8629,15 +8767,15 @@ nmsg:
         move #7,sfx
         move #10,sfx_pri
         jsr fox
-        rts  
+        rts
 
 
 ; *******************************************************************
 ; h2hfrab
 ; *******************************************************************
 h2hfrab:
-        
-        move.l d0,-(a7)  
+
+        move.l d0,-(a7)
         move #1,sfx
         move #1,sfx_pri
         jsr fox
@@ -8673,6 +8811,7 @@ hfreeslot:
 
 ; *******************************************************************
 ; run_h2hshot
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_h2hshot:
         add #3,28(a6)    ;make it flicker
@@ -8687,7 +8826,7 @@ moomoomoo:
         move.l 56(a4),a4  ;p1's Shield
         move.l 56(a4),a4  ;p2's Shield
         cmp 12(a4),d0    ;check against the Shield
-        bmi np2sh    
+        bmi np2sh
         tst practise
         bne reflshot
         cmp 16(a4),d1
@@ -8699,13 +8838,13 @@ reflshot:
         move #$13,sfx
         move #3,sfx_pri
         jsr fox
-        bra moomoomoo  
+        bra moomoomoo
 np2sh:
         cmp #webz+81,12(a6)
         bmi rrts
 kllit:
         move.l 24(a6),a1
-        clr.l (a1)    
+        clr.l (a1)
         move #3,50(a6)
         rts
 upweb:
@@ -8725,7 +8864,7 @@ upweb:
         move #$13,sfx
         move #3,sfx_pri
         jsr fox
-        bra moomoomoo  
+        bra moomoomoo
 np1sh:
         cmp #webz-81,12(a6)
         bmi kllit
@@ -8763,7 +8902,7 @@ showwin:
         clr.l d0
         move.l #$8000,d1
         bra setmsg
-        
+
 bunce_p2:
         add #1,r_sc
         move #1,r_ud
@@ -8787,35 +8926,35 @@ p2_prac:
 ; *******************************************************************
 frab:
         move.l _shot,d5
-        
+
 frab0:
-        move.l freeobjects,a0    ;address of new shot
+        move.l freeobjects,a0   ;address of new shot
         lea bulls,a3
 goaty:
         move bully,d0
         move bulland,d1
         and d1,d0
-        lea 0(a3,d0.w),a2    ;point to this bulls slot
+        lea 0(a3,d0.w),a2       ;point to this bulls slot
         move.l (A2),d0
         beq freeslot
         add #4,bully
-        bra goaty      ;find 1
+        bra goaty               ;find 1
 freeslot:
         add #4,bully
-        move.l a0,(a2)      ;store address of this bull
-        move.l a2,24(a0)    ;store slot addr. in bull
-        move.l d5,(a0)    ;header of shot data
+        move.l a0,(a2)          ;store address of this bull
+        move.l a2,24(a0)        ;store slot addr. in bull
+        move.l d5,(a0)          ;header of shot data
         move.l 4(a1),4(a0)
         move.l 8(A1),8(a0)
         move.l 12(a1),12(a0)    ;XYZ same as claw
         move.l 16(a1),16(a0)    ;Web position from claw
         clr.l 28(a0)
-        clr 32(a0)      ;Zero roll, pitch and yaw
-        move #1,34(a0)      ;Std. draw
-        move #$88,40(a0)    ;Colour
-        move #1,42(a0)      ;Fine rez
-        move d7,32(a0)      ;bullet ID (player ownership) changed from 44() to 32()
-        move.l #1,52(a0)    ;not alien and Type
+        clr 32(a0)              ;Zero roll, pitch and yaw
+        move #1,34(a0)          ;Std. draw
+        move #$88,40(a0)        ;Colour
+        move #1,42(a0)          ;Fine rez
+        move d7,32(a0)          ;bullet ID (player ownership) changed from 44() to 32()
+        move.l #1,52(a0)        ;not alien and Type
         tst blanka
         bne oaafire
         move #1,sfx
@@ -8837,7 +8976,7 @@ konk:
 ;  move #10,34(a0)    ;pixex draw
         move.l d3,42(a0)  ;initial pixel expansion
         move.l d0,36(a0)
-        move.l d1,46(a0)  
+        move.l d1,46(a0)
         move.l d2,20(a0)
         tst laser_type
         bne oaafire2
@@ -8870,7 +9009,7 @@ make_h2hball:
         move #1,34(a0)
         move.l #-18,(a0)
         clr.l 50(a0)
-        bsr rannum  
+        bsr rannum
         sub #$80,d0
         move d0,22(a0)      ;Direction to move, + or -
         move #$0404,24(A0)    ;Speed of motion
@@ -8882,6 +9021,7 @@ make_h2hball:
 
 ; *******************************************************************
 ; run_h2hball
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_h2hball:
         add #3,30(a6)
@@ -8891,7 +9031,7 @@ run_h2hball:
         sub #1,18(a6)
 inspr:
         move 20(a6),d0
-        lea h2hballmodes,a0  
+        lea h2hballmodes,a0
         lsl #2,d0
         move.l 0(a0,d0.w),a0
         jsr (a0)
@@ -8961,11 +9101,12 @@ make_h2hgen:
         clr.l 50(a0)
         move #33,54(a0)
         move.l a0,a6
-        bsr toweb  
+        bsr toweb
         bra insertobject
 
 ; *******************************************************************
 ; run_h2hgen
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_h2hgen:
         add #1,28(a6)
@@ -9004,7 +9145,7 @@ gstartmove:
         move d5,d7      ;preserve midpoint of our channel
 gsmove:
         tst 22(a6)
-        bmi gleft  
+        bmi gleft
         bsr r_webinfo
         bra ggot
 gleft:
@@ -9034,7 +9175,7 @@ nuchan:
         move d0,46(a6)      ;dest channel-#
         move #16,44(a6)      ;# steps
         move #1,20(a6)      ;mode to Do Motion
-        rts  
+        rts
 
 ; *******************************************************************
 ; gmove
@@ -9092,10 +9233,11 @@ arse:
 
 ; *******************************************************************
 ; player_shot
-; *******************************************************************
-player_shot:
 ;
 ; move a standard Tempest player's shot
+; A member of the run_vex list.
+; *******************************************************************
+player_shot:
 
         add #8,28(a6)      ;spin it
         add.b #$30,41(a6)    ;make it flash
@@ -9104,11 +9246,15 @@ player_shot:
         cmp #webz+80,12(a6)
         blt rrts
         move.l 24(a6),a1
-        clr.l (a1)    
+        clr.l (a1)
+
+; *******************************************************************
+; kill_shot
+; Called during the run_objects sequence as a member of the run_vex list.
+; *******************************************************************
 kill_shot:
         move.l a6,a0
         move #3,50(a6)      ;tell FG to unlink
-;  bra unlinkobject  
         rts
 
 xshot:
@@ -9129,7 +9275,7 @@ alienfire:
         move.b a_firerate+1,a_firerate
 afid:
         cmp #-2,wave_tim
-        beq rrts  
+        beq rrts
         tst ashots
         bmi rrts
         cmp #webz-20,12(a6)
@@ -9141,9 +9287,6 @@ afid:
         clr 20(a0)
         tst blanka
         beq vfyre
-;  bsr rannum
-;  cmp sflip_prob1,d0
-;  bmi slongfur  
         move.l #-3,d0
         bra vfyre
 slongfur:
@@ -9167,16 +9310,15 @@ vfyre:
 
 ; *******************************************************************
 ; run_ashot
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_ashot:
         add #4,28(a6)    ;spin the shot
         add.b #$30,41(a6)    ;make it flash
         move.l ashot_zspeed,d0
         sub.l d0,12(a6)      ;move up the z-axis
-;  tst 44(a6)
-;  bne rash1
         bsr xzcollie
-        bne kill_ashot    
+        bne kill_ashot
         move #webz-80,d0
         tst 20(a6)
         beq chove
@@ -9208,11 +9350,11 @@ rash1:
 
 kill_ashot:
         add #1,ashots
-        bra killme  
+        bra killme
 
 ouch:
         clr l_soltarg
-        clr.l 20(a0)      ;stop Claw moving  
+        clr.l 20(a0)      ;stop Claw moving
         tst lives
         beq ouch1p
         cmp #2,players
@@ -9221,10 +9363,9 @@ ouch:
         move #0,52(a0)
         bra ow
 
-ouch1p:
-        move.l #zap_player,routine
-ow:
-        move.l _zap,(a0)    ;Claw shape to zap
+ouch1p: move.l #zap_player,routine
+
+ow:     move.l _zap,(a0)    ;Claw shape to zap
         clr 36(a0)
         bsr clzapa
         clr laser_type
@@ -9243,7 +9384,7 @@ tsphkillme:
 sphkillme:
         move #1,48(a6)
 ospher:
-        bsr rannum  
+        bsr rannum
         and #$f,d0
         lsl #4,d0
         move d0,46(a6)
@@ -9267,7 +9408,7 @@ killme:
         bra sphkillme
 
 ;##### New shit
-        
+
         clr 48(a6)
 kime:
         move #0,54(a6)
@@ -9277,6 +9418,7 @@ kime:
 
 ; *******************************************************************
 ; changex
+; Called during the draw_objects sequence as a member of the draw_vex list.
 ; *******************************************************************
 changex:
         bsr webinfo
@@ -9319,7 +9461,7 @@ nobobo:
         move bonum,46(a6)
         move.l #-10,(a6)
         clr 52(a6)
-        move #25,54(a6)    ;type PUP  
+        move #25,54(a6)    ;type PUP
         cmp #3,cwave
         bgt noidiot
         lea pupmes,a0
@@ -9361,12 +9503,13 @@ xpixex:
         move #22,54(a6)
         move.l d3,42(a6)  ;initial pixel expansion
         move.l d0,36(a6)
-        move.l d1,46(a6)  
+        move.l d1,46(a6)
         move.l d2,20(a6)
         rts
 
 ; *******************************************************************
 ; run_pup
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_pup:
         tst 48(a6)
@@ -9377,7 +9520,7 @@ domopup:
         cmp #$0a,44(a6)
         bne xtoend
         bsr checlane_only
-        bne notonl  
+        bne notonl
         move 12(a6),d0
         sub 12(a0),d0
         bmi notonl
@@ -9394,19 +9537,19 @@ doita:  move #9,sfx
         cmp #1,dnt
         bne stdpu1
         move #-1,dnt
-        move #$0b,44(a6)  
+        move #$0b,44(a6)
         lea puptxt2,a0
         clr.l d0
         move.l #$8000,d1
         bsr setmsg
         bra adenoid    ;Get the early Droid if we got this
-        
+
 stdpu1:
         cmp #-2,wave_tim  ;if we are zooming give a droid next time
         bne stdpu
         tst dnt
         bne agdroid
-        move #$0b,44(a6)  
+        move #$0b,44(a6)
         lea drtxt,a0
         clr.l d0
         move.l #$8000,d1
@@ -9451,12 +9594,12 @@ juju:
         bsr setmsg    ;display text on messager
 
 ;  move 46(a6),d0
-        move bonum,d0  
+        move bonum,d0
         lea pupvex,a0
         asl #2,d0
         move.l 0(a0,d0.w),a0
         jsr (a0)    ;do powerup thang for this type
-        move #$0b,44(a6)  
+        move #$0b,44(a6)
         bra badd
 notonl:
         sub.l #$18000,12(a6)
@@ -9487,15 +9630,15 @@ suprise:
         move #1,inf_zap    ;Infinite zapper yeah!
 
 ; *******************************************************************
-; "Get outtah here!" Skips to the next level? 
+; "Get outtah here!" Skips to the next level?
 ; Only called when cheat is enabled.
 ; *******************************************************************
 douttah:
         lea ohtxt,a0     ; Set message to "Outtah here!"
-        clr.l d0         ; Set message x position. 
+        clr.l d0         ; Set message x position.
         move.l #$8000,d1 ; Set message y position.
         bsr setmsg       ; Set message.
-        move #1,outah    ; 
+        move #1,outah    ;
         move #13,d0      ; Give 3,000 points.
         jsr doscore      ; Update score.
         move.l #pic,a2      ; Select beasty3.cry
@@ -9512,7 +9655,7 @@ bonnk:  move.l #pic5,a2
         move.l #$4100c5,d1
         jsr any_pixex
         move #12,d0
-        jmp doscore    ;give 2,000 points 
+        jmp doscore    ;give 2,000 points
 
 ; *******************************************************************
 ; hilaser
@@ -9523,7 +9666,7 @@ hilaser:
         move.l #$48000,d0
         tst pal
         beq onopal
-        move.l #$56666,d0  
+        move.l #$56666,d0
 
 onopal:
         move #$0202,48(a0)
@@ -9578,9 +9721,9 @@ sprzap:
         bmi knibble
         sub #1,warpy
 knibble:
-        move.l #pic,a2
-        move.l #$6e0089,d0
-        move.l #$2a00b2,d1
+        move.l #pic,a2      ; Select beasty3.cry
+        move.l #$6e0089,d0  ; Snip out the x pos for the 'Excellent' graphic
+        move.l #$2a00b2,d1  ; Snip out the y pos for the 'Excellent' graphic
         jsr any_pixex
         move #21,sfx
         move #90,sfx_pri
@@ -9588,7 +9731,7 @@ knibble:
         move #21,sfx
         move #90,sfx_pri
         jsr fox
-        move #1,szap_on  
+        move #1,szap_on
         tst szap_avail
         bpl rrts
         clr szap_avail
@@ -9596,6 +9739,7 @@ knibble:
 
 ; *******************************************************************
 ; xr_pixex
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 xr_pixex:
         sub.l #$8000,24(a6)
@@ -9605,9 +9749,10 @@ xr_pixex:
         move.l 24(a6),d0
         add.l d0,12(a6)
         rts
-        
+
 ; *******************************************************************
 ; run_pixex
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_pixex:
         move.l 20(a6),d0
@@ -9621,6 +9766,7 @@ run_pixex:
 
 ; *******************************************************************
 ; run_prex
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_prex:
         add #1,44(a6)
@@ -9649,6 +9795,7 @@ vectorzap:
 
 ; *******************************************************************
 ; run_zap
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_zap:
         sub #1,42(a6)      ;expand it
@@ -9670,7 +9817,7 @@ make_adroid:
         tst afree
         bmi rrts
         sub #1,afree
-        
+
         move.l freeobjects,a0
         move web_max,d1
         jsr rand
@@ -9701,6 +9848,7 @@ make_adroid:
 
 ; *******************************************************************
 ; run_adroid
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_adroid:
         sub #2,28(a6)    ;rotate the adroid
@@ -9736,7 +9884,7 @@ zappage:
         move.b 19(a6),18(a6)
         clr 20(a6)
 nzppa:
-        rts  
+        rts
 
 uppweb:
         jsr mcollie
@@ -9853,10 +10001,14 @@ ipix:
 flipmodes:
         dc.l rail,flipto,stopped
 
+; *******************************************************************
+; run_flipper
+; Called during the run_objects sequence as a member of the run_vex list.
+; *******************************************************************
 run_flipper:
 ;
 ; move the Flipper enemy
-        
+
         tst _sz
         beq flipok
         bmi flipok
@@ -9896,7 +10048,7 @@ beastrail:
         move.l 24(a4),a1
         clr.l (a1)    ;...clear its bull table
         rts
-        
+
 
 
 h2hrail:
@@ -9909,7 +10061,7 @@ h2hrail:
         cmp #webz+80,12(a6)
         blt rrts
         move #webz+80,12(A6)
-        bra sra  
+        bra sra
 
 
 
@@ -9944,7 +10096,7 @@ fspesh0:
         sub.b #1,46(a6)
         bpl flipto1
         move.b 47(a6),46(a6)
-;  bsr afid      ;try to Fire more often  
+;  bsr afid      ;try to Fire more often
 flipto1:
         move 20(a6),d0
         add d0,28(a6)      ;rotate (only for flipping Flippers)
@@ -9975,10 +10127,10 @@ possie:
         bgt flipcolyou      ;Nope
         bsr collie
         bne fkillme      ;Zap, baby
-        rts   
+        rts
 flipcolyou:
         move 38(a6),d0
-        bmi rrts    ;Not if out of a tanker  
+        bmi rrts    ;Not if out of a tanker
         tst h2h
         beq ucolyou
         bsr h2hclan
@@ -9986,7 +10138,7 @@ flipcolyou:
 h2hgotu:
         move.l a0,a4
         jsr h2hckill
-        jmp fkillme   
+        jmp fkillme
 
 ucolyou:
         move players,d1
@@ -10014,7 +10166,7 @@ h2hclan:
         move.l 56(a0),a0  ;get claw 2
 h2hcol1:
         cmp 16(a0),d0    ;same lane? (If in this phase they are already on the web end)
-        rts  
+        rts
 
 chchc:
         move players,d1
@@ -10095,17 +10247,17 @@ sustop1:
         cmp #2,24(a6)      ;if not wrapped Web (stopped Flipper reached edge)...
         bne rrts
         jmp flip_set_right
-        
+
 gclock:
         sub #1,48(a6)
         jsr flip_set_right
         cmp #2,24(a6)
         bne rrts
         jmp flip_set_left
- 
+
 stdstop:
         bsr collie      ;Coll det
-        bne fkillme  
+        bne fkillme
         tst 38(a6)
         bpl stoplgl
         cmp #-2,38(a6)
@@ -10117,7 +10269,7 @@ stdstop:
 stoplgl:
         bsr checlane
         bne notgt
-        tst h2h 
+        tst h2h
         beq gotu
         bra h2hgotu
 notgt:
@@ -10212,7 +10364,7 @@ toclaw1:
         jmp (a2)  ;Flip to claw 1.
 toclaw2:
         jmp (a1)  ;Flip to claw 2.
-        
+
 uflipset:
         move.l _claw,a0
 luff:
@@ -10284,7 +10436,7 @@ flip_set_left:
 
 zzzz:
         move #2,24(a6)      ;stop a Flipper
-        move #0,36(a6)      ;restore default x-centre    
+        move #0,36(a6)      ;restore default x-centre
 zz:
         move.l #zzzz,a1
         move #500,d1
@@ -10338,7 +10490,7 @@ flip_set_right:
         bne fset3      ;special if web is connected
         bra flip_set_left
         move #2,24(a6)      ;stop a Flipper
-        move #0,36(a6)      ;restore default x-centre    
+        move #0,36(a6)      ;restore default x-centre
         rts
 
 fset3:
@@ -10412,10 +10564,10 @@ vft:
 
 ; *******************************************************************
 ; make_tanker
-; *******************************************************************
-make_tanker:
 ;
 ; Make an enemy of type FLIPPER TANKER
+; *******************************************************************
+make_tanker:
 
         tst blanka
         beq mtv
@@ -10449,11 +10601,11 @@ maketank:
         move #5,54(a0)      ;Type
         move.l a0,a6
         bsr toweb      ;Attach the Tanker to the web
-;  bra insertobject
         bra ipix
 
 ; *******************************************************************
 ; run_tanker
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_tanker:
         bsr collie      ;Coll det
@@ -10485,6 +10637,9 @@ opentanker:
 tankercontents:
         dc.l openflippers,openfuseballs,openpulsars
 
+; *******************************************************************
+;openflippers
+; *******************************************************************
 openflippers:
         move.l a6,a5    ;mummy's address save
         move.l freeobjects,a6
@@ -10525,7 +10680,7 @@ suprf1:
         move #3,44(a6)    ;Sflipper 3
         move #$0404,46(a6)  ;fire rate when activated
         move.l #-22,(a6)
-        rts  
+        rts
 
 newflipper:
         move.l 4(a5),4(a6)
@@ -10552,6 +10707,9 @@ nfvv:
         move.l a6,a0
         bra insertobject
 
+; *******************************************************************
+; openfuseballs
+; *******************************************************************
 openfuseballs:
         move.l a6,a5    ;mummy's address save
         move.l freeobjects,a6
@@ -10594,27 +10752,30 @@ nufu:
         move.l a6,a0
         bra insertobject
 
+; *******************************************************************
+; openpulsars
+; *******************************************************************
 openpulsars:
-        move.l a6,a5    ;mummy's address save
+        move.l a6,a5            ;mummy's address save
         move.l freeobjects,a6
-        bsr newflipper      ;new flipper in this lane
+        bsr newflipper          ;new flipper in this lane
         bsr flip_set_right
         move.l _pus+12,d0
         tst blanka
         beq vop
         move.l #-5,d0
 vop:
-        move.l d0,(a6)    ;header is a Pulsar
-        move #-1,26(a6)    ;No delay
-        move #$ff,40(a6)    ;and Pulsars are yellow
-        move #-2,38(a6)      ;tells it to stop Flipping after one flip and change into a Pulsar
+        move.l d0,(a6)          ;header is a Pulsar
+        move #-1,26(a6)         ;No delay
+        move #$ff,40(a6)        ;and Pulsars are yellow
+        move #-2,38(a6)         ;tells it to stop Flipping after one flip and change into a Pulsar
         move.l freeobjects,a6
         move.l d0,-(a7)
         bsr newflipper
         bsr flip_set_left
         move.l (a7)+,d0
         move.l d0,(a6)
-        move #-1,26(a6)    ;No delay
+        move #-1,26(a6)         ;No delay
         move #$ff,40(a6)
         move #-2,38(a6)
         move.l a5,a6
@@ -10681,6 +10842,10 @@ uspike:
         sub #1,noclog
         bra insertobject
 
+; *******************************************************************
+; run_spike
+; Called during the run_objects sequence as a member of the run_vex list.
+; *******************************************************************
 run_spike:
         move 12(a6),d0
         move d0,-(a7)    ;save our z pos
@@ -10693,7 +10858,7 @@ run_spike:
 nospf:
 
         cmp #-2,wave_tim      ;are we zooming?
-        bne rspik1 
+        bne rspik1
         cmp.l #zoom1,routine
         bne rspik2
 ;  move.l _claw,a0
@@ -10758,11 +10923,10 @@ decspike:
 ; make a spiker, in a random Lane
 ; *******************************************************************
 make_spiker:
-
         tst afree
         bmi rrts
         tst max_spikers
-        bmi zrts    ;zero return wont hang the wave sequencer
+        bmi zrts                ;zero return wont hang the wave sequencer
         sub #1,afree
         sub #1,max_spikers
         move.l freeobjects,a0
@@ -10771,16 +10935,16 @@ make_spiker:
         clr 14(a0)
         move web_max,d1
         bsr rand
-        move d0,16(a0)    ;initial webpos of this spiker
-        clr.l 30(a0)      ;clear Y and Z rotate
-        move #1,34(a0)      ;standard draw
-        move #143,40(a0)    ;Spikers are GREEN
-        move #1,42(a0)      ;Fine rez
-        move #1,52(a0)      ;does count as an enemy in the wave-end check.
-        move #7,54(a0)      ;Type=RUN_SPIKER
-        clr 44(a0)      ;Spiker mode = Go to new spike
+        move d0,16(a0)          ;initial webpos of this spiker
+        clr.l 30(a0)            ;clear Y and Z rotate
+        move #1,34(a0)          ;standard draw
+        move #143,40(a0)        ;Spikers are GREEN
+        move #1,42(a0)          ;Fine rez
+        move #1,52(a0)          ;does count as an enemy in the wave-end check.
+        move #7,54(a0)          ;Type=RUN_SPIKER
+        clr 44(a0)              ;Spiker mode = Go to new spike
         move.l a0,a6
-        bsr toweb      ;Attach the Spiker to the web
+        bsr toweb               ;Attach the Spiker to the web
         bra insertobject
 
 spiker_vex:
@@ -10788,6 +10952,7 @@ spiker_vex:
 
 ; *******************************************************************
 ; run_spiker
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_spiker:
         add #4,28(a6)    ;He spins
@@ -10803,94 +10968,100 @@ sfkillme:
         add #1,max_spikers
         bra fkillme
 
+; *******************************************************************
+; newspike
+; *******************************************************************
 newspike:
-        lea spikes,a0    ;Pointer to table of existing spikes.
-        lea spikescratch,a1  ;Some scratch ram to build up a table.
-        clr d1      ;A counter of as-yet-clear lanes.
-        move #200,d2    ;A variable which holds the current shortest spike found.
-        clr d0    ;Total # of lanes spikes can go in.
+        lea spikes,a0              ;Pointer to table of existing spikes.
+        lea spikescratch,a1        ;Some scratch ram to build up a table.
+        clr d1                     ;A counter of as-yet-clear lanes.
+        move #200,d2               ;A variable which holds the current shortest spike found.
+        clr d0                     ;Total # of lanes spikes can go in.
 
 nuspik:
-        move.l (a0),d4    ;Get next spike table entry
-        bne is_spike    ;Non zero if it is a spike
-        add #1,d1    ;inc free spikes ctr
-        move d0,(a1)+    ;spike number to scratch ram
-        bra nxtspik    ;jump past is_spike
+        move.l (a0),d4             ;Get next spike table entry
+        bne is_spike               ;Non zero if it is a spike
+        add #1,d1                  ;inc free spikes ctr
+        move d0,(a1)+              ;spike number to scratch ram
+        bra nxtspik                ;jump past is_spike
 
 is_spike:
         move.l d4,a2
-        cmp 36(a2),d2    ;compare length of indicated spike with current shortest
-        blt nxtspik    ;not as short, ignore
-        move.l a2,a3    ;save the address of the shorter spike
-        move 36(a2),d2    ;make it the current shortest
+        cmp 36(a2),d2              ;compare length of indicated spike with current shortest
+        blt nxtspik                ;not as short, ignore
+        move.l a2,a3               ;save the address of the shorter spike
+        move 36(a2),d2             ;make it the current shortest
 
 nxtspik:
-        lea 4(a0),a0    ;next spiketable entry
+        lea 4(a0),a0               ;next spiketable entry
         add #1,d0
         cmp web_max,d0
         blt nuspik
-        bne nuspik    ;loop for all possible spikes on this web.
-        tst d1      ;were there any lanes without spikes?
-        bne setnewspike    ;yes, go and make one
+        bne nuspik                 ;loop for all possible spikes on this web.
+        tst d1                     ;were there any lanes without spikes?
+        bne setnewspike            ;yes, go and make one
 gotospike:
-        move.l 16(a3),16(a6)  ;get the web pos of the chosen spike
-        move #1,44(a6)    ;mode to climb
-        move.l a3,24(a6)  ;save the address of 'our' spike
-        move spiker_build,36(a6)  ;amount of building to do
-        bra toweb    ;fix in position and go.
+        move.l 16(a3),16(a6)       ;get the web pos of the chosen spike
+        move #1,44(a6)             ;mode to climb
+        move.l a3,24(a6)           ;save the address of 'our' spike
+        move spiker_build,36(a6)   ;amount of building to do
+        bra toweb                  ;fix in position and go.
 
 setnewspike:
-        tst afree    ;**CHECK** to see if there is a free slot to build a spike in.
+        tst afree                  ;**CHECK** to see if there is a free slot to build a spike in.
         bpl nuspik1
-        cmp #200,d2    ;check to see if there are already other spikes
-        bne gotospike    ;go and lengthen another instead
+        cmp #200,d2                ;check to see if there are already other spikes
+        bne gotospike              ;go and lengthen another instead
 
 aoff:
-;  add #1,afree
-        move #1,50(a6)      ;tell FG to unlink
+        move #1,50(a6)             ;tell FG to unlink
         rts
-;  move.l a6,a0
-;  bra unlinkobject  ;Remove self if none free and no other spikes (should be rare)
 
 nuspik1:
         sub #1,d1
-        bsr rand    ;d1 already has # of free spikes
-        asl #1,d0    ;to point to the words, in scratch ram
+        bsr rand                   ;d1 already has # of free spikes
+        asl #1,d0                  ;to point to the words, in scratch ram
         lea spikescratch,a1
-        move 0(a1,d0.w),d1  ;get lane number
-        move d1,d0    ;for init
-        asl #2,d1    ;make it point to longs
+        move 0(a1,d0.w),d1         ;get lane number
+        move d1,d0                 ;for init
+        asl #2,d1                  ;make it point to longs
         lea spikes,a1
-        lea 0(a1,d1.w),a1  ;point to free spike table entry
-        bsr make_spike    ;init a new spike
+        lea 0(a1,d1.w),a1          ;point to free spike table entry
+        bsr make_spike             ;init a new spike
         move.l a0,a3
-        bra gotospike    ;go to the spike
+        bra gotospike              ;go to the spike
 
+; *******************************************************************
+; climbspike
+; *******************************************************************
 climbspike:
         bsr alienfire
         move.l spiker_zspeed,d0
-        sub.l d0,12(a6)    ;move up
+        sub.l d0,12(a6)           ;move up
         cmp #webz-70,12(a6)
         blt sdesc
-        move.l 24(a6),a0  ;address of 'our' spike
-        move 36(a0),d2    ;current spike height
+        move.l 24(a6),a0          ;address of 'our' spike
+        move 36(a0),d2            ;current spike height
         move #webz+80,d1
-        sub 12(a6),d1    ;our height
-        sub d2,d1    ;compare with our z
-        ble rrts    ;we higher than the spike yet
-        add.l 36(a0),d0    ;inc spike
+        sub 12(a6),d1             ;our height
+        sub d2,d1                 ;compare with our z
+        ble rrts                  ;we higher than the spike yet
+        add.l 36(a0),d0           ;inc spike
         swap d0
-        cmp #150,d0    ;max allowed spike length
+        cmp #150,d0               ;max allowed spike length
         bge nolonger
         swap d0
-        move.l d0,36(a0)  ;store longer spike
+        move.l d0,36(a0)          ;store longer spike
 nolonger:
-        sub #1,36(a6)    ;dec build duration
+        sub #1,36(a6)             ;dec build duration
         bpl rrts
 sdesc:
-         move #2,44(a6)    ;set to descend
+        move #2,44(a6)           ;set to descend
         rts
 
+; *******************************************************************
+; descendspike
+; *******************************************************************
 descendspike:
         bsr alienfire
         move.l spiker_zspeed,d0
@@ -10900,7 +11071,7 @@ descendspike:
         move #webz+80,12(a6)
         clr 14(a6)
         clr 44(a6)    ;mode back to seek new spike
-        rts   
+        rts
 
 ; *******************************************************************
 ; make_mirr
@@ -10930,6 +11101,7 @@ make_mirr:
 
 ; *******************************************************************
 ; rumirr
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 rumirr:
         add #1,28(a6)
@@ -10945,7 +11117,7 @@ gomirr:
         move.l 20(a6),d0
         lsl.l #4,d0
         add.l d0,12(a6)    ;moves mirror up the Web when shot
-        cmp #webz+80,12(a6)  
+        cmp #webz+80,12(a6)
         bgt blowmeaway
 
 ;  tst afree
@@ -10967,6 +11139,10 @@ gomirr:
         clr.l (a1)    ;clear the entry in the Bull Lable
         rts
 
+; *******************************************************************
+; refsht2
+; Called during the run_objects sequence as a member of the run_vex list.
+; *******************************************************************
 refsht2:
         add #4,28(a6)
         jsr colok    ;absorbs non powered up shots, falls thru to standard refshot, no smart bomb
@@ -10974,14 +11150,18 @@ refsht2:
         asr.l #1,d0
         bra reshh
 
+; *******************************************************************
+; refsht
+; Called during the run_objects sequence as a member of the run_vex list.
+; *******************************************************************
 refsht:
         move.l shotspeed,d0
 reshh:
         sub.l d0,12(a6)    ;move towards player!
-        jsr checlane  
+        jsr checlane
         beq shouch    ;kill player by shot if we got him
         cmp #1,12(a6)
-        bpl rrts  
+        bpl rrts
         move #3,50(a6)    ;give player back his shot
         rts
 
@@ -11035,6 +11215,7 @@ fuse_vex:
 
 ; *******************************************************************
 ; run_fuseball
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_fuseball:
         tst _sz
@@ -11100,7 +11281,7 @@ frrr:
         cmp d2,d1
         blt set_fuseright
         bra set_fuseleft
-        
+
 
 ; *******************************************************************
 ; set_fuseleft
@@ -11153,7 +11334,7 @@ set_fuseright:
         move.l d3,24(a6)    ;store motion vector
         move #15,36(a6)      ;step counter
         move #1,44(a6)      ;set mode to cross rail
-        move #1,38(a6)      ;change lanes after crossing! 
+        move #1,38(a6)      ;change lanes after crossing!
         rts
 
 ; *******************************************************************
@@ -11260,6 +11441,7 @@ topulsar:
 
 ; *******************************************************************
 ; run_pulsar
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_pulsar:
         lea _pus,a0
@@ -11346,7 +11528,7 @@ lanetop:
         move #1,46(a6)    ;direction of propagation
         move.l a6,-(a7)
         move.l freeobjects,a0  ;pick up new object
-        move.l (a6),(a0)  ;get header of original 
+        move.l (a6),(a0)  ;get header of original
         move #23,54(a0)
         move prop_del,44(a0)
         move #-1,46(a6)    ;set Pspark stuff on new entity
@@ -11364,6 +11546,7 @@ lanetop:
 
 ; *******************************************************************
 ; run_pspark
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_pspark:
         bsr checlane
@@ -11432,6 +11615,7 @@ ntfx:   move (a7)+,d0
 
 ; *******************************************************************
 ; any_pixex
+; Display the 'Excellent' graphic.
 ; *******************************************************************
 any_pixex:
         tst ofree
@@ -11458,7 +11642,7 @@ any_pixex:
         bsr insertobject
         move.l (a7)+,a6
         rts
-        
+
 
 ; *******************************************************************
 ; vecbons
@@ -11510,7 +11694,7 @@ do_oneup:
 
         tst noxtra        ; Extra points?
         bne rrts          ; No, return.
-        move #50,holiday  ; Is this a temporar invulnerability to bullets? 
+        move #50,holiday  ; Is this a temporar invulnerability to bullets?
         move #1,ud_score  ; Prevent score from being updated for a short time?
         tst ofree         ; Free object?
         bmi rrts          ; No, return.
@@ -11538,7 +11722,7 @@ do_oneup:
         clr 52(a0)             ; Set it not be an enemy
         move #150,46(a0)       ; Set the duration
 
-        tst blanka             ; 
+        tst blanka             ;
         beq veconeup           ; Insert it as object type oblow.
         move #7,34(a0)         ; Set the object type to draw_oneup.
 
@@ -11548,14 +11732,21 @@ veconeup:
 
 ; *******************************************************************
 ; oblow
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 oblow:  add.b #$10,41(a6)    ;Makes oneups flash
 
 ; *******************************************************************
 ; blowaway
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 blowaway:
         sub #$40,36(a6)
+
+; *******************************************************************
+; oblow2
+; Called during the run_objects sequence as a member of the run_vex list.
+; *******************************************************************
 oblow2: sub #1,12(a6)
         move.l 20(a6),d0
         add.l d0,4(a6)
@@ -11575,6 +11766,7 @@ bum:    illegal
 ; *******************************************************************
 ; go_downc
 ; two player Claw going down
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 go_downc:
 
@@ -11588,6 +11780,7 @@ llost:
 
 ; *******************************************************************
 ; loiter
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 loiter:
         tst dying
@@ -11605,10 +11798,11 @@ killp2:
 
 ; *******************************************************************
 ; go_downf
-; *******************************************************************
-go_downf:
 ;
 ; Flipper go-down
+; Called during the run_objects sequence as a member of the run_vex list.
+; *******************************************************************
+go_downf:
 
         bsr go_down
         blt rrts
@@ -11621,7 +11815,7 @@ go_downf:
 go_down:
         add #2,12(a6)
         cmp #webz+80,12(a6)
-        rts   
+        rts
 
 ; *******************************************************************
 ; take_me_to_your_leader
@@ -11649,16 +11843,18 @@ snatch_it_away:
         cmp #-400,vp_z
         bgt rrts
         move.l #rrts,routine
-xquick:
-        sub #1,lives
-        clr _pauen
-        clr pauen
-        move #1,term
+
+        ; We've lost a life.
+xquick: sub #1,lives   ; Subtract a life.
+        clr _pauen     ; Disable pausing.
+        clr pauen      ; Disable pausing.
+        move #1,term   ; Signal to exit mainloop.
         rts
 
 ; *******************************************************************
 ; pzap
 ; Multi-player version of ZAP_PLAYER as intrinsic routine for a single claw
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 pzap:
 
@@ -11676,8 +11872,7 @@ zap_player:
         bsr rightit
         move.l _claw,a0
 
-npss:
-        move.l _zap,(a0)    ;Claw shape to zap
+npss:   move.l _zap,(a0)    ;Claw shape to zap
         move.l 4(a0),vp_xtarg
         move.l 8(a0),vp_ytarg
         add #12,28(a0)
@@ -11689,7 +11884,9 @@ npss:
         bsr zapson
         bra setsnatch
 
-
+; *******************************************************************
+; xzcollie
+; *******************************************************************
 xzcollie:
         tst _sz    ;special szap detect - not sz if this is second time (for bulls)
         beq colok
@@ -11697,14 +11894,20 @@ xzcollie:
         tst szap_avail
         bmi colok
         bra zappit
-        
+
+; *******************************************************************
+; mcollie
+; *******************************************************************
 mcollie:
         move #1,d6    ;This entry just finds the bullet that hit us, if any
         bra colok1
 
-collie:
+; *******************************************************************
+; collie
 ;
 ; Collision detect the current object with all currently active bulls. Return with non-0 for a hit, and kill the bull.
+; *******************************************************************
+collie:
 
         tst _sz
         beq colok
@@ -11764,7 +11967,7 @@ kbull:
         move #4,54(a0)    ;Kill nxttime
 xle2:
         move #1,d0    ;return a hit
-        rts  
+        rts
 h2h_special:
         move 36(a4),h2h_sign
         bra jstop
@@ -11840,7 +12043,7 @@ r_webinfo:
         bra webinf
 
 websame:
-        move 16(a6),d0  
+        move 16(a6),d0
 webinf:
         move d0,-(A7)        ;call webinfo with an arbitrary d0 which is preserved
         bsr webi
@@ -11868,7 +12071,7 @@ webi:   move.l web_ptab,a1      ;point to XY lane ends
         asl #2,d1
         asl #2,d2
         asl #2,d3      ;(d0-d1) and  (d2,d3) are the vertex co-ordinates of the lane sides..
-        
+
         move d2,d4
         move d3,d5
         sub d0,d4
@@ -11893,7 +12096,7 @@ rotate_web:
         asr #1,d0
         add #$80,d0
         move d0,32(a6)
-        and #$ff,30(a6)  
+        and #$ff,30(a6)
         bne rrts
 
 iclaw:  move.l #moveclaw,routine ; Next routine in state is moveclaw.
@@ -11908,7 +12111,7 @@ znazm:  lea _web,a0              ; Load the web data structure.
 
 ; *******************************************************************
 ; rez_claw
-; A member of the run_vex list.
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 rez_claw:
         tst h2h
@@ -11939,9 +12142,9 @@ gwave:
         move (a7)+,d1
 nogenn:
         tst d1
-        bmi noball 
+        bmi noball
 balls:
-        move d1,-(a7)  
+        move d1,-(a7)
         jsr make_h2hball
         move (a7)+,d1
         dbra d1,balls
@@ -11958,7 +12161,7 @@ srezclaw:
         move #17,34(a6)
         add #$40,36(A6)  ;close rez spacing
         bne go_con
-        
+
         move.l _claw,d0
         cmp.l (a6),d0
         bne ncjmp    ;only clear jmp if this is a claw
@@ -11983,6 +12186,10 @@ go_con:
         move.l 0(A0,d0.w),a0
         jmp (a0)
 
+; *******************************************************************
+; dsclaw2
+; Called during the draw_objects sequence as a member of the draw_vex list.
+; *******************************************************************
 dsclaw2:
         cmp #21,46(a6)
         beq droidyo
@@ -12046,6 +12253,7 @@ h2hrun:
 
 ; *******************************************************************
 ; run_h2hclaw
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_h2hclaw:
         tst 48(a6)
@@ -12097,7 +12305,7 @@ h2hcc:
         move #1,34(a4)
         rts
 nomirr:
-        move #0,34(a4)  
+        move #0,34(a4)
         move frames,d1
         move.l #$40000,d0
         cmp #$8f,40(a6)
@@ -12112,10 +12320,11 @@ nomirr1:
         sub #1,shots
         move.l a6,a1
         bra h2hfrab
-        
+
 
 ; *******************************************************************
 ; run_mirr
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_mirr:
         add #1,28(A6)
@@ -12124,7 +12333,7 @@ run_mirr:
 
 ; *******************************************************************
 ; claw_con1
-; A member of the run_vex  list.
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 claw_con1:
         move #1,whichclaw
@@ -12192,7 +12401,7 @@ cc2:
         clr 14(a6)
         clr.l cjump
         and.l #$fffc0000,vp_z
-        and.l #$fffc0000,vp_ztarg  
+        and.l #$fffc0000,vp_ztarg
 
 chek4jump:
         cmp #-2,wave_tim
@@ -12211,7 +12420,7 @@ cce:
 
 ; *******************************************************************
 ; claw_con2
-; A member of the run_vex list.
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 claw_con2:
         move #2,whichclaw
@@ -12222,7 +12431,7 @@ claw_con2:
         bpl cc3
         move.b 49(a6),48(a6)
         tst shots+2
-        bmi cc3    
+        bmi cc3
         sub #1,shots+2
         move.l a6,a1
         move #$80,d7      ;marker for bullets to distinguish pl. 1 and pl 2 shots
@@ -12318,7 +12527,7 @@ domove:
         beq spdone
         move web_max,d1
         sub #1,d1
-        bra spok 
+        bra spok
 ulchk:
         swap d1
         cmp web_max,d1
@@ -12328,7 +12537,7 @@ ulchk:
         clr d1
 spok:
         swap d1
-        move.l d1,16(a6)  
+        move.l d1,16(a6)
 spdone:
         move 16(a6),d0
         move.l web_ptab,a0      ;point to XY lane ends
@@ -12381,7 +12590,7 @@ spdone:
         cmp #17,34(a6)
         bne nutargg
         rts
-        
+
 ; *******************************************************************
 ; nutargg
 ; *******************************************************************
@@ -12411,7 +12620,7 @@ noflipme:
 
 ; *******************************************************************
 ; vp_set
-; Update the camera's viewpoint for one or both players. 
+; Update the camera's viewpoint for one or both players.
 ; *******************************************************************
 vp_set:
         cmp #1,players
@@ -12559,11 +12768,15 @@ cpad3:
         tst modstop
         beq cpad33    ;test if tune already off
         move.b oldvol,vols
+
+; *******************************************************************
+; intune
+; *******************************************************************
 intune:
         move.b vols,d0
         and.l #$ff,d0
         clr d1
-        jsr SET_VOLUME  
+        jsr SET_VOLUME
         move #10,s_db
         clr modstop
         move lastmod,d0
@@ -12571,7 +12784,7 @@ intune:
         sub #1,d0
         move #1,unpaused
         jmp playtune
-        
+
 cpad33: move #1,modstop    ;stop any tune module
         move.b vols,oldvol
         clr.b vols
@@ -12591,7 +12804,7 @@ swarp:
         clr.l d0          ; Set x pos.
         move.l #$8000,d1  ; Set y pos.
         bsr setmsg        ; Initialize message for display.
-        rts  
+        rts
 
 ; *******************************************************************
 ; rightit
@@ -12613,7 +12826,7 @@ zoo1:
 ; *******************************************************************
 ; czoom1
 ; intrinsic routine for claw-object to do zoom1-type stuff
-; A member of the run_vex list.
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 czoom1:
 
@@ -12633,6 +12846,7 @@ czoom1:
 ; *******************************************************************
 ; czoom2
 ; same thing for zoom 2
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 czoom2:
 
@@ -12653,9 +12867,9 @@ zinit:
         move.l claud,d0
         add.l d0,12(a6)      ;move into zplane
         cmp #2000,12(a6)
-        blt rrts  
+        blt rrts
 zoo2off:
-        
+
         move.l 24(a0),d0
         move #1,34(a0)      ;Web on again
         neg.l warp_add    ;reset warp spacing
@@ -12677,7 +12891,7 @@ zoo2off:
         move handl,handl1
         move #9,sfx
         move #400,sfx_pri
-        jsr fox  
+        jsr fox
         move handl,handl2
         move #80,wason
         move.l #500,wapitch
@@ -12734,12 +12948,12 @@ chv1:
         jsr CHANGEFX
         move d2,vvol1
         move (a7)+,d2
-        neg d2  
+        neg d2
         move.l #$0c,d0    ;8=change pitch
         move vvol2,d4
         add d2,d4
         cmp d4,d5
-        bpl chv2 
+        bpl chv2
         move.l #$08,d0
 chv2:
         move handl2,d1
@@ -12764,6 +12978,11 @@ zoomdown:
         jsr CHANGEFX
         movem.l (a7)+,d0-d3
         rts
+
+; *******************************************************************
+; zzoomoff
+; Turn of all SFX
+; *******************************************************************
 zzoomoff:
         clr wson
 zoomoff:
@@ -12784,20 +13003,21 @@ modzon:
 
 ; *******************************************************************
 ; flushfx
+; Flush out any in progress sound effects
 ; *******************************************************************
 flushfx:
         clr wson
 pflushfx:
         move #5,d7
-flshfx:
-        move #300,sfx_pri
+
+flshfx: move #300,sfx_pri
         move #29,sfx
         move d7,-(a7)
         jsr fox
         move (a7)+,d7
         dbra d7,flshfx
         rts
-        
+
 
 ; *******************************************************************
 ; zoom1
@@ -12889,15 +13109,16 @@ wsnc:   cmp frames,d7
 
 ; *******************************************************************
 ; clrscreen
+; Clear the screen referenced at a0.
 ; *******************************************************************
 clrscreen:
         clr d0      ;Clear screen a0
-        clr d1  
-        move #384,d2
-        move #280,d3
+        clr d1
+        move #384,d2  ; Width of 384 for full screen
+        move #280,d3  ; Height of 280 for full screen.
         move #$000,d4
         bra BlitBlock
-        
+
 ; *******************************************************************
 ; Unused code
 ; *******************************************************************
@@ -12935,6 +13156,9 @@ mit:
         move #-1,20(a0)    ; post creation mod: -1=none, so default
         rts
 
+; *******************************************************************
+; wd
+; *******************************************************************
 wd:     tst frames
         bpl wd
         rts
@@ -12944,6 +13168,8 @@ wd:     tst frames
 ; It handles all the GPU/Blitter drawing. It lets the 'Frame' routine
 ; look after updates to the objects' state so the only concern here is
 ; doing all the GPU/drawing operations.
+; The loops runs until the player loses a life or completes a game, at
+; which point control returns to 'dloop'.
 ;
 ; Minter:
 ; "This loop runs the GPU/Blitter code.  I found that if you
@@ -12974,11 +13200,12 @@ main:   tst sync                   ; loop waiting for another sync
 
         tst auto                   ; Are we in demo mode?
         beq nauty                  ; If not, then run the s_routine and continue.
+
         clr.l s_routine            ; Clear s_routine.
         move #1,z                  ; Set the 'stop everything' mode.
-        clr _pauen                 ; Clear the pause mode
+        clr _pauen                 ; Disable pause.
         move.l #rrts,routine       ; Clear the 'routine' pointer.
-        clr term                   ; Clear term.
+        clr term                   ; Clear lost life/game completed signal.
         rts                        ; Return.
 
 nauty:  move.l d0,a0               ; Move s_routine pointer to a0.
@@ -12988,7 +13215,7 @@ nauty:  move.l d0,a0               ; Move s_routine pointer to a0.
 mloop:  tst pawsed                 ; Are we paused?
         beq mlooo                  ; If not, check if we just unpaused.
         jsr paustuff               ; Do the pause mode stuff.
-        
+
 mlooo:  tst unpaused               ; Did we just unpause?
         beq nunpa2                 ; If not, prepare to loop back again.
 
@@ -12997,7 +13224,7 @@ mlooo:  tst unpaused               ; Did we just unpause?
 
 nunpa2: ; We've finished preparing dscreen, so we can set screen_ready.
         move #1,screen_ready       ; Set screen_ready so 'Frame' can use it at the next vsync interrupt.
-        tst term                   ; Has the game been terminated?
+        tst term                   ; Have we lost a life or completed the game?
         beq main                   ; If not, continue looping.
 
         ; We've terminated - so bail.
@@ -13020,12 +13247,11 @@ dboo:   tst sync                   ; Wait for sync to get reset
 
 ; *******************************************************************
 ; Unused routine.
-; Looks like it was used to manipulate interrupts. 
+; Looks like it was used to manipulate interrupts.
 ; *******************************************************************
 IServ:
         btst.b #2,INT1+1
-        beq Frame    ;if not stopobj must be Frame
-
+        beq Frame                  ;if not stopobj must be Frame
         ; stop object code can go here
         move #$405,INT1
         clr INT2
@@ -13034,24 +13260,25 @@ IServ:
 ; *******************************************************************
 ; Frame: MAIN VSYNC INTERRUPT ROUTINE
 ; This routine is responsible for updating the state of all objects in the
-; game. It is called at every vertical sync interrupt.  The counterpart to this
-; routine is 'mainloop'.  While mainloop is responsible for processing the
-; activeobjects, this routine is where the bulk of the objects get updated
-; (run_objects) and created/inserted into the activeobjects list. The main
-; place this happens is in the moveclaw routine, which despite its name is
-; responsible for managing the waves of enemies too.  The 'sync' and
-; 'screen_ready' variables are used to co-ordinate the activities of the
-; 'Frame' and 'mainloop' routines.
+; game. It is called at every vertical sync interrupt (also known as a vertical
+; blank).  The counterpart to this routine is 'mainloop'.  While mainloop is
+; responsible for processing the activeobjects, this routine is where the bulk
+; of the objects get updated (run_objects) and created/inserted into the
+; activeobjects list. The main place this happens is in the moveclaw routine,
+; which despite its name is responsible for managing the waves of enemies too.
+; The 'sync' and 'screen_ready' variables are used to co-ordinate the
+; activities of the 'Frame' and 'mainloop' routines.
 ; *******************************************************************
 Frame:
-        movem.l d0-d5/a0-a2,-(a7)  ;simple thang to make
+        movem.l d0-d5/a0-a2,-(a7)  ; Stash values in d0-d5 and a0-a2
 
-        ; vertical blank code goes here
+        ; Check if we're in a vertical blank or not.
 fr:     move INT1,d0
         move d0,-(a7)
-        btst #0,d0
-        beq CheckTimer    ;go do Music thang
+        btst #0,d0          ; Are we in a vertical blank?
+        beq CheckTimer      ; If not, skip everything and check for input only.
 
+        ; We're in a vertical blank so can update some state.
         ; Copy the display list we built in 'blist' to 'dlist'. The
         ; display list will be used by the Objects Processor to paint
         ; the next frame. The pixel data for all the objects in the display
@@ -13071,7 +13298,7 @@ xlst:   move.l (a0)+,(a1)+  ; Copy 4 bytes from blist to dlist.
 
         ; Minter: "this code writes the proper screen address to double buffered objects in the display list."
         ; In 'main_loop' we prepare dscreen (double-buffered screen) with objects drawn by the GPU/Blitter. Once it's ready
-        ; we set screen_ready. Here we check if screen_ready is set and if so, we swap dscreen into 
+        ; we set screen_ready. Here we check if screen_ready is set and if so, we swap dscreen into
         ; 'cscreen' (current screen). We will then update the main screen object in the Display List to
         ;  reference this new address.
 setdb:  ; Check if we can swap in the new screen prepared in 'mainloop'.
@@ -13095,7 +13322,7 @@ no_new_screen:
 
         ; Update the main screen item in the Object List with the address of the new screen contained
         ; in cscreen. This has the effect of ensuring all the objects we drew with the GPU
-        ; and Blitter in 'mainloop' are actually written to the screen by the Object Processor. 
+        ; and Blitter in 'mainloop' are actually written to the screen by the Object Processor.
 stdb:   move.l cscreen,d6   ; Get address of current displayed screen
         and.l #$fffffff8,d6 ; lose three LSB's
         lsl.l #8,d6         ; move to correct bit position
@@ -13111,15 +13338,15 @@ stdb:   move.l cscreen,d6   ; Get address of current displayed screen
 no_db:  jsr dowf           ; Call the warp flash effect.
 
         ; Now do some magic for NTSC displays. If this is an NTSC display we want to skip playing
-        ; sounds every 5th and 6th interrupt for some reason. 
+        ; sounds every 5th and 6th interrupt for some reason.
         tst pal           ; Are we a PAL display?
         bne dtoon         ; If no, we can skip this part.
         add #1,tuntime    ; Increment our visit count.
         cmp #4,tuntime    ; Less than 4?
         ble dtoon         ; If less than 4, go ahead and play a sound.
-        cmp #6,tuntime    ; Is it 6? 
+        cmp #6,tuntime    ; Is it 6?
         bne ntoon         ; If not, skip playing a sound this time.
-        clr tuntime       ; If it is 6, reset to zero. 
+        clr tuntime       ; If it is 6, reset to zero.
 
         ; Something to do with the Imagitec sound chip. Probably whether we should play
         ; a sound during the interrupt?
@@ -13131,7 +13358,7 @@ dtoon:  tst modstop       ; Is sound turned off?
 ntoon:  tst pawsed        ; Are we paused?
         bne zial          ; If not, skip.
         add #1,frames     ; Add to the number of paused framed.
-        move.l fx,a0      ; Stash the current 'fx' routine in a0. 
+        move.l fx,a0      ; Stash the current 'fx' routine in a0.
         jsr (a0)          ; Run the routine.
 
         ; 'mainloop' might be busy processing stuff in the 'activeobjects' list. If it is,
@@ -13141,12 +13368,12 @@ zial:   tst locked        ; Are we in the middle of adding stuff to activeobject
         bra loseframe     ; If we're busy, skip this frame.
 
         ;
-        ; Perform any context specific updates for this frame. 
+        ; Perform any context specific updates for this frame.
         ; 'routine' can be any one of:
         ;  - rrts, pauson, pausing, budb, pausoff, paws, zoom1, zoomto,
         ;    waitfor, zprev, znext, zshow, oselector, seldb, tunrun, text_o_run,
         ;    m7run, vicrun, failcount, viccount, txen, tgoto, rotate_web,
-        ;    zoom3, zap_player, take_me_to_your_leader, snatch_it_away,           
+        ;    zoom3, zap_player, take_me_to_your_leader, snatch_it_away,
         ;    moveclaw, zoom2
         ;
         ; rotate_web -> moveclaw -> zoom1 -> zoom2 ->
@@ -13163,11 +13390,11 @@ doframe:
 loseframe:
         bsr checkpause     ; Check if the player has requested to pause the game.
         bsr domod          ; Play a frame of music in the Imagitec synth.
-        btst.b #0,sysflags ; Check for hardware interlacing. 
-        bne chit           ; If not enabled, skip. 
+        btst.b #0,sysflags ; Check for hardware interlacing.
+        bne chit           ; If not enabled, skip.
 
         ; Some kind of fixing up for hardware interlace mode.
-        move frames,d0     ; Stash frames in d0. 
+        move frames,d0     ; Stash frames in d0.
         and #$01,d0        ; Get the lsb.
         add #SIDE,d0       ; Add SIDE.
         sub palside,d0     ; Subtract PAL side.
@@ -13175,6 +13402,7 @@ loseframe:
 
 chit:   movem.l (a7)+,d6-d7/a3-a6 ; Restore values to data and address registers we stashed at the start.
 
+        ; Check for player input.
 CheckTimer:
         move (a7)+,d0       ; Restore stashed d0.
         move d0,-(a7)       ; Stash it again.
@@ -13209,7 +13437,7 @@ exxit:
         rte               ; Return from the interrupt.
 
 ; *******************************************************************
-; The unused rotary controller code. 
+; The unused rotary controller code.
 ; *******************************************************************
 readrotary:
 ;
@@ -13217,15 +13445,15 @@ readrotary:
 
         btst.b #3,sysflags
         beq op2
-        move.l  #$f0fffffc,d1    ; d1 = Joypad data mask   (Player 1)
-        moveq.l  #-1,d2      ; d2 = Cumulative joypad reading
+        move.l  #$f0fffffc,d1   ; d1 = Joypad data mask   (Player 1)
+        moveq.l  #-1,d2         ; d2 = Cumulative joypad reading
         move.w  #$81fe,JOYOUT
-        move.l  JOYIN,d0      ; Read joypad, pause button, A button
-        or.l    d1,d0      ; Mask off unused bits
+        move.l  JOYIN,d0        ; Read joypad, pause button, A button
+        or.l    d1,d0           ; Mask off unused bits
         ror.l  #4,d0
-        and.l  d0,d2      ; d2 = xxAPxxxx RLDUxxxx xxxxxxxx xxxxxxxx
+        and.l  d0,d2            ; d2 = xxAPxxxx RLDUxxxx xxxxxxxx xxxxxxxx
         swap d2
-        move d2,d0      ;get joypad in lo byte of d0
+        move d2,d0              ; get joypad in lo byte of d0
 
         lea lstcon,a1
         lea roconsens,a2
@@ -13236,14 +13464,14 @@ op2:
         btst.b #4,sysflags
         beq rrts
 
-        move.l  #$0ffffff3,d1    ; d1 = Joypad data mask    (Player 2)
-        moveq.l  #-1,d2      ; d2 = Cumulative joypad reading
+        move.l  #$0ffffff3,d1   ; d1 = Joypad data mask    (Player 2)
+        moveq.l  #-1,d2         ; d2 = Cumulative joypad reading
         move.w  #$817f,JOYOUT
-        move.l  JOYIN,d0      ; Read joypad, pause button, A button
-        or.l    d1,d0      ; Mask off unused bits
-        rol.b  #2,d0      ; note the size of rol
+        move.l  JOYIN,d0        ; Read joypad, pause button, A button
+        or.l    d1,d0           ; Mask off unused bits
+        rol.b  #2,d0            ; note the size of rol
         ror.l  #8,d0
-        and.l  d0,d2      ; d2 = xxAPxxxx RLDUxxxx xxxxxxxx xxxxxxxx
+        and.l  d0,d2            ; d2 = xxAPxxxx RLDUxxxx xxxxxxxx xxxxxxxx
         swap d2
         move d2,d0
 
@@ -13252,7 +13480,6 @@ op2:
         bsr rroco
         add.l d0,rot_cum+4
         rts
-
 
 ; *******************************************************************
 ; rroco
@@ -13362,7 +13589,7 @@ iggi:
         rts
 
 smod:
-        move d0,lastmod  
+        move d0,lastmod
         move #50,modtimer  ;wait 1 sec
         neg modnum
         jsr FADEDOWN    ;start last tune fading
@@ -13397,7 +13624,7 @@ setmsg:
 
 runmsg:
         tst.l msg    ;run the Messager
-        beq rrts  
+        beq rrts
         tst msgtim1
         bmi runmsg2
         sub #1,msgtim1
@@ -13447,18 +13674,18 @@ mpo1:   sub #$3f,d0
         neg.l d0
         asr.l #1,d0
         move.l d0,28(a0)
-        bsr WaitBlit
-        lea texter,a0
-        jsr gpurun
-        jsr gpuwait
+        bsr WaitBlit ; Wait for the blitter to finish.
+        lea texter,a0 ; Load the GPU module in stoat.gas.
+        jsr gpurun ; Run the selected GPU module.
+        jsr gpuwait ; Wait for the GPU to finish.
         cmp.l #wmes2,msg    ;is it Superzapper?
         beq xtra1
         cmp.l #zmes1,msg
         bne rrts
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l #zmes2,a3
         bra xtra2
-xtra1:  lea in_buf,a0
+xtra1:  lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l #wmesx,a3
 xtra2:  move.l a3,(a0)
         jsr textlength      ;returns length of $ (a3) in pixels in d0
@@ -13469,10 +13696,10 @@ xtra2:  move.l a3,(a0)
         move #100,d0
         swap d0
         move.l d0,32(a0)
-        bsr WaitBlit
-        lea texter,a0
-        jsr gpurun
-        jmp gpuwait  
+        bsr WaitBlit ; Wait for the blitter to finish.
+        lea texter,a0 ; Load the GPU module in stoat.gas.
+        jsr gpurun ; Run the selected GPU module.
+        jmp gpuwait
 
 ; *******************************************************************
 ; Unused code
@@ -13528,7 +13755,7 @@ only1p:
         beq chp1
         cmp.l #bigreset,d0
         bne chp1
-        move #1,z    ;flag Stop Whatever You Are Doing And Reset!  
+        move #1,z              ; Stop Whatever You Are Doing And Reset!
         clr auto
 chp1:
         tst _auto
@@ -13536,8 +13763,8 @@ chp1:
         move.l d1,d0
         move.l #allbutts,d1
         and.l d0,d1
-        beq chron  
-        move #1,z
+        beq chron
+        move #1,z              ; Stop Whatever You Are Doing And Reset!
         move #1,misstit
 chron:
         move.l d1,-(a7)
@@ -13550,11 +13777,11 @@ chron:
         tst.l paws
         bne rrts
         move.l d1,d0
-        and.l #pausebutton,d0 ;check for pause pressed
+        and.l #pausebutton,d0   ;check for pause pressed
         beq rrts
         clr.l d0
         clr.l d1
-        jsr SET_VOLUME    ;Music off
+        jsr SET_VOLUME          ;Music off
         jsr pflushfx
         move #-1,vadj
         move.l routine,paws
@@ -13578,18 +13805,18 @@ paustuff:
         jsr text2_setup
         ; Version number message retained below.
         ;  move.l #$400040,32(a0)
-        ;  move.l #vertext,(a0) 
-        ;  lea texter,a0
-        ;  jsr gpurun
-        ;  jsr gpuwait
+        ;  move.l #vertext,(a0)
+        ;  lea texter,a0 ; Load the GPU module in stoat.gas.
+        ;  jsr gpurun ; Run the selected GPU module.
+        ;  jsr gpuwait ; Wait for the GPU to finish.
         tst pausprite
         beq npspri
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l #$490074,32(a0)    ;was 35
-        move.l #pautext,(a0) 
-        lea texter,a0
-        jsr gpurun
-        jsr gpuwait
+        move.l #pautext,(a0)
+        lea texter,a0 ; Load the GPU module in stoat.gas.
+        jsr gpurun ; Run the selected GPU module.
+        jsr gpuwait ; Wait for the GPU to finish.
 
 npspri:
         tst vadj
@@ -13620,7 +13847,7 @@ npspri:
 
         lea vols,a0
         move.b 0(a0,d7.w),d0  ;get the actual volume
-        
+
         and #$ff,d0
         lsr #2,d0
         move d0,d1
@@ -13732,7 +13959,7 @@ chunp:
         move.b vols,d0
         and.l #$ff,d0
         clr d1
-        jsr SET_VOLUME  
+        jsr SET_VOLUME
         bra ntsel
 
 adjsfx:
@@ -13824,7 +14051,7 @@ p_off:  move.l pad_now,d0
         beq mergem
         tst h2h
         beq nomergem
-mergem: or.l pad_now+4,d0  
+mergem: or.l pad_now+4,d0
 nomergem:
         and.l #pausebutton,d0
         bne rrts
@@ -13839,7 +14066,7 @@ nomergem:
 ; *******************************************************************
 gpu_run_b:
         move.l dscreen,gpu_screen
-        bra rgpu 
+        bra rgpu
 
 gpu_run:
         move.l gscreen,gpu_screen
@@ -13847,13 +14074,13 @@ rgpu:
         move.l #-1,gpu_sem  ;flag GPU running
         move.l #$f03000,d0  ;start address of GPU program
         move.l d0,G_PC  ;set GPU's PC
-        move.l #$11,G_CTRL  ;fire up GPU  
+        move.l #$11,G_CTRL  ;fire up GPU
 still_running:
         tst.l gpu_sem
         bmi still_running  ;wait for GPU stop
         bsr WaitBlit    ;wait for Blitter stop
         move #1,screen_ready  ;tell int routine the screen is ready        ;for display
-        rts 
+        rts
 
 ; *******************************************************************
 ; gpu
@@ -13864,14 +14091,14 @@ gpu:
         move.l #-1,gpu_sem  ;flag GPU running
         move.l #$f03000,d0  ;start address of GPU program
         move.l d0,G_PC  ;set GPU's PC
-        move.l #$11,G_CTRL  ;fire up GPU  
+        move.l #$11,G_CTRL  ;fire up GPU
         lea  G_CTRL,a0
 still_r:
         move.l  (a0),d0    ;ataris way of stopping
         btst #0,d0
         bne  still_r
         bsr WaitBlit    ;wait for Blitter stop
-        rts 
+        rts
 
 
 
@@ -13892,7 +14119,7 @@ ibeasts:
 
 ; *******************************************************************
 ; RunBeasties
-; Create the Object List (aka Display List). This is used by the 
+; Create the Object List (aka Display List). This is used by the
 ; Jaguar's Object Processor to write pixel data to the screen. It has
 ; a fixed length of 12 objects in the list (fixed by InitBeasties above).
 ; The main object is the first one (see ObTypes), which is a full screen
@@ -13942,9 +14169,9 @@ RBeasts:move d7,-(a7)
         jsr (a3)  ;do any fixup
 nxbeast:
         move (a7)+,d7
-        lea 64(a2),a2    ;do 'em all 
+        lea 64(a2),a2    ;do 'em all
         dbra d7,RBeasts
-        bra StopList    ;put a stopobject on the end  
+        bra StopList    ;put a stopobject on the end
 
 postfixups:
         dc.l make_rmw,make_trans
@@ -13990,7 +14217,7 @@ InitLists:
         or #3,d2    ;set branch-object bitz
         bset #14,d1    ;branch if beam < n_vdb
         bset #15,d2    ;branch if beam > n_vde
-        
+
 
         swap d0      ;this is the address of the stopobject
         move #0,(a0)+
@@ -14089,7 +14316,7 @@ MakeScaledObject:
         move d3,d7    ;Assume dwidth=iwidth for simplicity
         lsl #2,d7    ;align
         swap d6      ;get top of d6, which has rest of iwidth
-        or d7,d6    ;mask in dwidth  
+        or d7,d6    ;mask in dwidth
         move d6,(a0)+    ;put it in, assume pitch is 1
         move d5,d6    ;get copy of depth
         ror #4,d6    ;put it in top byte
@@ -14107,7 +14334,7 @@ MakeScaledObject:
         lsr #8,d7
         swap d7
         move d6,d7    ;recombine remainder with d7
-        move.l d7,(a0)+  
+        move.l d7,(a0)+
         lea 8(a0),a0
 
         ; Outta here.
@@ -14135,7 +14362,7 @@ MakeUnScaledObject:
         move.l a0,d6
         and.l #$ffffe0,d6
         move.l d6,a0
-        lea 32(a0),a0    ;make it aligned 
+        lea 32(a0),a0    ;make it aligned
 
         ; Now the funky bit. Build an unscaled bitmapped object.
         ; We are now on a quadphrase boundary too.
@@ -14183,7 +14410,7 @@ muso:   move.l a1,d6    ;get copy of data pointer
         move d3,d7    ;Assume dwidth=iwidth for simplicity
         lsl #2,d7    ;align
         swap d6      ;get top of d6, which has rest of iwidth
-        or d7,d6    ;mask in dwidth  
+        or d7,d6    ;mask in dwidth
         move d6,(a0)+    ;put it in, assume pitch is 1
         move d5,d6    ;get copy of depth
         ror #4,d6    ;put it in top byte
@@ -14207,37 +14434,41 @@ BlitBlock:
         move.l #PITCH1|PIXEL16|WID384|XADDINC,d7
         move.l d7,A1_FLAGS
         move.l a0,d7
-        move.l d7,A1_BASE  ;base of dest screen
+        move.l d7,A1_BASE          ;base of dest screen
         move d1,d7
         swap d7
-        move d0,d7    ;X and Y destination start
+        move d0,d7                 ;X and Y destination start
         move.l d7,A1_PIXEL
         move.l #0,A1_FPIXEL
         move.l #$1,d7
         move.l d7,A1_INC
-        move.l #0,A1_FINC  ;No fractional parts of increment
-        move #1,d7    ;X and Y Step
+        move.l #0,A1_FINC          ;No fractional parts of increment
+        move #1,d7                 ;X and Y Step
         swap d7
         move d2,d7
         neg d7
         move.l d7,A1_STEP
-        move.l #0,A1_FSTEP  ;no fraction of step
+        move.l #0,A1_FSTEP         ;no fraction of step
         move d3,d7
         swap d7
-        move d2,d7    ;Inner and outer loop count
+        move d2,d7                 ;Inner and outer loop count
         move.l d7,B_COUNT
-        move d4,d7    ;get colour
+        move d4,d7                 ;get colour
         swap d7
-        move d4,d7    ;duplicate
+        move d4,d7                 ;duplicate
         move.l d7,B_PATD
-        move.l d7,B_PATD+4  ;fill up phrase wide pattern register
+        move.l d7,B_PATD+4         ;fill up phrase wide pattern register
         move.l #PATDSEL|UPDA1,d7
-        move.l d7,B_CMD  ;do the thang
+        move.l d7,B_CMD            ;do the thang
 
+; *******************************************************************
+; WaitBlit
+; Wait for the blitter to finish.
+; *******************************************************************
 WaitBlit:
-        move.l B_CMD,d7  ;get Blitter status regs
+        move.l B_CMD,d7            ;get Blitter status regs
         btst #0,d7
-        beq WaitBlit    ;wait until outer loop is idle
+        beq WaitBlit               ;wait until outer loop is idle
 rrts:   rts
 
 ; *******************************************************************
@@ -14276,7 +14507,7 @@ fxBlock:
         move.l d7,B_PATD+4  ;fill up phrase wide pattern register
         move.l #PATDSEL|UPDA1,d7
         move.l d7,B_CMD  ;do the thang
-        bra WaitBlit
+        bra WaitBlit ; Wait for the blitter to finish.
 
 ; *******************************************************************
 ; ecopy
@@ -14339,7 +14570,7 @@ eec:    move.l d7,A1_FLAGS  ;a1 (Source) Gubbins
 
         move.l #SRCEN|UPDA1|UPDA2|DSTA2|LFU_A|LFU_AN,d7
         move.l d7,B_CMD
-        bra WaitBlit
+        bra WaitBlit ; Wait for the blitter to finish.
 
 ; *******************************************************************
 ; MergeBlock
@@ -14389,7 +14620,7 @@ MergeBlock:
 
         move.l #SRCEN|UPDA1|UPDA2|DSTA2|LFU_A|LFU_AN|DCOMPEN,d7
         move.l d7,B_CMD
-        bra WaitBlit
+        bra WaitBlit ; Wait for the blitter to finish.
 
 ; *******************************************************************
 ; make_vo2d
@@ -14428,7 +14659,7 @@ gv2:    move.b (a1)+,d2    ;get 1 vertex
         move.l d1,(a0)+
         ext d2
         ext.l d2
-        move.l d2,(a0)+    ;vertexinfo  
+        move.l d2,(a0)+    ;vertexinfo
         bra gv
 
 gv_end: move.l #-1,(a0)+
@@ -14441,46 +14672,83 @@ gv_end: move.l #-1,(a0)+
 ;
 ; make a 3d vector object at a0, using the short data at (a1)
 ;
-; d0.l=x scale, d1.l=y scale, d2.l=z scale, d3.l=x centre, d4.l=y centre, d5.l=z centre, d6=angle (xy)/angle (xz), d7=angle (yz)
+; d0.l=x scale, d1.l=y scale, d2.l=z scale, d3.l=x centre, d4.l=y centre,
+; d5.l=z centre, d6=angle (xy)/angle (xz), d7=angle (yz)
 ;
-; makes a 48-byte header which is copied to GPU local RAM when the object is drawn (I guess the techies would call it an instance)
+; Makes a 48-byte header which is copied to GPU local RAM when the object is
+; drawn (I guess the techies would call it an instance)
+;
+; This routines process a vertex list defining objects for drawing.
+;
+; Each vertex group in the list has the components:
+;   - x,y,z
+;   - a list of connected vertices terminated with a 0
+;     or
+;     -1 followed by the value of the color to use when drawing
+; Each array terminates with a 0.
+;
+; So for example, 'shot' breaks down as follows:
+; 8,7,1   = x,y,z
+; 2       = Connected to vertex  with index 2 (i.e. 10,11,1).
+; 0       = End of vertex group
+;
+; 10,11,1 = x,y,z
+; 0       = End of vertex group
+;
+; 10,7,1  = x,y,z
+; 4       = Connected to vertex with index 4 (i.e. 8,11,1)
+; 0       = End of vertex group
+;
+; and so on.
+;
+; An example with a color command is:
+;   dc.b 7,8,1,-1,255,9,19,0
+; This breaks down as:
+; 7,8,1   = x,y,z
+; -1      = Need to change color
+; 255     = New color value to use when drawing lines
+; 9       = Connected to vertex with index 9.
+; 19      = Connected to vertex with index 19.
+; 0       = End of vertex group
 ; *******************************************************************
 make_vo3d:
         move.l vadd,a0
         move.l a0,-(a7)
         bsr initvo
-        move #$0,d4      ;use this for colour-info
-buildit:move #2,d2    ;loop for three items..
-b3d1:   move.b (a1)+,d0  ;X
-        beq builtit    ;zero means last vertex
-        and.l #$ff,d0
-        move.l d0,(a2)+    ;put it in the vertex list
-        dbra d2,b3d1    ;get x,y and z
+        move #$0,d4             ;use this for colour-info
 
-        move.b (a1),d0    ;test for zero connections from this point
+        ; Get the x,y,z co-ordinates of a single point
+buildit:move #2,d2              ;loop for three items..
+b3d1:   move.b (a1)+,d0         ;X
+        beq builtit             ;zero means last vertex
+        and.l #$ff,d0
+        move.l d0,(a2)+         ;put it in the vertex list
+        dbra d2,b3d1            ;get x,y and z
+
+        move.b (a1),d0          ;test for zero connections from this point
         bne dcnc
         lea 1(a1),a1
         bra nxtvrt
 
-dcnc:   move d3,(a3)+    ;vertex # to connect list
-cnect:  move.b (a1)+,d0    ;get connected vertex #
-        bpl stdvrt
-        move.b (a1)+,d4
-        lsl #8,d4    ;set nu colour
+dcnc:   move d3,(a3)+           ; vertex # to connect list
+cnect:  move.b (a1)+,d0         ; get connected vertex #
+        bpl stdvrt              ; Are we setting a new color? (-1 indicates we are)
+        move.b (a1)+,d4         ; Yes,
+        lsl #8,d4               ; set nu colour
         move.b (a1)+,d0
 
 stdvrt: and #$ff,d0
         beq zv
         or d4,d0
 zv:     move d0,(a3)+
-        bne cnect    ;loop until a zero
+        bne cnect               ;loop until a zero
 
-nxtvrt: addq #1,d3    ;next vertex number
-        bra buildit    ;go do next vertex
+nxtvrt: addq #1,d3              ;next vertex number
+        bra buildit             ;go do next vertex
 
 builtit:move.l #0,(a3)+
         and.l #$ffff,d3
-        move.l d3,(a0)+    ;pass # of vertices in header
+        move.l d3,(a0)+         ;pass # of vertices in header
         move.l a3,connect_ptr
         move.l a2,vertex_ptr
         move.l a0,vadd
@@ -14492,31 +14760,31 @@ builtit:move.l #0,(a3)+
 ; Initialize a standard vector object
 ; *******************************************************************
 initvo: move.l a0,a2
-        move.l d0,(a0)+    ;x
-        move.l d1,(a0)+    ;y
-        move.l d2,(a0)+    ;z scales;
-        move.l d3,(a0)+    ;x
-        move.l d4,(a0)+    ;y
-        move.l d5,(a0)+    ;z centres;
+        move.l d0,(a0)+         ;x
+        move.l d1,(a0)+         ;y
+        move.l d2,(a0)+         ;z scales
+        move.l d3,(a0)+         ;x
+        move.l d4,(a0)+         ;y
+        move.l d5,(a0)+         ;z centres
 
         move.l d6,d0
         and.l #$ffff0000,d0
         swap d0
-        move.l d0,(a0)+    ;angle XZ
+        move.l d0,(a0)+         ;angle XZ
         and.l #$ffff,d6
-        move.l d6,(a0)+    ;angle XZ
+        move.l d6,(a0)+         ;angle XZ
         and.l #$ffff,d7
-        move.l d7,(a0)+    ;angle YZ
+        move.l d7,(a0)+         ;angle YZ
 
         move.l vertex_ptr,d0
-        move.l connect_ptr,a3  ;point to vertex and connection list space
+        move.l connect_ptr,a3   ;point to vertex and connection list space
         addq.l #4,d0
-        and.l #$fffffffc,d0  ;longalign vertex base
+        and.l #$fffffffc,d0     ;longalign vertex base
         move.l d0,a2
-        move.l d0,(a0)+    ;vertex pointer to header
+        move.l d0,(a0)+         ;vertex pointer to header
         move.l a3,d0
-        move.l d0,(a0)+    ;connect pointer to header
-        move #1,d3      ;vertex number
+        move.l d0,(a0)+         ;connect pointer to header
+        move #1,d3              ;vertex number
         rts
 
 ; *******************************************************************
@@ -14528,71 +14796,71 @@ initvo: move.l a0,a2
 ; a0 = vector ram space; a2.l = z depth to extrude to; d0-d7 as above
 ; *******************************************************************
 extrude:move.l vadd,a0
-        movem.l d0-d7/a0/a2,-(a7)    ;save so routine can return address
+        movem.l d0-d7/a0/a2,-(a7)   ;save so routine can return address
         clr connect
-        move.l a2,-(a7)    ;save z depth
-        bsr initvo    ;make header, do standard vector object init
-        move.l a3,a4    ;save first vertex
-        move.l (a7)+,d7    ;retrieve z-depth
+        move.l a2,-(a7)             ;save z depth
+        bsr initvo                  ;make header, do standard vector object init
+        move.l a3,a4                ;save first vertex
+        move.l (a7)+,d7             ;retrieve z-depth
         move d7,d0
         asr #1,d0
-        move d0,web_z    ;Current Web z centering
+        move d0,web_z               ;Current Web z centering
         clr.l d0
         clr.l d1
-        clr d5           ;to catch highest X point
-        move (a1)+,d6            ; First byte from raw_web: # channels to a web
+        clr d5                      ;to catch highest X point
+        move (a1)+,d6               ;First byte from raw_web: # channels to a web
         move d6,web_max
-        move (a1)+,web_firstseg  ; Second byte: player's starting position on web?
-        move.l a1,web_ptab       ; Third byte: start of x/y pairs, the position table
-        move.l a3,(a5)+    ;first vertex to lanes list
+        move (a1)+,web_firstseg     ;Second byte: player's starting position on web?
+        move.l a1,web_ptab          ;Third byte: start of x/y pairs, the position table
+        move.l a3,(a5)+             ;first vertex to lanes list
 
-        ; Read in the x/y pairs
-        ; Get the current x and y pair
+                                    ;Read in the x/y pairs
+                                    ;Get the current x and y pair
 xweb:   move (a1)+,d0
-        move (a1)+,d1    ;get X and Y
+        move (a1)+,d1               ;get X and Y
         ext.l d0
         ext.l d1
-        cmp d5,d1     ; Check if this is the large X value so far
-        blt xweb2     ; As above.
-        move d1,d5    ; It's bigger, so save it in d5.
-        ; Store the x,y,z value for the near point in the web
-xweb2:  move.l d0,(a2)+ ; x value
-        move.l d1,(a2)+ ; y value
-        clr.l (a2)+     ; z value for near point (always 0)
+        cmp d5,d1                   ;Check if this is the large X value so far
+        blt xweb2                   ;As above.
+        move d1,d5                  ;It's bigger, so save it in d5.
+                                    ;Store the x,y,z value for the near point in the web
+xweb2:  move.l d0,(a2)+             ;x value
+        move.l d1,(a2)+             ;y value
+        clr.l (a2)+                 ;z value for near point (always 0)
 
-        ; Store the x,y,z value for the far point in the web
-        move.l d0,(a2)+ ; x value
-        move.l d1,(a2)+ ; y value
-        move.l d7,(a2)+ ; z value for far point (calculated by initvo).
+                                    ;Store the x,y,z value for the far point in the web
+        move.l d0,(a2)+             ;x value
+        move.l d1,(a2)+             ;y value
+        move.l d7,(a2)+             ;z value for far point (calculated by initvo).
 
-        move d3,(a3)+    ;vertex ID to conn list
+        move d3,(a3)+               ;vertex ID to conn list
         tst d6
-        beq lastpoint    ;special case for last point!
+        beq lastpoint               ;special case for last point!
 
-        ; Connect the vertices
-        move d3,d4       ;copy vertex #
+                                    ;Connect the vertices
+        move d3,d4                  ;copy vertex #
         addq #1,d4
-        move d4,(a3)+    ;connect to n+1
+        move d4,(a3)+               ;connect to n+1
         addq #1,d4
-        move d4,(a3)+    ;connect to n+2
-        move #0,(a3)+    ;end vertex 
-        subq #1,d4       ;point to n+1
+        move d4,(a3)+               ;connect to n+2
+        move #0,(a3)+               ;end vertex
+        subq #1,d4                  ;point to n+1
         move d4,(a3)+
-        addq #2,d4       ;n+3
-        move d4,(a3)+    ;connect
-        move #0,(a3)+    ;delimit
-        move.l a3,(a5)+  ;to v.conn list
-        add #2,d3        ;move 2 vertices
+        addq #2,d4                  ;n+3
+        move d4,(a3)+               ;connect
+        move #0,(a3)+               ;delimit
+        move.l a3,(a5)+             ;to v.conn list
+        add #2,d3                   ;move 2 vertices
 
-        ; Get the next pair
+                                    ;Get the next pair
         dbra d6,xweb
 
 lastpoint:
         addq #1,d3
-        move d3,(a3)+    ;connect to n+1
+        move d3,(a3)+               ;connect to n+1
         move 4(a1),connect
         tst connect
-        beq nconn1    ;connect to vertex 1 if required
+        beq nconn1                  ;connect to vertex 1 if required
         add #1,web_max
         move #1,(a3)+
         move #0,(a3)+
@@ -14600,24 +14868,24 @@ lastpoint:
         move #2,(a3)+
 nconn1: move.l #0,(a3)+
         and.l #$ffff,d3
-        move.l d3,(a0)+    ;pass # of vertices in header
+        move.l d3,(a0)+             ;pass # of vertices in header
         lea 6(a1),a1
         move.l a1,web_otab
         move.l a3,connect_ptr
         move.l a2,vertex_ptr
         move.l a0,vadd
-        move.l a4,(a5)+    ;repeat first vertex addr.
+        move.l a4,(a5)+             ;repeat first vertex addr.
         asr #1,d5
         add #1,d5
         move #8,web_x
-        movem.l (a7)+,d0-d7/a0/a2  ;return with stuff intact and handle in a0
+        movem.l (a7)+,d0-d7/a0/a2   ;return with stuff intact and handle in a0
         move web_x,d5
         and.l #$ffff,d5
-        move.l d5,12(a0)  ;set x centre
+        move.l d5,12(a0)            ;set x centre
         move web_z,d5
-        move.l d5,20(a0)  ;set z centre
+        move.l d5,20(a0)            ;set z centre
         rts
-        
+
 ; *******************************************************************
 ; make_fw
 ; Make a firework object
@@ -14642,15 +14910,16 @@ make_fw:
         move #29,54(a0)
         sub #1,afree
         jmp insertobject
-        
+
 ; *******************************************************************
 ; draw_fw
 ; Draw a firework object
+; Called during the draw_objects sequence as a member of the draw_vex list.
 ; *******************************************************************
 draw_fw:
         tst 32(a6)
         bmi fw_ex    ;Duration gone, go draw Explosion
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l 4(a6),(a0)
         move.l 8(a6),4(a0)
         move.l 12(a6),8(a0)
@@ -14658,11 +14927,11 @@ draw_fw:
         and.l #$ff,d0
         move.l d0,12(a0)
         move.l #5,gpu_mode
-        lea xparrot,a0
+        lea xparrot,a0 ; Load the GPU module in 'xcamel.gas'.
         jsr gpurun    ;do pixel in 3d
         jmp gpuwait   ; returns
 
-fw_ex:  lea in_buf,a0
+fw_ex:  lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l 4(a6),(a0)
         move.l 8(a6),4(a0)
         move.l 12(a6),8(a0)
@@ -14687,14 +14956,15 @@ fw_ex:  lea in_buf,a0
         neg.l d0
         add.l #$ff,d0    ;calculate i decreasing
         move.l d0,44(a0)
-        move.l #4,gpu_mode
-        lea bovine,a0
+        move.l #4,gpu_mode ; Op 4 is 'pshere' in ox.gas.
+        lea bovine,a0 ; Load the GPU module in ox.gas.
         jsr gpurun      ;do clear screen
         jmp gpuwait
 
 ; *******************************************************************
 ; run_fw
 ; Updat the state of the firework object
+; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_fw: tst 32(a6)
         bmi xpired
@@ -14745,20 +15015,19 @@ run_vex:
 ; *******************************************************************
 ; run_objects
 ; Update the state of all the objects in the game, i.e. everything in
-; the activeobjects list and more besides. 
+; the activeobjects list and more besides.
 ;
 ; run the 'objects' in the demo
 ; *******************************************************************
 run_objects:
         move #1,diag
-        sub.b #1,pudel    ;do Pulsar pulses
+        sub.b #1,pudel            ;do Pulsar pulses
         bpl zzonk
         move.b pudel+1,pudel
-        add #1,pucnt  
+        add #1,pucnt
         and #$0f,pucnt
         beq clzd
-zzonk:
-        cmp #7,pucnt
+zzonk:  cmp #7,pucnt
         bne zonk
         tst zapdone
         bmi zonk
@@ -14767,56 +15036,58 @@ zzonk:
         bra zonk
 clzd:   clr zapdone
 zonk:   move #2,diag
-        move #0,d7    ;use to check for wave_end
-        move.l #500,d6    ;use to find the nearest enemy, for the Droid's brain
+        move #0,d7                ;use to check for wave_end
+        move.l #500,d6            ;use to find the nearest enemy, for the Droid's brain
         move.l activeobjects,a6
         clr _sz
         tst szap_on
-        beq r_obj    ;check for superzap requested
+        beq r_obj                 ;check for superzap requested
         move frames,d0
         and #3,d0
         bne r_obj
-        move #1,_sz    ;Kill something please...  
+        move #1,_sz               ;Kill something please...
+
+        ; Iterate through the activobjects list and run the appropriate routine
+        ; in 'run_vex' for each object.
 r_obj:  cmpa.l #-1,a6
         beq r_end
         tst 50(a6)
-        bmi r_end1    ;>>>>> KLUDGE to prevent a garbled list being traversed
+        bmi r_end1                ;>>>>> KLUDGE to prevent a garbled list being traversed
 
-doitthen:
-        lea run_vex,a0
-        move 34(a6),d0    ;Collapsed to a pixel?
-        bpl notcolap
-        sub #2,12(a6)
+        lea run_vex,a0            ; Store run_vex in a0
+        move 34(a6),d0            ; Collapsed to a pixel?
+        bpl notcolap              ; If not, go to notcolap.
+        sub #2,12(a6)             ; Yes,
         clr d0
-        cmp #webz+80,12(a6)  ;advance to edge of Web...
-        bgt r_o1    ;no official action, we already did it
+        cmp #webz+80,12(a6)       ;advance to edge of Web...
+        bgt r_o1                  ;no official action, we already did it
         cmp #11,54(a6)
         bne setxx
         move pucnt,d1
         and #$0f,d1
-        cmp #3,d1    ;Make sure that a pulsar is not created in a dangerous phase
+        cmp #3,d1                 ;Make sure that a pulsar is not created in a dangerous phase
         blt setxx
         add #2,12(a6)
-        bra r_o1    ;Makes pulsars wait until innocent before touchdown
+        bra r_o1                  ;Makes pulsars wait until innocent before touchdown
 
-setxx:  neg 34(a6)    ;make it real now  
+setxx:  neg 34(a6)                ;make it real now
 
 notcolap:
         move 54(a6),d0
-        bpl r_o1    ;-ve treated as no action
+        bpl r_o1                  ;-ve treated as no action
         clr d0
 r_o1:   asl #2,d0
-        move.l 60(a6),-(a7)  ;save address of current Next in case this object is unlinked
+        move.l 60(a6),-(a7)       ;save address of current Next in case this object is unlinked
         move.l 0(a0,d0.w),a0
-        tst 52(a6)    ;'Enemy' flag
-        beq zokk    ;(don't count player bulls)
-        bmi zokk    ;(or claw VULNERABLE flags)
-        cmp 12(a6),d6    ; check against previous nearest
+        tst 52(a6)                ;'Enemy' flag
+        beq zokk                  ;(don't count player bulls)
+        bmi zokk                  ;(or claw VULNERABLE flags)
+        cmp 12(a6),d6             ;check against previous nearest
         blt gokk
         swap d6
-        move 16(a6),d6    ;get nearest one's Lane #
+        move 16(a6),d6            ;get nearest one's Lane #
         swap d6
-        move 12(a6),d6    ;make this z nearest  
+        move 12(a6),d6            ;make this z nearest
 gokk:   cmp 12(a6),d7
         bgt zokk
         move 12(a6),d7
@@ -14824,21 +15095,23 @@ zokk:   movem.l d6-d7,-(a7)
         move #3,diag
         move.l a0,diag+4
         move.l a6,diag+8
-        tst locked    ;>>>>> A nasty hack.
+        tst locked                ;>>>>> A nasty hack.
         bne hack
-        jsr (a0)    ;call motion vector
-hack:   movem.l (a7)+,d6-d7    ;retrieve furthest-z
-        move.l (a7)+,a6    ;Next
+        jsr (a0)                  ;call motion vector
+hack:   movem.l (a7)+,d6-d7       ;retrieve furthest-z
+        move.l (a7)+,a6           ;Next
         move #4,diag
         move.l a6,diag+12
-        bra r_obj
+        bra r_obj                 ; Move to the next object in activeobjects.
+
+        ; Finished iterating through activeobjects.
 r_end:  move.l d6,droid_data
         move #5,diag
-        tst wave_tim    ;has E been done?
-        bpl r_end1    ;Nope
-        cmp #-2,wave_tim  ;total end
+        tst wave_tim              ;has E been done?
+        bpl r_end1                ;Nope
+        cmp #-2,wave_tim          ;total end
         beq rrts
-        cmp #webz-80,d7    ;furthest NME at top?
+        cmp #webz-80,d7           ;furthest NME at top?
         bgt r_end1
 szoom:  move #-2,wave_tim
 
@@ -14847,12 +15120,12 @@ szoom:  move #-2,wave_tim
         clr dnt
 skagi:  clr szap_on
         bsr clzapa
-zagga:  move.l #zoom1,routine    ;fly off the web
+zagga:  move.l #zoom1,routine     ;fly off the web
         clr l_soltarg
         move #18,d0
-        bsr sclawt      ;any claws to Zoom Mode
+        bsr sclawt                ;any claws to Zoom Mode
         lea _web,a0
-        clr.l 20(a0)      ;zoom velocity
+        clr.l 20(a0)              ;zoom velocity
         clr.l 24(a0)
         move.l #10,zoopitch
         bsr zoomon
@@ -14938,13 +15211,17 @@ rob_end:rts
 r_nxt:  move.l 56(a6),a6
         bra r_ob
 
+; *******************************************************************
+; dob
+; Draw the objects list
+; *******************************************************************
         ; Our first pass through the activeobjects list.
 dob:    move.l activeobjects,a6
 d_ob:   cmpa.l #-1,a6
         beq dobend
         move 50(a6),d0    ;'Unlink Me Please'
         beq no_dunlink
-        
+
         move.l 56(a6),d1
         bmi dtlink
         move.l d1,a5
@@ -14966,7 +15243,7 @@ no_dunlink:
         move.l 0(a0,d0.w),a0
         move.l 60(a6),-(a7)    ;go to next object
         jsr (a0)    ;execute chosen draw type
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
 nxtdob: move.l (a7)+,a6    ;this way i can even trash a6 if i need II
         bra d_ob    ;finish off and terminate the ud-list
 
@@ -14978,7 +15255,7 @@ dodvec: bra drawmsg    ;draw Messager thang if needed
 
 dafinc: add #1,afree
         move #1,locked
-        bsr unlinkobject  
+        bsr unlinkobject
         clr locked
         rts
 
@@ -14989,7 +15266,7 @@ donki:  bsr showscore
 ; draw_vex
 ; A list of routines used for drawing vector object. The activeobjects
 ; list contains an index into this list so the specific draw routine
-; for each object can be invoked.
+; for each object can be invoked by draw_objects.
 ; *******************************************************************
 draw_vex:
         dc.l rrts,draw,draw_z,draw_vxc,draw_spike,draw_pixex,draw_mpixex,draw_oneup,draw_pel,changex  ;9
@@ -15000,14 +15277,14 @@ draw_vex:
 ; *******************************************************************
 ; Draw Objects
 ; This is called from the mainloop and is responsible for doing
-; nearly all the GPU/Blitter operations for each frame. 
+; nearly all the GPU/Blitter operations for each frame.
 ; *******************************************************************
 draw_objects:
         tst h2h                 ; Are we in head to head mode?
         bne nodraw              ; Yes, go to 'nodraw'.
         clr h2hor
 stayhalt:
-        tst drawhalt            ; 
+        tst drawhalt            ;
         bsr clearscreen
         move.b sysflags,d0
         and.l #$ff,d0
@@ -15021,7 +15298,7 @@ dostarf: move.l #3,gpu_mode      ; mode 3 is starfield1
         move.l vp_x,in_buf+4    ; Put x pos in the in_buf buffer.
         move.l vp_y,in_buf+8    ; Put y pos in the buffer.
         move.l vp_z,d0          ; Get the current z pos.
-        add.l vp_sf,d0          ; Increment it. 
+        add.l vp_sf,d0          ; Increment it.
         move.l d0,in_buf+12     ; Add it to the buffer.
         move.l #field1,d0       ; Get the starfield data structure.
         move.l d0,in_buf+16     ; And put it in the buffer.
@@ -15046,10 +15323,10 @@ solweb: move #120,d0
         lea _web,a6    ;draw a solid poly Web
         tst 34(a6)
         beq n_wb
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l 46(a6),d0
         move.l d0,(a0)
-        move.l 4(a6),d0
+        move.l 4(a6),d0 ; Get the source X position.
         sub.l d3,d0
         move.l d0,4(a0)
         move.l 8(a6),d0
@@ -15069,11 +15346,11 @@ solweb: move #120,d0
         and.l #$ff,d0
         move.l d0,28(a0)
         move.l #w16col,32(a0)
-        move.l #0,gpu_mode
-        lea equine2,a0
-        jsr gpurun
-        jsr gpuwait
-        jsr WaitBlit
+        move.l #0,gpu_mode ; Select the web3d shader in donky.gas.
+        lea equine2,a0 ; Load the GPU module in donky.gas.
+        jsr gpurun ; Run the selected GPU module.
+        jsr gpuwait ; Wait for the GPU to finish.
+        jsr WaitBlit ; Wait for the blitter to finish.
 
 vweb:   tst t2k
         beq gvweb
@@ -15092,15 +15369,15 @@ n_wb:   move.l activeobjects,a6
         bra odend
 
         ; A loop for processing everything in 'activeobjects'.
-d_obj:  cmpa.l #-1,a6      ; Have we reached the end of activeobjects? 
+d_obj:  cmpa.l #-1,a6      ; Have we reached the end of activeobjects?
         beq oooend         ; If yes, skip to end.
-        move 50(a6),d0     ; Is the object marked for deletion? 
+        move 50(a6),d0     ; Is the object marked for deletion?
         beq no_unlink      ; If not, skip to no_unlink and draw it.
 
-        ; This verbose section up until no_unlink is concerned entirely 
+        ; This verbose section up until no_unlink is concerned entirely
         ; with deleting the dead object from the activeobjects list.
-        move.l 56(a6),d1     ; Get address of previous object. 
-        bmi tlink            ;  
+        move.l 56(a6),d1     ; Get address of previous object.
+        bmi tlink            ;
         move.l d1,a5         ; Move previous object to a5.
         move.l 60(a6),60(a5) ; Make it invisible to the vsync interrupt.
 
@@ -15113,7 +15390,7 @@ tlink:  move #-1,50(a6)      ; mark it bad
         move (a7)+,d0
         lea uls,a1
         asl #2,d0
-        move.l -4(a1,d0.w),a1 ; 
+        move.l -4(a1,d0.w),a1 ;
         jmp (a1)
 
         ; Object specific unlinking/deletion routines
@@ -15123,7 +15400,7 @@ pshinc: tst d1    ;player ownership of an unlinked bullet
         beq ulsh1
         add #1,shots+2
 ulo:    move #1,locked
-        bsr unlinkobject  
+        bsr unlinkobject
         clr locked
         bra nxt_o             ; Finished deleting, go the the next object.
 ulsh1:  add #1,shots
@@ -15135,15 +15412,15 @@ afinc:  add #1,afree
 
         ; Actually draw the object.
         ; No need to remove the object, just draw it.
-no_unlink:      
+no_unlink:
         lea draw_vex,a0      ; Get our table of draw routines.
         move 34(a6),d0       ; Is this object smaller than a pixel?
         bpl notpxl           ; If not, go to notpxl.
         move.l #draw_pel,a0  ; Use draw_pex for pixel-size objects.
-        bra apal             ; Jump to the draw call. 
+        bra apal             ; Jump to the draw call.
 notpxl: asl #2,d0            ; Multiply the val in d0 by 2.
         move.l 0(a0,d0.w),a0 ; Use it as an index into draw_vex.
-apal:   move.l 60(a6),-(a7)  ; Store the index of next object in a7. 
+apal:   move.l 60(a6),-(a7)  ; Store the index of next object in a7.
         jsr (a0)             ; But first call the routine in draw_vex.
         jsr gpuwait          ; Wait for the GPU to finish.
 nxt_o:  clr locked           ; Clear 'locked' just in case.
@@ -15159,7 +15436,7 @@ odend:  bsr showscore     ; Show the score.
         beq odvec         ; If not, skip.
         bsr drawpolyos    ; if we are, draw them.
 odvec:  bsr drawmsg       ; Draw 'Superzapper Recharge' or other message, if applicable.
-        
+
         tst auto      ; Check if we're in demo-mode.
         beq namsg     ; If we're not, skip.
         cmp.l #vecoptdraw,demo_routine ; Check if drawing is active in demo mode.
@@ -15167,11 +15444,11 @@ odvec:  bsr drawmsg       ; Draw 'Superzapper Recharge' or other message, if app
 
         ; Draw the demo text.
         lea bfont,a1    ; Load font
-        lea autom1,a0   ; "Demo" string 
+        lea autom1,a0   ; "Demo" string
         move #50,d0     ; Set y position
         jsr centext     ; Display text in center
         lea cfont,a1    ; Load font
-        lea autom2,a0   ; "Press Fire to Play" 
+        lea autom2,a0   ; "Press Fire to Play"
         move #180,d0    ; Set y position
         tst pal         ; PAL?
         beq dunfirst    ; No, skip next line.
@@ -15184,7 +15461,7 @@ namsg:  tst blanka
         tst bolt_lock
         beq xox1    ;only draw bolt if Bolt Lock is set
 
-        jsr WaitBlit
+        jsr WaitBlit ; Wait for the blitter to finish.
         move.l _claw,a6
         tst p2smarted
         beq gp1smart
@@ -15204,7 +15481,7 @@ gp1smart:
         add palfix2,d6
         move.l d6,ycent
 
-        move.l #0,gpu_mode
+        move.l #0,gpu_mode ; Op 0 is 'fline' in ox.gas.
         lea in_buf,a0      ;set up func/linedraw
         move.l boltx,d0
         sub.l vp_x,d0
@@ -15230,12 +15507,12 @@ gp1smart:
         and.l #$ff,d0
         or #$01,d0
         move.l d0,(a0)+
-        move.l #bovine,a0
-        jsr gpurun    ;do it
-        jsr gpuwait
+        move.l #bovine,a0 ; Load the GPU module in ox.gas.
+        jsr gpurun    ; Run the selected GPU module.
+        jsr gpuwait ; Wait for the GPU to finish.
 
         movem.l (a7)+,d2-d3
-        
+
         lea in_buf,a0      ;set up func/linedraw
         move.l boltx,d0
         sub.l vp_x,d0
@@ -15261,9 +15538,9 @@ gp1smart:
         and.l #$ff,d0
         or #$01,d0
         move.l d0,(a0)+
-        move.l #bovine,a0
-        jsr gpurun    ;do it
-        jsr gpuwait
+        move.l #bovine,a0 ; Load the GPU module in ox.gas.
+        jsr gpurun    ; Run the selected GPU module.
+        jsr gpuwait ; Wait for the GPU to finish.
 
 xox1:   tst evon
         beq nevon
@@ -15297,7 +15574,7 @@ nodraw: bsr clearscreen
         ;
         ; Prepare the viewer's orientation transformation matrix.
         ; https://en.wikipedia.org/wiki/Transformation_matrix
-        ; 
+        ;
         move.l #4,gpu_mode ; Mode 4 is the 'viewer orientation transformation matrix (otm)'.
         lea vpang,a0       ; Get the viewpoint angle.
         move #0,d0
@@ -15338,7 +15615,7 @@ nodraw: bsr clearscreen
         move.l #288-32,xcent ; Move the center over for player 2.
         bsr drawweb          ; Draw player 2's Web
         sub #128,32(a6)      ; Restore the previous rotation.
-        
+
 noo_wb:
         move.l activeobjects,a6
         bsr d_obj    ;do std. object stuff
@@ -15374,7 +15651,7 @@ nudl:   tst l_ud
         add #330-32,d0
         jsr BlitBlock
         clr l_ud
-nudr:   bra nevon 
+nudr:   bra nevon
 
 h2hinsc:lea screen3,a0    ;source screen for any score u/d xfers
         move.l a0,a1
@@ -15408,7 +15685,7 @@ zoopy2: move d6,d4
 ; *******************************************************************
 ; draw_spike
 ; Special case of draw, for a spike.
-; A member of the draw_vex list.
+; Called during the draw_objects sequence as a member of the draw_vex list.
 ; *******************************************************************
 draw_spike:
 
@@ -15426,7 +15703,7 @@ draw_spike:
 ; *******************************************************************
 ; draw_vxc
 ; Draw, with a variable x-centre
-; A member of the draw_vex list.
+; Called during the draw_objects sequence as a member of the draw_vex list.
 ; *******************************************************************
 draw_vxc:
 
@@ -15451,7 +15728,7 @@ vvxc:
 ; draw_z
 ; Draw  with a number of incrementally coloured layers.
 ; Used for vector objects in the activeobjects list.
-; A member of the draw_vex list.
+; Called during the draw_objects sequence as a member of the draw_vex list.
 ; *******************************************************************
 draw_z:
         bsr draw           ; draw original object
@@ -15459,13 +15736,13 @@ draw_z:
 ;  move 44(a6),d0    ;z images counter
         move #2,d0        ; Z images counter
         move 36(a6),d1    ; delta z
-        ext.l d1          ; Extend 
+        ext.l d1          ; Extend
         asl.l #8,d1       ; Convert to 16:16
         move 38(a6),d2    ; Delta for colour
         move.l 12(a6),d3  ; Z position
 dr_z:
         add d2,40(a6)     ; Add the delta to the colour
-        add.l d1,d3       ; Add the z delta to the z position. 
+        add.l d1,d3       ; Add the z delta to the z position.
         movem.l d0-d3,-(a7) ; Stash the difference between z positions.
 
         move.l (a6),a1    ; Get object header
@@ -15488,7 +15765,8 @@ dr_z:
 ; draw
 ; The 'base' draw routine when processing 'activeobjects'. If a 'vector'
 ; draw is good enough, we just do that. Otherwise we add the object to the
-; 'apriority' list for processing by 'drawpolyos'. 
+; 'apriority' list for processing by 'drawpolyos'.
+; Called during the draw_objects sequence as a member of the draw_vex list.
 ; *******************************************************************
 draw:
         move.l a6,oopss   ; Stash the header.
@@ -15546,7 +15824,7 @@ dpoloop:
         bsr unlinkprior     ; Delete the current object.
         move.l (a7)+,a0     ; Move to the next position in the list.
         bra dpoloop         ; Loop until all objects drawn and unlinked
- 
+
 podraw:
         move.l #9,d4        ; Set X centre as 9.
         move.l #9,d5        ; Set Y centre as 9.
@@ -15579,42 +15857,42 @@ draw2polyos:
         clr h2hor
         move.l apriority,a0
         cmp.l #-1,a0
-        beq rrts    ;End of list was reached
+        beq rrts               ;End of list was reached
 d2poloop:
-        move.l (a0),a6    ;Get object handle
+        move.l (a0),a6         ;Get object handle
         move.l (a6),d0
         move.l a0,-(a7)
-        bsr podraw    ;Go do object type draw
+        bsr podraw             ;Go do object type draw
         jsr gpuwait
         move.l (a7)+,a0
         move.l 8(a0),d0
         bmi travback
-        move.l d0,a0    ;next Object
+        move.l d0,a0           ;next Object
         bra d2poloop
 travback:
         move.l #288-32,xcent
         move #1,h2hor
 tback:
-         move.l (a0),a6    ;Get object handle
+         move.l (a0),a6        ;Get object handle
         move.l (a6),d0
         move.l a0,-(a7)
-        bsr r_podraw    ;Go do object type draw
+        bsr r_podraw           ;Go do object type draw
         jsr gpuwait
         move.l (a7)+,a0
-        move.l 4(a0),-(a7)  ;next object or -1
-        bsr bunlinkprior    ;kill this object
+        move.l 4(a0),-(a7)     ;next object or -1
+        bsr bunlinkprior       ;kill this object
         move.l (a7)+,a0
         cmpa.l #-1,a0
         bne tback
         rts
- 
+
 r_podraw:
         move.l #9,d4
-        move.l #9,d5    ;default xy-centre
+        move.l #9,d5           ;default xy-centre
         neg d0
         lea solids,a4
         lsl #2,d0
-        move.l 0(a4,d0.w),a0  ;polyobject draw routine address
+        move.l 0(a4,d0.w),a0   ;polyobject draw routine address
         move.l 4(a6),d2
         neg.l d2
         sub.l vp_x,d2
@@ -15628,11 +15906,11 @@ r_podraw:
         neg.l d1
         add.l d6,d1
         sub.l vp_z,d1
-        bmi rrts    ;-ve no go
+        bmi rrts               ;-ve no go
         move 28(a6),d0
         neg.b d0
         and.l #$ff,d0
-        jmp (a0)    ;draw specific polyobject
+        jmp (a0)               ;draw specific polyobject
 
 ; *******************************************************************
 ; drawweb
@@ -15653,13 +15931,13 @@ drawweb:
         sub.l d5,d0
         tst h2h
         beq swebbo
-        sub.l #$40000,d0  ;hack to avoid floating Flippers
+        sub.l #$40000,d0   ;hack to avoid floating Flippers
 swebbo:
         move.l d0,(a0)+
         tst h2h
-        beq dragg 
-        lea xvector,a2
-        bra draaa  
+        beq dragg
+        lea xvector,a2      ; Load the GPU shader in llama.gas.
+        bra draaa
 
 ; *******************************************************************
 ; vector
@@ -15668,7 +15946,7 @@ swebbo:
 vector:
         move.l d0,a1       ;Get object header
         lea in_buf+4,a0
-        move.l 4(a6),d0
+        move.l 4(a6),d0 ; Get the source X position.
         sub.l vp_x,d0
         move.l d0,(a0)+    ;Co-ordinates as X, Y, Z 16:16 frax
         move.l 8(a6),d0    ;Combine with camera viewpoint
@@ -15703,8 +15981,8 @@ xhead:  move.l (a1)+,(a0)+  ;copy the header to GPU input ram
         move.l d0,scaler  ; Move to scaler.
         move.l a1,oopss+4 ; Stash the updated object.
         move.l (a6),oopss+8 ; Stash the original object.
-godraa: move.l #2,gpu_mode; Set the GPU mode
-        move.l a2,a0      ; Load the fastvector shader.
+godraa: move.l #2,gpu_mode; Op 2 is vect3d in llama.gas.
+        move.l a2,a0      ; Load the fastvector shader in llama.gas.
         jsr gpurun        ; Run the gpu routine
         jsr gpuwait       ; Wait until finished.
         rts
@@ -15715,13 +15993,14 @@ godraa: move.l #2,gpu_mode; Set the GPU mode
 ; draw_h2hclaw
 ; Draw a claw in head-to-head mode
 ; A member of the 'solids' list.
+; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_h2hclaw:
         move 48(a6),d4
         beq wittg
         bpl rezza
 
-        lea in_buf,a0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l d2,(a0)
         move.l d3,4(a0)
         move.l d1,8(a0)
@@ -15754,23 +16033,23 @@ draw_h2hclaw:
         neg.l d2
         add.l #$ff,d2    ;calculate i decreasing
         move.l d2,44(a0)
-        move.l #2,gpu_mode
-        lea equine,a0
+        move.l #2,gpu_mode ; Op 2 is 'psphere' in horse.gas.
+        lea equine,a0 ; Load the GPU module in horse.gas.
         jsr gpurun      ;do clear screen
         jmp gpuwait     ; returns
 
 rezza:  movem.l d0-d5,-(a7)
-        move.l #1,gpu_mode
-        lea in_buf,a0
+        move.l #1,gpu_mode ; Op 1 is 'pring2' in horse.gas.
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l #8,(a0)+    ;# pixels per ring
         move.l d2,(a0)+
         move.l d3,(a0)+
         move.l d1,(a0)+  ;XYZ position
-        
+
         move #3,d2
 xlxlxl: move d4,d7
         lea in_buf+16,a0
-        
+
         jsr pulser
 fcolour:and.l #$ff,d6
         move.l d6,(A0)+  ;colour
@@ -15778,16 +16057,16 @@ fcolour:and.l #$ff,d6
         swap d0
         move.l d0,(a0)+  ;radius
         move.l d6,(a0)+    ;phase
-        lea equine,a0
+        lea equine,a0 ; Load the GPU module in horse.gas.
         jsr gpurun      ;do clear screen
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         asr #1,d4
         dbra d2,xlxlxl
         movem.l (a7)+,d0-d5
         move frames,d6
         btst #2,d6
         bne wittg
-        rts  
+        rts
 
 wittg:  and.l #$ff,d0
         move.l 16(a6),d6
@@ -15811,13 +16090,14 @@ snopp2:
         move.l d3,(a0)+
         move.l d1,(a0)+
         move.l 36(a6),a1
-        lea xvector,a2
+        lea xvector,a2 ; Load the GPU shader in llama.gas.
         bra draaa
 
 ; *******************************************************************
 ; draw_h2hball
 ; Routine for drawing a solid ball in head-to-head mode.
 ; A member of the 'solids' list.
+; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_h2hball:
         tst 18(a6)  ;check for are we zapping someone
@@ -15859,11 +16139,11 @@ nohorra:
         and.l #$ff,d0
         or #$01,d0
         move.l d0,(a0)+    ;rnd seed
-        move.l #0,gpu_mode
-        move.l #bovine,a0
-        jsr gpurun    ;do it
-        jsr gpuwait
-        jsr WaitBlit
+        move.l #0,gpu_mode ; Select 'fline' in ox.gas.
+        move.l #bovine,a0 ; Load the GPU module in ox.gas.
+        jsr gpurun    ; Run the selected GPU module.
+        jsr gpuwait ; Wait for the GPU to finish.
+        jsr WaitBlit ; Wait for the blitter to finish.
         movem.l (a7)+,d0-d5
 
 onlyball:
@@ -15872,7 +16152,7 @@ onlyball:
         move.l d3,(a0)+
         move.l d1,(a0)+
         move.l _cube,a1
-        lea xvector,a2
+        lea xvector,a2 ; Load the GPU shader in llama.gas.
         move 28(a6),d0
         and.l #$ff,d0
         move.l d0,24(a1)  ;XY orientation
@@ -15884,7 +16164,7 @@ onlyball:
         move.l d0,32(a1)  ;YZ orientation
         move #11,d0    ;copy 48 bytes
 bhead:
-         move.l (a1)+,(a0)+  ;copy the header to GPU input ram
+        move.l (a1)+,(a0)+  ;copy the header to GPU input ram
         dbra d0,bhead
         move.l #$88,(a0)+    ;colour
         move.l #-2,scaler
@@ -15893,10 +16173,11 @@ bhead:
 ; *******************************************************************
 ; draw_pel
 ; Draw a pixel sized object.
+; Called during the draw_objects sequence as a member of the draw_vex list.
 ; *******************************************************************
 draw_pel:
-        lea in_buf,a0
-        move.l 4(a6),d0
+        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
+        move.l 4(a6),d0 ; Get the source X position.
         sub.l vp_x,d0
         move.l d0,(a0)+
         move.l 8(a6),d0
@@ -15911,10 +16192,10 @@ draw_pel:
         move.b 0(a4,d0.w),d0
         and.l #$ff,d0
         move.l d0,(a0)+
-        move.l #5,gpu_mode
-        lea xparrot,a0
+        move.l #5,gpu_mode ; Select 'rex' from 'xcamel.gas'.
+        lea xparrot,a0 ; Load the GPU module in 'xcamel.gas'.
         jsr gpurun    ;do gpu routine
-        jsr gpuwait
+        jsr gpuwait ; Wait for the GPU to finish.
         rts
 
 ; *******************************************************************
@@ -15922,8 +16203,8 @@ draw_pel:
 ; Clear the current gpu_screen.
 ; *******************************************************************
 clearscreen:
-        move.l #0,gpu_mode  ;GPU op 0 is clear the screen
-        lea fastvector,a0
+        move.l #0,gpu_mode  ;GPU op 0 is clear the screen, 'undraw'
+        lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun          ; do gpu routine
         jmp gpuwait         ; returns
 
@@ -15937,7 +16218,7 @@ readpad:tst roconon
 
 ; *******************************************************************
 ; Check for input from the controller pad. This is the one actually
-; used by the game. 
+; used by the game.
 ; *******************************************************************
 dopad:
         movem.l  d0-d2,-(sp)
@@ -16025,40 +16306,41 @@ dopad:
 ; Part of the GPU object management system.
 ; *******************************************************************
 MoveLink:
-mlink:  cmpa.l #-1,a1    ;Prev is -1?
+mlink:  cmpa.l #-1,a1       ;Prev is -1?
         bne ML1
-        move.l a2,(a4)   ;Make Next entry current top of list
-        cmpa.l a1,a2     ;Check if Next is -1
-        beq NewLink      ;Yup, we were the only entry
-ML1:    cmpa.l #-1,a2    ;Next link is -1?
-        bne ML2          ;Nope
-        move.l a2,60(a1) ;Make prev link-to-next -1
+        move.l a2,(a4)      ;Make Next entry current top of list
+        cmpa.l a1,a2        ;Check if Next is -1
+        beq NewLink         ;Yup, we were the only entry
+ML1:    cmpa.l #-1,a2       ;Next link is -1?
+        bne ML2             ;Nope
+        move.l a2,60(a1)    ;Make prev link-to-next -1
         bra NewLink
 ML2:    cmpa.l #-1,a1
         beq ml3
         move.l a2,60(a1)
-ml3:    move.l a1,56(a2) ;Link 'em up
-NewLink:move.l (a3),a4   ;Get address of first entry of dest list
-        cmpa.l #-1,a4    ;Check if link is real
-        bne NL1          ;Yup
-        move.l a0,(a3)   ;Make ourselves the first entry
+ml3:    move.l a1,56(a2)    ;Link 'em up
+NewLink:move.l (a3),a4      ;Get address of first entry of dest list
+        cmpa.l #-1,a4       ;Check if link is real
+        bne NL1             ;Yup
+        move.l a0,(a3)      ;Make ourselves the first entry
         move.l #-1,56(a0)
         move.l #-1,60(a0)
         clr d0
         rts
-NL1:    move.l #-1,56(a0) ;Gonna insert ourselves at the top
-        move.l a0,56(a4)  ;We are his previous
-        move.l a4,60(a0)  ;And he is our next
-        move.l a0,(a3)    ;Put us in
+NL1:    move.l #-1,56(a0)   ;Gonna insert ourselves at the top
+        move.l a0,56(a4)    ;We are his previous
+        move.l a4,60(a0)    ;And he is our next
+        move.l a0,(a3)      ;Put us in
         clr d0
         rts
 
 ; *******************************************************************
 ; initobjects
+; Initialise the activobjects and freeobjects lists.
 ; *******************************************************************
 initobjects:
         move.l #-1,activeobjects
-        lea objects,a0  
+        lea objects,a0
         move #63,d0
         move d0,ofree
         move.l a0,freeobjects
@@ -16069,7 +16351,7 @@ IniA:   move #-1,50(a0)
         lea 64(a0),a0     ;next bullet
         move.l a0,60(a1)  ;set Next field of preceding one
         dbra d0,IniA
-        move.l #-1,60(a1)  
+        move.l #-1,60(a1)
         move #32,afree
         rts
 
@@ -16089,7 +16371,7 @@ inipri:
         move.l a0,8(a1)
         dbra d0,inipri
         move.l #-1,8(a1)
-        rts  
+        rts
 
 ; *******************************************************************
 ; insertobject
@@ -16098,7 +16380,7 @@ inipri:
 ; *******************************************************************
 insertobject:
         clr 50(a0)    ;init busy flag
-        move.l 56(a0),a1 
+        move.l 56(a0),a1
         move.l 60(a0),a2
         sub #1,ofree
         lea activeobjects,a3
@@ -16111,7 +16393,7 @@ insertobject:
 ; render an active object inactive
 ; *******************************************************************
 unlinkobject:
-        move.l 56(a0),a1 
+        move.l 56(a0),a1
         move.l 60(a0),a2
         add #1,ofree
         lea freeobjects,a3
@@ -16147,7 +16429,7 @@ insp1:  cmp.l #-1,4(a1)      ;is he at the top of the lst?
         bne gencase          ;nope
         move.l a0,apriority  ;set us as the first object
         move.l 4(a1),a3
-        bra insp2            ;skip setting prev coz it's top of the lst  
+        bra insp2            ;skip setting prev coz it's top of the lst
 
 gencase:move.l 4(a1),a3      ;get his/our prev
         move.l a0,8(a3)      ;put us there
@@ -16195,7 +16477,7 @@ ulp4:   move.l #-1,4(a0)
         rts
 
 
- move.l 4(a0),a1 
+ move.l 4(a0),a1
  move.l 8(a0),a2
  lea fpriority,a3
  lea apriority,a4
@@ -16293,7 +16575,7 @@ sngenl: move (a0)+,d0        ; Stash the sentinel in d0.
         move d0,(a1)+        ; Store it in the wstuff table.
         move (a0)+,(a1)+     ; Store the type in the wstuff table.
         lsr #1,d0            ; Divide max time by 2.
-        move d0,(a1)+        ; Store it as a timer. 
+        move d0,(a1)+        ; Store it as a timer.
         bra sngenl           ; Loop until all done
 
 thaggit:
@@ -16335,7 +16617,7 @@ nugen3: lea 8(a0),a0      ; Move to the next entry in the list.
 launch1:tst t2k           ; Are we in t2k mode?
         bne doany         ; If not, go ahead and try to create an enemy.
         cmp #6,d0         ; Is the type greater than 6?
-        bgt shutoff       ; 
+        bgt shutoff       ;
 
 doany:  move noclog,d1    ; Get the available bandwidth for new enemies.
         cmp afree,d1      ; Do we have room for a new enemy?
@@ -16419,7 +16701,7 @@ rave:   move.b (a6)+,d0     ; Get the current status of the wave.
         cmp.b #'w',d0       ; Is it in wait status?
         bne rwav1           ; No, check if it's awaiting intialisation.
         ; It's waiting, so set the timer based on its value.
-        move.b (a6)+,d0     ; Put the timer value in d0 
+        move.b (a6)+,d0     ; Put the timer value in d0
         and #$ff,d0         ; Just the LSB.
         move d0,d1          ; Stash it in d1.
         lsr #1,d0           ; Divide by 2.
@@ -16451,7 +16733,7 @@ rwav2:  cmp.b #'(',d0       ; Is the wave for an open loop?
         ; Set it up.
         move.b (a6)+,d0     ; Put the loop counter in d0.
         and #$ff,d0         ; Just the LSB byte.
-        move.l wave_sp,a0   ; Stash the wave_sp in a0. 
+        move.l wave_sp,a0   ; Stash the wave_sp in a0.
         move.l a6,(a0)+     ; Add the wave_ptr to the stack.
         move d0,(a0)+       ; Add the loop counter to the stack.
         move.l a0,wave_sp   ; Restore the wave_sp from a0.
@@ -16528,7 +16810,7 @@ rst:
         lea p_sines,a2
         move #7,d7    ;8 rings
         move.l #256,(a0)+  ;set startotal
-        
+
         move #$0000,d4
 ring1:
         move #32,d6    ;64 stars per ring
@@ -16670,7 +16952,7 @@ nnpixel:
         bra imms1
 
 impixel:
-        movem d2-d3,-(a7)  
+        movem d2-d3,-(a7)
 
         move d5,d0    ;copy total width in bytes
         asl #2,d0    ;is half no. of bits
@@ -16758,8 +17040,8 @@ showscore:
         lsl #5,d6
         neg d6
         add #352,d6    ;position of pyramid
-        move #31,d0    
-        move #20,d1  
+        move #31,d0
+        move #20,d1
         move #20,d7
         move.l #$40000,pc_1
         move.l #$560100,pc_2
@@ -16891,7 +17173,7 @@ nnxtdig:
         move d2,d0
         dbra d1,ndbl
         move #1,ud_score
-        rts  
+        rts
 
 
 ; *******************************************************************
@@ -16930,14 +17212,14 @@ dedec:
         beq nolim1  ;if limits are equal there are no limits
         cmp.l d2,d1
         bmi instop  ;minv>v, go stop inertia
-        
+
 nolim1:
         move.l 4(a0),d0  ;get accel
         move.l 24(a0),d2  ;get maccel
         neg.l d2  ;negate coz this is dec
         cmp.l d2,d0
         bmi inmove  ;no acceleration, already close to maccel
-        
+
         move.l 8(a0),d0
         sub.l d0,4(a0)  ;do accelerate
 
@@ -16953,13 +17235,13 @@ ininc:
         beq nolim2
         cmp.l d2,d1
         bpl instop  ;maxv<v, go stop inertia
-        
+
 nolim2:
         move.l 4(a0),d0  ;get accel
         move.l 24(a0),d2  ;get maccel
         cmp.l d2,d0
         bpl inmove  ;no acceleration, already close to maccel
-        
+
         move.l 8(a0),d0
         add.l d0,4(a0)  ;do accelerate
         bra inmove
@@ -17028,8 +17310,8 @@ fw_run:
         move.l fw_ptr,a0
 
 fw_cmd:
-        move.b (a0)+,d0    ;get cmd
-        cmp.b #'.',d0    ;.=Launch at current XY
+        move.b (a0)+,d0   ;get cmd
+        cmp.b #'.',d0     ;.=Launch at current XY
         bne fw_c1
         move.l a0,-(a7)
         jsr make_fw
@@ -17164,7 +17446,7 @@ fw_sv3:
         bra fw_cmd
 fw_sv4:
         bra fw_cmd
-          
+
 
 ; *******************************************************************
 ; score2num
@@ -17200,7 +17482,7 @@ s3n:
 
 ; *******************************************************************
 ; xscoretab
-;
+; Initialize the high score table with default settings.
 ; Expand a HS table from the packed data starting at a0.
 ; *******************************************************************
 xscoretab:
@@ -17320,14 +17602,14 @@ anima1:
         add.b #'0',d0
         move.b d0,(a4)+
         move.b (a3)+,d0
-        dbra d7,anima1 
+        dbra d7,anima1
         move.b #0,4(a2)
 
         lea 8(a0),a0  ;next line of c-table
         lea 64(a1),a1  ;next line of uc-table
         dbra d4,xscore  ;xfer them all
         rts
-        
+
 ; *******************************************************************
 ; eepromsave
 ; Save the EEPROM
@@ -17398,39 +17680,37 @@ ccrset:
 ; use text thang to do a page of txt. Pass d0,d1=start pos of first line. Returns 0=text done, 1=more text waiting (a0 poised)
 ; *******************************************************************
 pager:
-
         lea in_buf,a0
-        move.l #linebuff,(a0)    ;Set up texter: address of text $
-        move.l #cfont,4(a0)    ;default font
+        move.l #linebuff,(a0)   ;Set up texter: address of text $
+        move.l #cfont,4(a0)     ;default font
         move.l #0,8(a0)
-        move.l #0,12(a0)    ;dropshadow vector
+        move.l #0,12(a0)        ;dropshadow vector
         move.l #$10000,16(a0)
-        move.l #$10000,20(a0)    ;text scale
+        move.l #$10000,20(a0)   ;text scale
         move.l #0,24(a0)
-        move.l #0,28(a0)    ;text shear
+        move.l #0,28(a0)        ;text shear
         move.l #0,36(a0)
-;  bsr g_textlength
 nxline:
-        bsr g_getline    ;returns length in d6, d7 is flag for text end
+        bsr g_getline           ;returns length in d6, d7 is flag for text end
         tst d6
         beq nuline
         move d1,d2
         swap d2
         move d0,d2
-        move.l d2,32(a0)    ;set text origin
+        move.l d2,32(a0)        ;set text origin
         move.l a0,-(a7)
-        lea texter,a0
-        jsr gpurun
+        lea texter,a0 ; Load the GPU module in stoat.gas.
+        jsr gpurun ; Run the selected GPU module.
         jsr gpuwait
         move.l (A7)+,a0
 nuline:
         tst d7
-        beq rrts      ;d7 0 means text has ended
+        beq rrts                ;d7 0 means text has ended
         add 4(a1),d1
-        add #2,d1      ;linefeed
+        add #2,d1               ;linefeed
         cmp #2,d7
         bne notbiglf
-        add #6,d1      ;bigger LF
+        add #6,d1               ;bigger LF
 notbiglf:
         move #220,d3
         tst pal
@@ -17438,29 +17718,29 @@ notbiglf:
         move #250,d3
 
 palll:
-         cmp d3,d1    ;btm line of text
+         cmp d3,d1              ;btm line of text
         ble nxline
         move #1,d7
         rts
 
 g_getline:
-        move.l a5,a2  ;d2.l points to 0term text
+        move.l a5,a2            ;d2.l points to 0term text
         move #0,d7
-        move.l 4(a0),a1    ;get font base  
+        move.l 4(a0),a1         ;get font base
         move 6(a1),d6
-        add #2,d6    ;got text width
+        add #2,d6               ;got text width
         lea linebuff,a3
-        move d0,d2    ;copy text origin
+        move d0,d2              ;copy text origin
         move #350,d3
-        sub d6,d3    ;maximum text position
+        sub d6,d3               ;maximum text position
 g_gtlin:
         move.b (a2)+,d5
         cmp.b #'*',d5
-        beq retend    ;found end of the text
+        beq retend              ;found end of the text
         cmp.b #'/',d5
-        beq morend    ;return and say more
+        beq morend              ;return and say more
         cmp.b #'~',d5
-        beq morend2    ;use for larger CR/LF gap
+        beq morend2             ;use for larger CR/LF gap
         cmp.b #'^',d5
         bne g_gt1
         lea fonties,a1
@@ -17468,7 +17748,7 @@ g_gtlin:
         sub.b #'0',d5
         and #$ff,d5
         lsl #2,d5
-        move.l 0(a1,d5.w),a1  ;get new font
+        move.l 0(a1,d5.w),a1    ;get new font
         bra g_gtlin
 g_gt1:
          cmp.b #'>',d5
@@ -17483,19 +17763,19 @@ g_gt1:
         add d5,d0
         bra g_gtlin
 g_gt2:
-        move.b d5,(a3)+    ;copy to line buffer
+        move.b d5,(a3)+         ;copy to line buffer
         add d6,d7
         move d0,d5
         add d7,d5
         cmp d3,d5
-        bmi g_gtlin    ;wait till a letter goes too far over
+        bmi g_gtlin             ;wait till a letter goes too far over
 bakkup:
-        move.b #0,-(a3)    ;back up till a space
+        move.b #0,-(a3)         ;back up till a space
         sub d6,d7
         move.b -(a2),d5
         cmp.b #' ',d5
         bne bakkup
-        lea 1(a2),a2    ;skip the space
+        lea 1(a2),a2            ;skip the space
 morend:
         move.l a2,a5
         move d7,d6
@@ -17506,7 +17786,7 @@ retend:
         move.b #0,(a3)+
         move d7,d6
         clr d7
-        rts  
+        rts
 morend2:
         move.l a2,a5
         move d7,d6
@@ -17516,7 +17796,7 @@ morend2:
 
 ; *******************************************************************
 ; xkeys
-;
+; ; Load the default player keys.
 ; set up OPTION8 according to how many keys there are.
 ; *******************************************************************
 xkeys:
@@ -17536,7 +17816,7 @@ xnam:
         bne xfacer
         move.b #' ',d0
 xfacer:
-        move.b d0,(a2)+   
+        move.b d0,(a2)+
         dbra d7,xnam    ;copy over the initials
 
         lea linebuff+10,a3
@@ -17685,412 +17965,412 @@ rospeeds:
 ;         dc.w -1       ; End of data sentinel
 ; *******************************************************************
 _nw1:   dc.w 24
-        dc.w 120,0    ;Flippers
+        dc.w 120,0       ;Flippers
         dc.w -1
 
 _nw2:  dc.w 24
-        dc.w 100,0    ;Flippers
+        dc.w 100,0       ;Flippers
         dc.w -1
 
 _nw3:  dc.w 16
-        dc.w 120,0    ;Flippers
-        dc.w 0,444,1    ;Flipper Tankers
-        dc.w -1    
+        dc.w 120,0       ;Flippers
+        dc.w 0,444,1     ;Flipper Tankers
+        dc.w -1
 
 _nw4:  dc.w 24
-        dc.w 80,0    ;Flippers
-        dc.w 0,333,1    ;Flipper Tankers
-        dc.w 0,800,2    ;Spikers
-        dc.w -1  
+        dc.w 80,0        ;Flippers
+        dc.w 0,333,1     ;Flipper Tankers
+        dc.w 0,800,2     ;Spikers
+        dc.w -1
 
 _nw5:  dc.w 24
-        dc.w 100,0    ;Flippers
-        dc.w 0,280,1    ;Flipper Tankers
-        dc.w 0,800,2    ;Spikers
+        dc.w 100,0       ;Flippers
+        dc.w 0,280,1     ;Flipper Tankers
+        dc.w 0,800,2     ;Spikers
         dc.w -1
 
 _nw6:  dc.w 30
-        dc.w 95,0    ;Flippers
-        dc.w 0,260,1    ;Flipper Tankers
-        dc.w 0,800,2    ;Spikers
+        dc.w 95,0        ;Flippers
+        dc.w 0,260,1     ;Flipper Tankers
+        dc.w 0,800,2     ;Spikers
         dc.w -1
 
 _nw7:  dc.w 30
-        dc.w 90,0    ;Flippers
-        dc.w 0,250,1    ;Flipper Tankers
-        dc.w 0,750,2    ;Spikers
+        dc.w 90,0        ;Flippers
+        dc.w 0,250,1     ;Flipper Tankers
+        dc.w 0,750,2     ;Spikers
         dc.w -1
 
 _nw8:  dc.w 30
-        dc.w 90,0    ;Flippers
-        dc.w 0,240,1    ;Flipper Tankers
-        dc.w 0,650,2    ;Spikers
+        dc.w 90,0        ;Flippers
+        dc.w 0,240,1     ;Flipper Tankers
+        dc.w 0,650,2     ;Spikers
         dc.w -1
 
 _nw9:  dc.w 30
-        dc.w 85,0    ;Flippers
-        dc.w 0,230,1    ;Flipper Tankers
-        dc.w 0,600,2    ;Spikers
+        dc.w 85,0        ;Flippers
+        dc.w 0,230,1     ;Flipper Tankers
+        dc.w 0,600,2     ;Spikers
         dc.w -1
 
 _nw10:  dc.w 30
-        dc.w 85,0    ;Flippers
-        dc.w 0,240,1    ;Flipper Tankers
-        dc.w 0,850,2    ;Spikers
-        dc.w 0,2000,10    ;Beasties
+        dc.w 85,0        ;Flippers
+        dc.w 0,240,1     ;Flipper Tankers
+        dc.w 0,850,2     ;Spikers
+        dc.w 0,2000,10   ;Beasties
         dc.w -1
 
 _nw11:  dc.w 30
-        dc.w 85,0    ;Flippers
-        dc.w 0,270,1    ;Flipper Tankers
-        dc.w 0,850,2    ;Spikers
+        dc.w 85,0        ;Flippers
+        dc.w 0,270,1     ;Flipper Tankers
+        dc.w 0,850,2     ;Spikers
         dc.w 0,1000,3    ;Fuseballs
-        dc.w 0,2000,10    ;Beasties
+        dc.w 0,2000,10   ;Beasties
         dc.w -1
 
 _nw12:  dc.w 30
-        dc.w 80,0    ;Flippers
-        dc.w 0,270,1    ;Flipper Tankers
-        dc.w 0,850,2    ;Spikers
-        dc.w 0,2000,10    ;Beasties
-        dc.w 0,700,3    ;Fuseballs
+        dc.w 80,0        ;Flippers
+        dc.w 0,270,1     ;Flipper Tankers
+        dc.w 0,850,2     ;Spikers
+        dc.w 0,2000,10   ;Beasties
+        dc.w 0,700,3     ;Fuseballs
         dc.w -1
 
 _nw13:  dc.w 30
-        dc.w 80,0    ;Flippers
-        dc.w 0,270,1    ;Flipper Tankers
-        dc.w 0,2000,10    ;Beasties
-        dc.w 0,750,2    ;Spikers
-        dc.w 0,600,3    ;Fuseballs
+        dc.w 80,0        ;Flippers
+        dc.w 0,270,1     ;Flipper Tankers
+        dc.w 0,2000,10   ;Beasties
+        dc.w 0,750,2     ;Spikers
+        dc.w 0,600,3     ;Fuseballs
         dc.w -1
 
 _nw14:  dc.w 30
-        dc.w 75,0    ;Flippers
-        dc.w 0,270,1    ;Flipper Tankers
-        dc.w 0,2000,10    ;Beasties
-        dc.w 0,750,2    ;Spikers
-        dc.w 0,600,3    ;Fuseballs
+        dc.w 75,0        ;Flippers
+        dc.w 0,270,1     ;Flipper Tankers
+        dc.w 0,2000,10   ;Beasties
+        dc.w 0,750,2     ;Spikers
+        dc.w 0,600,3     ;Fuseballs
         dc.w -1
 
 _nw15:  dc.w 30
-        dc.w 75,0    ;Flippers
-        dc.w 0,270,1    ;Flipper Tankers
-        dc.w 0,2000,10    ;Beasties
-        dc.w 0,750,2    ;Spikers
-        dc.w 0,500,3    ;Fuseballs
+        dc.w 75,0        ;Flippers
+        dc.w 0,270,1     ;Flipper Tankers
+        dc.w 0,2000,10   ;Beasties
+        dc.w 0,750,2     ;Spikers
+        dc.w 0,500,3     ;Fuseballs
         dc.w -1
 
 _nw16:  dc.w 40
-        dc.w 70,0    ;Flippers
-        dc.w 0,230,1    ;Flipper Tankers
-        dc.w 0,750,2    ;Spikers
-        dc.w 0,2000,10    ;Beasties
-        dc.w 0,500,3    ;Fuseballs
+        dc.w 70,0        ;Flippers
+        dc.w 0,230,1     ;Flipper Tankers
+        dc.w 0,750,2     ;Spikers
+        dc.w 0,2000,10   ;Beasties
+        dc.w 0,500,3     ;Fuseballs
         dc.w -1
 
 _nw17:  dc.w 24
-        dc.w 120,0    ;Flippers
-        dc.w 0,600,4    ;Pulsars
-        dc.w 0,750,2    ;Spikers
-        dc.w 0,1000,10    ;Beasties
-        dc.w 0,900,3    ;Fuseballs
+        dc.w 120,0       ;Flippers
+        dc.w 0,600,4     ;Pulsars
+        dc.w 0,750,2     ;Spikers
+        dc.w 0,1000,10   ;Beasties
+        dc.w 0,900,3     ;Fuseballs
         dc.w -1
 
 _nw18:  dc.w 30
-        dc.w 100,0    ;Flippers
-        dc.w 0,500,4    ;Pulsars
-        dc.w 0,750,2    ;Spikers
-        dc.w 0,1000,10    ;Beasties
-        dc.w 0,900,3    ;Fuseballs
+        dc.w 100,0       ;Flippers
+        dc.w 0,500,4     ;Pulsars
+        dc.w 0,750,2     ;Spikers
+        dc.w 0,1000,10   ;Beasties
+        dc.w 0,900,3     ;Fuseballs
         dc.w -1
 
 _nw19:  dc.w 30
-        dc.w 120,0    ;Flippers
-        dc.w 0,444,1    ;Flipper Tankers
-        dc.w 0,600,4    ;Pulsars
-        dc.w 0,1000,10    ;Beasties
-        dc.w 0,750,2    ;Spikers
-        dc.w 0,900,3    ;Fuseballs
-        dc.w -1    
+        dc.w 120,0       ;Flippers
+        dc.w 0,444,1     ;Flipper Tankers
+        dc.w 0,600,4     ;Pulsars
+        dc.w 0,1000,10   ;Beasties
+        dc.w 0,750,2     ;Spikers
+        dc.w 0,900,3     ;Fuseballs
+        dc.w -1
 
 _nw20:  dc.w 32
-        dc.w 80,0    ;Flippers
-        dc.w 0,333,1    ;Flipper Tankers
-        dc.w 0,500,4    ;Pulsars
-        dc.w 0,1000,10    ;Beasties
-        dc.w 0,750,2    ;Spikers
-        dc.w 0,900,3    ;Fuseballs
-        dc.w -1  
+        dc.w 80,0        ;Flippers
+        dc.w 0,333,1     ;Flipper Tankers
+        dc.w 0,500,4     ;Pulsars
+        dc.w 0,1000,10   ;Beasties
+        dc.w 0,750,2     ;Spikers
+        dc.w 0,900,3     ;Fuseballs
+        dc.w -1
 
 _nw21:  dc.w 32
-        dc.w 100,0    ;Flippers
-        dc.w 0,280,1    ;Flipper Tankers
-        dc.w 0,800,2    ;Spikers
-        dc.w 0,1000,10    ;Beasties
-        dc.w 0,432,4    ;Pulsars
-        dc.w 0,900,3    ;Fuseballs
+        dc.w 100,0       ;Flippers
+        dc.w 0,280,1     ;Flipper Tankers
+        dc.w 0,800,2     ;Spikers
+        dc.w 0,1000,10   ;Beasties
+        dc.w 0,432,4     ;Pulsars
+        dc.w 0,900,3     ;Fuseballs
         dc.w -1
 
 _nw22:  dc.w 35
-        dc.w 95,0    ;Flippers
-        dc.w 0,260,1    ;Flipper Tankers
-        dc.w 0,800,2    ;Spikers
-        dc.w 0,1000,10    ;Beasties
-        dc.w 0,425,4    ;Pulsars
-        dc.w 0,900,3    ;Fuseballs
+        dc.w 95,0        ;Flippers
+        dc.w 0,260,1     ;Flipper Tankers
+        dc.w 0,800,2     ;Spikers
+        dc.w 0,1000,10   ;Beasties
+        dc.w 0,425,4     ;Pulsars
+        dc.w 0,900,3     ;Fuseballs
         dc.w -1
 
 _nw23:  dc.w 35
-        dc.w 90,0    ;Flippers
-        dc.w 0,250,1    ;Flipper Tankers
-        dc.w 0,750,2    ;Spikers
-        dc.w 0,1000,10    ;Beasties
-        dc.w 0,462,4    ;Pulsars
-        dc.w 0,900,3    ;Fuseballs
+        dc.w 90,0        ;Flippers
+        dc.w 0,250,1     ;Flipper Tankers
+        dc.w 0,750,2     ;Spikers
+        dc.w 0,1000,10   ;Beasties
+        dc.w 0,462,4     ;Pulsars
+        dc.w 0,900,3     ;Fuseballs
         dc.w -1
 
 _nw24:  dc.w 35
-        dc.w 90,0    ;Flippers
-        dc.w 0,240,1    ;Flipper Tankers
-        dc.w 0,650,2    ;Spikers
-        dc.w 0,1000,10    ;Beasties
-        dc.w 0,411,4    ;Pulsars
-        dc.w 0,900,3    ;Fuseballs
+        dc.w 90,0        ;Flippers
+        dc.w 0,240,1     ;Flipper Tankers
+        dc.w 0,650,2     ;Spikers
+        dc.w 0,1000,10   ;Beasties
+        dc.w 0,411,4     ;Pulsars
+        dc.w 0,900,3     ;Fuseballs
         dc.w -1
 
 _nw25:  dc.w 40
-        dc.w 85,0    ;Flippers
-        dc.w 0,230,1    ;Flipper Tankers
-        dc.w 0,600,2    ;Spikers
-        dc.w 0,560,4    ;Pulsars
-        dc.w 0,1000,10    ;Beasties
-        dc.w 0,700,3    ;Fuseballs
+        dc.w 85,0        ;Flippers
+        dc.w 0,230,1     ;Flipper Tankers
+        dc.w 0,600,2     ;Spikers
+        dc.w 0,560,4     ;Pulsars
+        dc.w 0,1000,10   ;Beasties
+        dc.w 0,700,3     ;Fuseballs
         dc.w 0,2000,5    ;Fuseball Tankers
-        dc.w -1  
+        dc.w -1
 
 _nw26:  dc.w 40
-        dc.w 85,0    ;Flippers
-        dc.w 0,240,1    ;Flipper Tankers
-        dc.w 0,850,2    ;Spikers
-        dc.w 0,1000,10    ;Beasties
-        dc.w 0,399,4    ;Pulsars
-        dc.w 0,700,3    ;Fuseballs
+        dc.w 85,0        ;Flippers
+        dc.w 0,240,1     ;Flipper Tankers
+        dc.w 0,850,2     ;Spikers
+        dc.w 0,1000,10   ;Beasties
+        dc.w 0,399,4     ;Pulsars
+        dc.w 0,700,3     ;Fuseballs
         dc.w 0,2000,5
         dc.w -1
 
 _nw27:  dc.w 40
-        dc.w 85,0    ;Flippers
-        dc.w 0,370,1    ;Flipper Tankers
-        dc.w 0,850,2    ;Spikers
-        dc.w 0,1000,10    ;Beasties
+        dc.w 85,0        ;Flippers
+        dc.w 0,370,1     ;Flipper Tankers
+        dc.w 0,850,2     ;Spikers
+        dc.w 0,1000,10   ;Beasties
         dc.w 0,1000,3    ;Fuseballs
-        dc.w 0,388,4    ;Pulsars
+        dc.w 0,388,4     ;Pulsars
         dc.w 0,2000,5    ;Fuseball Tankers
         dc.w -1
 
 _nw28:  dc.w 40
-        dc.w 80,0    ;Flippers
-        dc.w 0,370,1    ;Flipper Tankers
-        dc.w 0,850,2    ;Spikers
-        dc.w 0,700,3    ;Fuseballs
-        dc.w 0,1000,10    ;Beasties
-        dc.w 0,377,4    ;Pulsars
+        dc.w 80,0        ;Flippers
+        dc.w 0,370,1     ;Flipper Tankers
+        dc.w 0,850,2     ;Spikers
+        dc.w 0,700,3     ;Fuseballs
+        dc.w 0,1000,10   ;Beasties
+        dc.w 0,377,4     ;Pulsars
         dc.w 0,2000,5    ;Fuseball Tankers
         dc.w -1
 
 _nw29:  dc.w 40
-        dc.w 80,0    ;Flippers
-        dc.w 0,470,1    ;Flipper Tankers
-        dc.w 0,750,2    ;Spikers
-        dc.w 0,900,3    ;Fuseballs
-        dc.w 0,1000,10    ;Beasties
-        dc.w 0,366,4    ;Pulsars
+        dc.w 80,0        ;Flippers
+        dc.w 0,470,1     ;Flipper Tankers
+        dc.w 0,750,2     ;Spikers
+        dc.w 0,900,3     ;Fuseballs
+        dc.w 0,1000,10   ;Beasties
+        dc.w 0,366,4     ;Pulsars
         dc.w 0,2000,5    ;Fuseball Tankers
         dc.w -1
 
 _nw30:  dc.w 40
-        dc.w 75,0    ;Flippers
-        dc.w 0,470,1    ;Flipper Tankers
-        dc.w 0,750,2    ;Spikers
-        dc.w 0,900,3    ;Fuseballs
-        dc.w 0,1000,10    ;Beasties
-        dc.w 0,350,4    ;Pulsars
+        dc.w 75,0        ;Flippers
+        dc.w 0,470,1     ;Flipper Tankers
+        dc.w 0,750,2     ;Spikers
+        dc.w 0,900,3     ;Fuseballs
+        dc.w 0,1000,10   ;Beasties
+        dc.w 0,350,4     ;Pulsars
         dc.w 0,1000,5    ;Fuseball Tankers
         dc.w -1
 
 _nw31:  dc.w 40
-        dc.w 95,0    ;Flippers
-        dc.w 0,470,1    ;Flipper Tankers
-        dc.w 0,750,2    ;Spikers
-        dc.w 0,900,3    ;Fuseballs
-        dc.w 0,1000,10    ;Beasties
-        dc.w 0,350,4    ;Pulsars
+        dc.w 95,0        ;Flippers
+        dc.w 0,470,1     ;Flipper Tankers
+        dc.w 0,750,2     ;Spikers
+        dc.w 0,900,3     ;Fuseballs
+        dc.w 0,1000,10   ;Beasties
+        dc.w 0,350,4     ;Pulsars
         dc.w 0,1000,5    ;Fuseball Tankers
         dc.w -1
 
 _nw32:  dc.w 40
-        dc.w 90,0    ;Flippers
-        dc.w 0,430,1    ;Flipper Tankers
-        dc.w 0,750,2    ;Spikers
-        dc.w 0,500,3    ;Fuseballs
-        dc.w 0,1000,10    ;Beasties
-        dc.w 0,900,4    ;Pulsars
-        dc.w 0,500,5    ;Fuseball Tankers
+        dc.w 90,0        ;Flippers
+        dc.w 0,430,1     ;Flipper Tankers
+        dc.w 0,750,2     ;Spikers
+        dc.w 0,500,3     ;Fuseballs
+        dc.w 0,1000,10   ;Beasties
+        dc.w 0,900,4     ;Pulsars
+        dc.w 0,500,5     ;Fuseball Tankers
         dc.w -1
 
 
 _nw33:  dc.w 24
-        dc.w 100,0    ;Flippers
-        dc.w 0,750,2    ;Spikers
-        dc.w 0,900,3    ;Fuseballs
-        dc.w 0,500,6    ;Pulsar Tankers
+        dc.w 100,0       ;Flippers
+        dc.w 0,750,2     ;Spikers
+        dc.w 0,900,3     ;Fuseballs
+        dc.w 0,500,6     ;Pulsar Tankers
         dc.w 0,700,10    ;Beasties
         dc.w -1
 
 _nw34:  dc.w 30
-        dc.w 100,0    ;Flippers
-        dc.w 0,750,2    ;Spikers
+        dc.w 100,0       ;Flippers
+        dc.w 0,750,2     ;Spikers
         dc.w 0,700,10    ;Beasties
-        dc.w 0,450,6    ;Pulsar Tankers
-        dc.w 0,900,3    ;Fuseballs
+        dc.w 0,450,6     ;Pulsar Tankers
+        dc.w 0,900,3     ;Fuseballs
         dc.w -1
 
 _nw35:  dc.w 30
-        dc.w 120,0    ;Flippers
-        dc.w 0,444,1    ;Flipper Tankers
-        dc.w 0,750,2    ;Spikers
+        dc.w 120,0       ;Flippers
+        dc.w 0,444,1     ;Flipper Tankers
+        dc.w 0,750,2     ;Spikers
         dc.w 0,700,10    ;Beasties
-        dc.w 0,900,3    ;Fuseballs
-        dc.w 0,450,6    ;Pulsar Tankers
-        dc.w -1    
+        dc.w 0,900,3     ;Fuseballs
+        dc.w 0,450,6     ;Pulsar Tankers
+        dc.w -1
 
 _nw36:  dc.w 32
-        dc.w 80,0    ;Flippers
-        dc.w 0,333,1    ;Flipper Tankers
-        dc.w 0,750,2    ;Spikers
+        dc.w 80,0        ;Flippers
+        dc.w 0,333,1     ;Flipper Tankers
+        dc.w 0,750,2     ;Spikers
         dc.w 0,700,10    ;Beasties
-        dc.w 0,950,3    ;Fuseballs
-        dc.w 0,400,6    ;Pulsar Tankers
-        dc.w -1  
+        dc.w 0,950,3     ;Fuseballs
+        dc.w 0,400,6     ;Pulsar Tankers
+        dc.w -1
 
 _nw37:  dc.w 32
-        dc.w 100,0    ;Flippers
-        dc.w 0,280,1    ;Flipper Tankers
-        dc.w 0,800,2    ;Spikers
-        dc.w 0,900,3    ;Fuseballs
+        dc.w 100,0       ;Flippers
+        dc.w 0,280,1     ;Flipper Tankers
+        dc.w 0,800,2     ;Spikers
+        dc.w 0,900,3     ;Fuseballs
         dc.w 0,700,10    ;Beasties
-        dc.w 0,450,6    ;Pulsar Tankers
+        dc.w 0,450,6     ;Pulsar Tankers
         dc.w -1
 
 _nw38:  dc.w 35
-        dc.w 95,0    ;Flippers
-        dc.w 0,260,1    ;Flipper Tankers
-        dc.w 0,800,2    ;Spikers
+        dc.w 95,0        ;Flippers
+        dc.w 0,260,1     ;Flipper Tankers
+        dc.w 0,800,2     ;Spikers
         dc.w 0,700,10    ;Beasties
-        dc.w 0,900,3    ;Fuseballs
-        dc.w 0,450,6    ;Pulsar Tankers
+        dc.w 0,900,3     ;Fuseballs
+        dc.w 0,450,6     ;Pulsar Tankers
         dc.w -1
 
 _nw39:  dc.w 35
-        dc.w 90,0    ;Flippers
-        dc.w 0,250,1    ;Flipper Tankers
-        dc.w 0,750,2    ;Spikers
-        dc.w 0,900,3    ;Fuseballs
+        dc.w 90,0        ;Flippers
+        dc.w 0,250,1     ;Flipper Tankers
+        dc.w 0,750,2     ;Spikers
+        dc.w 0,900,3     ;Fuseballs
         dc.w 0,700,10    ;Beasties
-        dc.w 0,400,6    ;Pulsar Tankers
+        dc.w 0,400,6     ;Pulsar Tankers
         dc.w -1
 
 _nw40:  dc.w 35
-        dc.w 90,0    ;Flippers
-        dc.w 0,240,1    ;Flipper Tankers
-        dc.w 0,650,2    ;Spikers
-        dc.w 0,900,3    ;Fuseballs
+        dc.w 90,0        ;Flippers
+        dc.w 0,240,1     ;Flipper Tankers
+        dc.w 0,650,2     ;Spikers
+        dc.w 0,900,3     ;Fuseballs
         dc.w 0,700,10    ;Beasties
-        dc.w 0,350,6    ;Pulsar Tankers
+        dc.w 0,350,6     ;Pulsar Tankers
         dc.w -1
 
 _nw41:  dc.w 40
-        dc.w 85,0    ;Flippers
-        dc.w 0,230,1    ;Flipper Tankers
-        dc.w 0,600,2    ;Spikers
+        dc.w 85,0        ;Flippers
+        dc.w 0,230,1     ;Flipper Tankers
+        dc.w 0,600,2     ;Spikers
         dc.w 0,1100,4    ;Pulsars
         dc.w 0,800,10    ;Beasties
-        dc.w 0,700,3    ;Fuseballs
-        dc.w 0,800,5    ;Fuseball Tankers
-        dc.w 0,350,6    ;Pulsar Tankers
-        dc.w -1  
+        dc.w 0,700,3     ;Fuseballs
+        dc.w 0,800,5     ;Fuseball Tankers
+        dc.w 0,350,6     ;Pulsar Tankers
+        dc.w -1
 
 _nw42:  dc.w 40
-        dc.w 85,0    ;Flippers
-        dc.w 0,240,1    ;Flipper Tankers
-        dc.w 0,850,2    ;Spikers
+        dc.w 85,0        ;Flippers
+        dc.w 0,240,1     ;Flipper Tankers
+        dc.w 0,850,2     ;Spikers
         dc.w 0,1100,4    ;Pulsars
         dc.w 0,700,10    ;Beasties
-        dc.w 0,700,3    ;Fuseballs
-        dc.w 0,350,6    ;Pulsar Tankers
+        dc.w 0,700,3     ;Fuseballs
+        dc.w 0,350,6     ;Pulsar Tankers
         dc.w 0,2000,5
         dc.w -1
 
 _nw43:  dc.w 40
-        dc.w 85,0    ;Flippers
-        dc.w 0,270,1    ;Flipper Tankers
-        dc.w 0,850,2    ;Spikers
-        dc.w 0,400,3    ;Fuseballs
+        dc.w 85,0        ;Flippers
+        dc.w 0,270,1     ;Flipper Tankers
+        dc.w 0,850,2     ;Spikers
+        dc.w 0,400,3     ;Fuseballs
         dc.w 0,1100,4    ;Pulsars
-        dc.w 0,500,6    ;Pulsar Tankers
+        dc.w 0,500,6     ;Pulsar Tankers
         dc.w 0,700,10    ;Beasties
-        dc.w 0,300,5    ;Fuseball Tankers
+        dc.w 0,300,5     ;Fuseball Tankers
         dc.w -1
 
 _nw44:  dc.w 40
-        dc.w 80,0    ;Flippers
-        dc.w 0,270,1    ;Flipper Tankers
-        dc.w 0,850,2    ;Spikers
-        dc.w 0,700,3    ;Fuseballs
+        dc.w 80,0        ;Flippers
+        dc.w 0,270,1     ;Flipper Tankers
+        dc.w 0,850,2     ;Spikers
+        dc.w 0,700,3     ;Fuseballs
         dc.w 0,700,10    ;Beasties
-        dc.w 0,500,4    ;Pulsars
-        dc.w 0,500,6    ;Pulsar Tankers
-        dc.w 0,300,5    ;Fuseball Tankers
+        dc.w 0,500,4     ;Pulsars
+        dc.w 0,500,6     ;Pulsar Tankers
+        dc.w 0,300,5     ;Fuseball Tankers
         dc.w -1
 
 _nw45:  dc.w 40
-        dc.w 80,0    ;Flippers
-        dc.w 0,270,1    ;Flipper Tankers
-        dc.w 0,750,2    ;Spikers
-        dc.w 0,900,3    ;Fuseballs
+        dc.w 80,0        ;Flippers
+        dc.w 0,270,1     ;Flipper Tankers
+        dc.w 0,750,2     ;Spikers
+        dc.w 0,900,3     ;Fuseballs
         dc.w 0,700,10    ;Beasties
         dc.w 0,1000,4    ;Pulsars
-        dc.w 0,300,6    ;Pulsar Tankers
-        dc.w 0,800,5    ;Fuseball Tankers
+        dc.w 0,300,6     ;Pulsar Tankers
+        dc.w 0,800,5     ;Fuseball Tankers
         dc.w -1
 
 _nw46:  dc.w 40
-        dc.w 75,0    ;Flippers
+        dc.w 75,0       ;Flippers
         dc.w 0,270,1    ;Flipper Tankers
         dc.w 0,750,2    ;Spikers
         dc.w 0,900,3    ;Fuseballs
-        dc.w 0,700,10    ;Beasties
-        dc.w 0,1000,4    ;Pulsars
+        dc.w 0,700,10   ;Beasties
+        dc.w 0,1000,4   ;Pulsars
         dc.w 0,300,6    ;Pulsar Tankers
         dc.w 0,800,5    ;Fuseball Tankers
         dc.w -1
 
 _nw47:  dc.w 40
-        dc.w 95,0    ;Flippers
+        dc.w 95,0       ;Flippers
         dc.w 0,270,1    ;Flipper Tankers
         dc.w 0,750,2    ;Spikers
         dc.w 0,900,3    ;Fuseballs
-        dc.w 0,700,10    ;Beasties
+        dc.w 0,700,10   ;Beasties
         dc.w 0,350,4    ;Pulsars
         dc.w 0,300,6    ;Pulsar Tankers
         dc.w 0,800,5    ;Fuseball Tankers
         dc.w -1
 
 _nw48:  dc.w 40
-        dc.w 90,0    ;Flippers
+        dc.w 90,0       ;Flippers
         dc.w 0,230,1    ;Flipper Tankers
         dc.w 0,750,2    ;Spikers
-        dc.w 0,700,10    ;Beasties
+        dc.w 0,700,10   ;Beasties
         dc.w 0,500,3    ;Fuseballs
         dc.w 0,900,4    ;Pulsars
         dc.w 0,300,6    ;Pulsar Tankers
@@ -18098,173 +18378,173 @@ _nw48:  dc.w 40
         dc.w -1
 
 _nw49:  dc.w 16
-        dc.w 140,10    ;Beasties!
+        dc.w 140,10     ;Beasties!
         dc.w -1
 
 _nw50:  dc.w 40
-        dc.w 50,0    ;Flippers
+        dc.w 50,0       ;Flippers
         dc.w 0,750,2    ;Spikers
-        dc.w 0,500,10    ;Beasties
+        dc.w 0,500,10   ;Beasties
         dc.w 0,900,3    ;Fuseballs
         dc.w -1
 
 _nw51:  dc.w 45
-        dc.w 50,0    ;Flippers
+        dc.w 50,0       ;Flippers
         dc.w 0,750,2    ;Spikers
-        dc.w 0,500,10    ;Beasties
+        dc.w 0,500,10   ;Beasties
         dc.w 0,950,6    ;Pulsar Tankers
-        dc.w -1    
+        dc.w -1
 
 _nw52:  dc.w 50
-        dc.w 50,0    ;Flippers
+        dc.w 50,0       ;Flippers
         dc.w 0,750,2    ;Spikers
         dc.w 0,950,3    ;Fuseballs
-        dc.w 0,300,10    ;Beasties
-        dc.w -1  
+        dc.w 0,300,10   ;Beasties
+        dc.w -1
 
 _nw53:  dc.w 50
-        dc.w 50,0    ;Flippers
+        dc.w 50,0       ;Flippers
         dc.w 0,280,1    ;Flipper Tankers
         dc.w 0,800,2    ;Spikers
         dc.w 0,900,3    ;Fuseballs
-        dc.w 0,200,10    ;Beasties
+        dc.w 0,200,10   ;Beasties
         dc.w -1
 
 _nw54:  dc.w 50
-        dc.w 50,0    ;Flippers
+        dc.w 50,0       ;Flippers
         dc.w 0,260,1    ;Flipper Tankers
         dc.w 0,800,2    ;Spikers
         dc.w 0,900,3    ;Fuseballs
-        dc.w 0,100,10    ;Beasties
+        dc.w 0,100,10   ;Beasties
         dc.w -1
 
 _nw55:  dc.w 50
-        dc.w 50,0    ;Flippers
+        dc.w 50,0       ;Flippers
         dc.w 0,250,1    ;Flipper Tankers
         dc.w 0,750,2    ;Spikers
         dc.w 0,900,3    ;Fuseballs
-        dc.w 0,100,10    ;Beasties
+        dc.w 0,100,10   ;Beasties
         dc.w -1
 
 _nw56:  dc.w 50
-        dc.w 50,0    ;Flippers
+        dc.w 50,0       ;Flippers
         dc.w 0,240,1    ;Flipper Tankers
         dc.w 0,650,2    ;Spikers
         dc.w 0,900,3    ;Fuseballs
-        dc.w 0,100,10    ;Beasties
+        dc.w 0,100,10   ;Beasties
         dc.w -1
 
-;_nw1:
+                        ;_nw1:
 _nw57:  dc.w 60
-        dc.w 25,7    ;SFlip2
+        dc.w 25,7       ;SFlip2
         dc.w 0,400,8    ;Mirror
-        dc.w -1  
+        dc.w -1
 
 _nw58:  dc.w 40
-        dc.w 50,2    ;Flippers
+        dc.w 50,2       ;Flippers
         dc.w 0,400,8    ;Mirror
         dc.w 0,151,4    ;Pulsars
         dc.w -1
 
 _nw59:  dc.w 40
-        dc.w 50,2    ;Flippers
+        dc.w 50,2       ;Flippers
         dc.w 0,400,8    ;Mirror
         dc.w 0,151,4    ;Pulsars
         dc.w 0,523,3    ;Fuseballs
         dc.w -1
 
 _nw60:  dc.w 50
-        dc.w 50,2    ;Flippers
+        dc.w 50,2       ;Flippers
         dc.w 0,400,8    ;Mirror
         dc.w 0,151,4    ;Pulsars
         dc.w 0,523,3    ;Fuseballs
-        dc.w 0,1500,2    ;Spikers
+        dc.w 0,1500,2   ;Spikers
         dc.w -1
 
 _nw61:  dc.w 50
-        dc.w 50,2    ;Flippers
+        dc.w 50,2       ;Flippers
         dc.w 0,400,8    ;Mirror
         dc.w 0,151,4    ;Pulsars
         dc.w 0,523,3    ;Fuseballs
-        dc.w 0,1500,2    ;Spikers
+        dc.w 0,1500,2   ;Spikers
         dc.w -1
 
 _nw62:  dc.w 50
-        dc.w 50,2    ;Flippers
+        dc.w 50,2       ;Flippers
         dc.w 0,400,8    ;Mirror
         dc.w 0,351,6    ;Pulsar Tankers
         dc.w 0,523,3    ;Fuseballs
-        dc.w 0,1500,2    ;Spikers
+        dc.w 0,1500,2   ;Spikers
         dc.w -1
 
 _nw63:  dc.w 50
-        dc.w 50,2    ;Flippers
+        dc.w 50,2       ;Flippers
         dc.w 0,400,8    ;Mirror
         dc.w 0,251,6    ;Pulsar Tankers
         dc.w 0,523,3    ;Fuseballs
-        dc.w 0,1500,2    ;Spikers
+        dc.w 0,1500,2   ;Spikers
         dc.w -1
 
 _nw64:  dc.w 50
-        dc.w 30,4    ;Pulsars
-        dc.w 0,400,10    ;Beasties
+        dc.w 30,4       ;Pulsars
+        dc.w 0,400,10   ;Beasties
         dc.w -1
 
 _nw65:  dc.w 60
-        dc.w 20,7    ;Beasties!
+        dc.w 20,7       ;Beasties!
         dc.w 0,700,9    ;Adroids
         dc.w -1
 
 _nw66:  dc.w 60
-        dc.w 40,7    ;Flippers3
+        dc.w 40,7       ;Flippers3
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w -1
 
 _nw67:  dc.w 60
-        dc.w 40,7    ;Flippers3
+        dc.w 40,7       ;Flippers3
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w 0,500,3    ;Fuseballs
         dc.w -1
 
 _nw68:  dc.w 60
-        dc.w 40,7    ;Flippers3
+        dc.w 40,7       ;Flippers3
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w 0,500,3    ;Fuseballs
         dc.w -1
 
 _nw69:  dc.w 60
-        dc.w 40,7    ;Flippers3
+        dc.w 40,7       ;Flippers3
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w 0,500,6    ;Pulsar Tankers
         dc.w -1
 
 _nw70:  dc.w 60
-        dc.w 70,6    ;Pulsar Tankers
+        dc.w 70,6       ;Pulsar Tankers
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w 0,300,3    ;Fuseballs
         dc.w -1
 
 _nw71:  dc.w 60
-        dc.w 70,6    ;Pulsar Tankers
+        dc.w 70,6       ;Pulsar Tankers
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
-        dc.w 0,500,10    ;Beasties
+        dc.w 0,500,10   ;Beasties
         dc.w -1
 
 _nw72:  dc.w 60
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w 0,500,2    ;Spikers
         dc.w -1
 
 _nw73:  dc.w 60
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w 0,500,2    ;Spikers
@@ -18272,317 +18552,317 @@ _nw73:  dc.w 60
         dc.w -1
 
 _nw74:  dc.w 60
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w 0,500,2    ;Spikers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,400,11    ;flip3
+        dc.w 0,400,11   ;flip3
         dc.w -1
 
 _nw75:  dc.w 60
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w 0,500,2    ;Spikers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,400,11    ;flip3
+        dc.w 0,400,11   ;flip3
         dc.w 0,700,1    ;flip tanker
         dc.w -1
 
 _nw76:  dc.w 60
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w 0,500,2    ;Spikers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,400,11    ;flip3
+        dc.w 0,400,11   ;flip3
         dc.w 0,700,1    ;flip tanker
         dc.w 0,300,4    ;Pulsars
         dc.w -1
 
 _nw77:  dc.w 60
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w 0,500,2    ;Spikers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,400,11    ;flip3
+        dc.w 0,400,11   ;flip3
         dc.w 0,700,1    ;flip tanker
         dc.w 0,623,5    ;Fuseball Tanker
         dc.w -1
 
 _nw78:  dc.w 60
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w 0,500,2    ;Spikers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,400,11    ;flip3
+        dc.w 0,400,11   ;flip3
         dc.w 0,700,1    ;flip tanker
         dc.w 0,623,5    ;Fuseball Tanker
         dc.w 0,300,4    ;Pulsars
         dc.w -1
 
 _nw79:  dc.w 60
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w 0,500,2    ;Spikers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,400,11    ;flip3
+        dc.w 0,400,11   ;flip3
         dc.w 0,700,1    ;flip tanker
         dc.w 0,623,5    ;Fuseball Tanker
         dc.w 0,300,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 _nw80:  dc.w 60
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w 0,500,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,400,11    ;flip3
+        dc.w 0,400,11   ;flip3
         dc.w 0,700,1    ;flip tanker
         dc.w 0,623,5    ;Fuseball Tanker
         dc.w 0,300,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 _nw81:  dc.w 60
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,600,9    ;Adroids
         dc.w 0,500,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,400,11    ;flip3
+        dc.w 0,400,11   ;flip3
         dc.w 0,700,1    ;flip tanker
         dc.w 0,623,5    ;Fuseball Tanker
         dc.w 0,300,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 _nw82:  dc.w 60
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,500,9    ;Adroids
         dc.w 0,500,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,400,11    ;flip3
+        dc.w 0,400,11   ;flip3
         dc.w 0,500,1    ;flip tanker
         dc.w 0,623,5    ;Fuseball Tanker
         dc.w 0,300,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 _nw83:  dc.w 60
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,500,9    ;Adroids
         dc.w 0,500,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,400,11    ;flip3
+        dc.w 0,400,11   ;flip3
         dc.w 0,500,1    ;flip tanker
         dc.w 0,623,5    ;Fuseball Tanker
         dc.w 0,300,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 _nw84:  dc.w 60
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,500,9    ;Adroids
         dc.w 0,500,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,400,11    ;flip3
+        dc.w 0,400,11   ;flip3
         dc.w 0,500,1    ;flip tanker
         dc.w 0,523,5    ;Fuseball Tanker
         dc.w 0,300,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 
 _nw85:  dc.w 70
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,500,9    ;Adroids
         dc.w 0,500,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,400,11    ;flip3
+        dc.w 0,400,11   ;flip3
         dc.w 0,500,1    ;flip tanker
         dc.w 0,523,5    ;Fuseball Tanker
         dc.w 0,300,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 _nw86:  dc.w 70
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,400,9    ;Adroids
         dc.w 0,500,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,400,11    ;flip3
+        dc.w 0,400,11   ;flip3
         dc.w 0,500,1    ;flip tanker
         dc.w 0,523,5    ;Fuseball Tanker
         dc.w 0,300,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 _nw87:  dc.w 70
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,400,9    ;Adroids
         dc.w 0,450,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,400,11    ;flip3
+        dc.w 0,400,11   ;flip3
         dc.w 0,500,1    ;flip tanker
         dc.w 0,523,5    ;Fuseball Tanker
         dc.w 0,300,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 _nw88:  dc.w 70
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,400,9    ;Adroids
         dc.w 0,450,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,400,11    ;flip3
+        dc.w 0,400,11   ;flip3
         dc.w 0,500,1    ;flip tanker
         dc.w 0,523,5    ;Fuseball Tanker
         dc.w 0,300,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 _nw89:  dc.w 70
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,400,9    ;Adroids
         dc.w 0,450,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,400,11    ;flip3
+        dc.w 0,400,11   ;flip3
         dc.w 0,300,1    ;flip tanker
         dc.w 0,523,5    ;Fuseball Tanker
         dc.w 0,300,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 _nw90:  dc.w 80
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,400,9    ;Adroids
         dc.w 0,450,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,400,11    ;flip3
+        dc.w 0,400,11   ;flip3
         dc.w 0,300,1    ;flip tanker
         dc.w 0,523,5    ;Fuseball Tanker
         dc.w 0,300,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 _nw91:  dc.w 80
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,400,9    ;Adroids
         dc.w 0,450,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,350,11    ;flip3
+        dc.w 0,350,11   ;flip3
         dc.w 0,300,1    ;flip tanker
         dc.w 0,523,5    ;Fuseball Tanker
         dc.w 0,300,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 _nw92:  dc.w 80
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,400,9    ;Adroids
         dc.w 0,450,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,350,11    ;flip3
+        dc.w 0,350,11   ;flip3
         dc.w 0,250,1    ;flip tanker
         dc.w 0,523,5    ;Fuseball Tanker
         dc.w 0,300,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 _nw93:  dc.w 80
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,400,9    ;Adroids
         dc.w 0,450,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,350,11    ;flip3
+        dc.w 0,350,11   ;flip3
         dc.w 0,250,1    ;flip tanker
         dc.w 0,523,5    ;Fuseball Tanker
         dc.w 0,100,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 _nw94:  dc.w 80
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,400,9    ;Adroids
         dc.w 0,450,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,350,11    ;flip3
+        dc.w 0,350,11   ;flip3
         dc.w 0,250,1    ;flip tanker
         dc.w 0,523,5    ;Fuseball Tanker
         dc.w 0,100,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 _nw95:  dc.w 80
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,750,8    ;Mirrors
         dc.w 0,200,9    ;Adroids
         dc.w 0,450,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,350,11    ;flip3
+        dc.w 0,350,11   ;flip3
         dc.w 0,250,1    ;flip tanker
         dc.w 0,523,5    ;Fuseball Tanker
         dc.w 0,100,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 _nw96:  dc.w 90
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,350,8    ;Mirrors
         dc.w 0,200,9    ;Adroids
         dc.w 0,450,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,350,11    ;flip3
+        dc.w 0,350,11   ;flip3
         dc.w 0,250,1    ;flip tanker
         dc.w 0,523,5    ;Fuseball Tanker
         dc.w 0,100,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 _nw97:  dc.w 90
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,350,8    ;Mirrors
         dc.w 0,200,9    ;Adroids
         dc.w 0,450,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,350,11    ;flip3
+        dc.w 0,350,11   ;flip3
         dc.w 0,250,1    ;flip tanker
         dc.w 0,423,5    ;Fuseball Tanker
         dc.w 0,100,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 _nw98:  dc.w 90
-        dc.w 20,7    ;flip2
+        dc.w 20,7       ;flip2
         dc.w 0,350,8    ;Mirrors
         dc.w 0,200,9    ;Adroids
         dc.w 0,450,6    ;Pulsar Tankers
         dc.w 0,300,3    ;Fuseballs
-        dc.w 0,350,11    ;flip3
+        dc.w 0,350,11   ;flip3
         dc.w 0,250,1    ;flip tanker
         dc.w 0,323,5    ;Fuseball Tanker
         dc.w 0,100,4    ;Pulsars
-        dc.w 0,800,10    ;Beasties
+        dc.w 0,800,10   ;Beasties
         dc.w -1
 
 _nw99:
@@ -18634,147 +18914,147 @@ tradmax: dc.l _tm1,_tm2,_tm3,_tm4,_tm5,_tm6,_tm7,_tm8,_tm9,_tm10,_tm11,_tm12,_tm
 ;         dc.w -1       ; End of data sentinel
 ; *******************************************************************
 _tm1:   dc.w 40
-        dc.w 50,0    ;Flippers
-        dc.w 0,450,2    ;Spikers
-        dc.w 0,700,3    ;Fuseballs
-        dc.w 0,300,6    ;Pulsar Tankers
+        dc.w 50,0      ;Flippers
+        dc.w 0,450,2   ;Spikers
+        dc.w 0,700,3   ;Fuseballs
+        dc.w 0,300,6   ;Pulsar Tankers
         dc.w -1
 
 _tm2:   dc.w 40
-        dc.w 50,0    ;Flippers
-        dc.w 0,450,2    ;Spikers
-        dc.w 0,700,3    ;Fuseballs
-        dc.w 0,250,6    ;Pulsar Tankers
+        dc.w 50,0      ;Flippers
+        dc.w 0,450,2   ;Spikers
+        dc.w 0,700,3   ;Fuseballs
+        dc.w 0,250,6   ;Pulsar Tankers
         dc.w -1
 
 _tm3:   dc.w 50
-        dc.w 40,0    ;Flippers
-        dc.w 0,444,1    ;Flipper Tankers
-        dc.w 0,450,2    ;Spikers
-        dc.w 0,700,3    ;Fuseballs
-        dc.w 0,250,6    ;Pulsar Tankers
+        dc.w 40,0      ;Flippers
+        dc.w 0,444,1   ;Flipper Tankers
+        dc.w 0,450,2   ;Spikers
+        dc.w 0,700,3   ;Fuseballs
+        dc.w 0,250,6   ;Pulsar Tankers
         dc.w -1
 
 _tm4:   dc.w 50
-        dc.w 40,0    ;Flippers
-        dc.w 0,444,1    ;Flipper Tankers
-        dc.w 0,450,2    ;Spikers
-        dc.w 0,500,3    ;Fuseballs
-        dc.w 0,250,6    ;Pulsar Tankers
+        dc.w 40,0      ;Flippers
+        dc.w 0,444,1   ;Flipper Tankers
+        dc.w 0,450,2   ;Spikers
+        dc.w 0,500,3   ;Fuseballs
+        dc.w 0,250,6   ;Pulsar Tankers
         dc.w -1
 
 _tm5:   dc.w 60
-        dc.w 40,0    ;Flippers
-        dc.w 0,444,1    ;Flipper Tankers
-        dc.w 0,450,2    ;Spikers
-        dc.w 0,500,3    ;Fuseballs
-        dc.w 0,250,6    ;Pulsar Tankers
+        dc.w 40,0      ;Flippers
+        dc.w 0,444,1   ;Flipper Tankers
+        dc.w 0,450,2   ;Spikers
+        dc.w 0,500,3   ;Fuseballs
+        dc.w 0,250,6   ;Pulsar Tankers
         dc.w -1
 
 
 _tm6:   dc.w 60
-        dc.w 30,0    ;Flippers
-        dc.w 0,444,1    ;Flipper Tankers
-        dc.w 0,450,2    ;Spikers
-        dc.w 0,500,3    ;Fuseballs
-        dc.w 0,250,6    ;Pulsar Tankers
+        dc.w 30,0      ;Flippers
+        dc.w 0,444,1   ;Flipper Tankers
+        dc.w 0,450,2   ;Spikers
+        dc.w 0,500,3   ;Fuseballs
+        dc.w 0,250,6   ;Pulsar Tankers
         dc.w -1
 
 _tm7:   dc.w 60
-        dc.w 30,0    ;Flippers
-        dc.w 0,444,1    ;Flipper Tankers
-        dc.w 0,450,2    ;Spikers
-        dc.w 0,500,3    ;Fuseballs
-        dc.w 0,250,6    ;Pulsar Tankers
-        dc.w 0,623,5    ;Fuseball Tanker
+        dc.w 30,0      ;Flippers
+        dc.w 0,444,1   ;Flipper Tankers
+        dc.w 0,450,2   ;Spikers
+        dc.w 0,500,3   ;Fuseballs
+        dc.w 0,250,6   ;Pulsar Tankers
+        dc.w 0,623,5   ;Fuseball Tanker
         dc.w -1
 
 _tm8:   dc.w 60
-        dc.w 30,0    ;Flippers
-        dc.w 0,444,1    ;Flipper Tankers
-        dc.w 0,450,2    ;Spikers
-        dc.w 0,300,3    ;Fuseballs
-        dc.w 0,250,6    ;Pulsar Tankers
-        dc.w 0,623,5    ;Fuseball Tanker
+        dc.w 30,0      ;Flippers
+        dc.w 0,444,1   ;Flipper Tankers
+        dc.w 0,450,2   ;Spikers
+        dc.w 0,300,3   ;Fuseballs
+        dc.w 0,250,6   ;Pulsar Tankers
+        dc.w 0,623,5   ;Fuseball Tanker
         dc.w -1
 
 _tm9:   dc.w 60
-        dc.w 30,0    ;Flippers
-        dc.w 0,444,1    ;Flipper Tankers
-        dc.w 0,450,2    ;Spikers
-        dc.w 0,300,3    ;Fuseballs
-        dc.w 0,250,6    ;Pulsar Tankers
-        dc.w 0,623,5    ;Fuseball Tanker
+        dc.w 30,0      ;Flippers
+        dc.w 0,444,1   ;Flipper Tankers
+        dc.w 0,450,2   ;Spikers
+        dc.w 0,300,3   ;Fuseballs
+        dc.w 0,250,6   ;Pulsar Tankers
+        dc.w 0,623,5   ;Fuseball Tanker
         dc.w -1
 
 _tm10:  dc.w 60
-        dc.w 30,0    ;Flippers
-        dc.w 0,444,1    ;Flipper Tankers
-        dc.w 0,450,2    ;Spikers
-        dc.w 0,300,3    ;Fuseballs
-        dc.w 0,250,6    ;Pulsar Tankers
-        dc.w 0,623,5    ;Fuseball Tanker
-        dc.w 0,151,4    ;Pulsars
+        dc.w 30,0      ;Flippers
+        dc.w 0,444,1   ;Flipper Tankers
+        dc.w 0,450,2   ;Spikers
+        dc.w 0,300,3   ;Fuseballs
+        dc.w 0,250,6   ;Pulsar Tankers
+        dc.w 0,623,5   ;Fuseball Tanker
+        dc.w 0,151,4   ;Pulsars
         dc.w -1
 
 _tm11:  dc.w 60
-        dc.w 30,0    ;Flippers
-        dc.w 0,344,1    ;Flipper Tankers
-        dc.w 0,450,2    ;Spikers
-        dc.w 0,300,3    ;Fuseballs
-        dc.w 0,250,6    ;Pulsar Tankers
-        dc.w 0,623,5    ;Fuseball Tanker
-        dc.w 0,151,4    ;Pulsars
+        dc.w 30,0      ;Flippers
+        dc.w 0,344,1   ;Flipper Tankers
+        dc.w 0,450,2   ;Spikers
+        dc.w 0,300,3   ;Fuseballs
+        dc.w 0,250,6   ;Pulsar Tankers
+        dc.w 0,623,5   ;Fuseball Tanker
+        dc.w 0,151,4   ;Pulsars
         dc.w -1
 
 _tm12:  dc.w 65
-        dc.w 30,0    ;Flippers
-        dc.w 0,344,1    ;Flipper Tankers
-        dc.w 0,450,2    ;Spikers
-        dc.w 0,300,3    ;Fuseballs
-        dc.w 0,250,6    ;Pulsar Tankers
-        dc.w 0,623,5    ;Fuseball Tanker
-        dc.w 0,151,4    ;Pulsars
+        dc.w 30,0      ;Flippers
+        dc.w 0,344,1   ;Flipper Tankers
+        dc.w 0,450,2   ;Spikers
+        dc.w 0,300,3   ;Fuseballs
+        dc.w 0,250,6   ;Pulsar Tankers
+        dc.w 0,623,5   ;Fuseball Tanker
+        dc.w 0,151,4   ;Pulsars
         dc.w -1
 
 _tm13:  dc.w 60
-        dc.w 30,0    ;Flippers
-        dc.w 0,344,1    ;Flipper Tankers
-        dc.w 0,450,2    ;Spikers
-        dc.w 0,300,3    ;Fuseballs
-        dc.w 0,250,6    ;Pulsar Tankers
-        dc.w 0,623,5    ;Fuseball Tanker
-        dc.w 0,151,4    ;Pulsars
+        dc.w 30,0      ;Flippers
+        dc.w 0,344,1   ;Flipper Tankers
+        dc.w 0,450,2   ;Spikers
+        dc.w 0,300,3   ;Fuseballs
+        dc.w 0,250,6   ;Pulsar Tankers
+        dc.w 0,623,5   ;Fuseball Tanker
+        dc.w 0,151,4   ;Pulsars
         dc.w -1
 
 _tm14:  dc.w 60
-        dc.w 30,0    ;Flippers
-        dc.w 0,244,1    ;Flipper Tankers
-        dc.w 0,350,2    ;Spikers
-        dc.w 0,200,3    ;Fuseballs
-        dc.w 0,250,6    ;Pulsar Tankers
-        dc.w 0,623,5    ;Fuseball Tanker
-        dc.w 0,151,4    ;Pulsars
+        dc.w 30,0      ;Flippers
+        dc.w 0,244,1   ;Flipper Tankers
+        dc.w 0,350,2   ;Spikers
+        dc.w 0,200,3   ;Fuseballs
+        dc.w 0,250,6   ;Pulsar Tankers
+        dc.w 0,623,5   ;Fuseball Tanker
+        dc.w 0,151,4   ;Pulsars
         dc.w -1
 
 _tm15:  dc.w 60
-        dc.w 30,0    ;Flippers
-        dc.w 0,244,1    ;Flipper Tankers
-        dc.w 0,350,2    ;Spikers
-        dc.w 0,200,3    ;Fuseballs
-        dc.w 0,250,6    ;Pulsar Tankers
-        dc.w 0,623,5    ;Fuseball Tanker
-        dc.w 0,151,4    ;Pulsars
+        dc.w 30,0      ;Flippers
+        dc.w 0,244,1   ;Flipper Tankers
+        dc.w 0,350,2   ;Spikers
+        dc.w 0,200,3   ;Fuseballs
+        dc.w 0,250,6   ;Pulsar Tankers
+        dc.w 0,623,5   ;Fuseball Tanker
+        dc.w 0,151,4   ;Pulsars
         dc.w -1
 
 _tm16:  dc.w 80
-        dc.w 30,0    ;Flippers
-        dc.w 0,244,1    ;Flipper Tankers
-        dc.w 0,350,2    ;Spikers
-        dc.w 0,200,3    ;Fuseballs
-        dc.w 0,250,6    ;Pulsar Tankers
-        dc.w 0,423,5    ;Fuseball Tanker
-        dc.w 0,111,4    ;Pulsars
+        dc.w 30,0      ;Flippers
+        dc.w 0,244,1   ;Flipper Tankers
+        dc.w 0,350,2   ;Spikers
+        dc.w 0,200,3   ;Fuseballs
+        dc.w 0,250,6   ;Pulsar Tankers
+        dc.w 0,423,5   ;Fuseball Tanker
+        dc.w 0,111,4   ;Pulsars
         dc.w -1
 
 
@@ -18785,7 +19065,7 @@ _tm16:  dc.w 80
 h2hwebs:dc.b 1,2,5,10,12,13,15,23,29,32,34,35,37,44,47,48
 
 ; *******************************************************************
-; 
+;
 ; *******************************************************************
 h2hlevs:dc.w $1010,-1
         dc.w $0c0c,-1
@@ -18807,6 +19087,10 @@ h2hlevs:dc.w $1010,-1
 
 ; *******************************************************************
 ; Vertex list describing a cube.
+; Each vertex has the components:
+;   - x,y,z
+;   - a list of connected vertices terminated with a 0
+; Each array terminates with a 0.
 ; *******************************************************************
 cube:   dc.b 1,1,1,2,3,5,0
         dc.b 3,1,1,6,4,0
@@ -18821,7 +19105,27 @@ cube:   dc.b 1,1,1,2,3,5,0
 
 
 ; *******************************************************************
-; Vertices for the classic claw shape?
+; Vertex list defining the player's claws for 'classic' tempest.
+; Each vertex group has the components:
+;   - x,y,z
+;   - a list of connected vertices terminated with a 0
+; Each array terminates with a 0.
+;
+; So for example, 'claw1' breaks down as follows:
+; 6,4,1   = x,y,z
+; 2       = Connected to vertex  with index 2 (i.e. 3,9,1).
+; 8       = Connected to vertex  with index 8 (i.e. 1,9,1).
+; 0       = End of vertex group
+;
+; 3,9,1,  = x,y,z
+; 3       = Connected to vertex  with index 3 (i.e. 9,12,1).
+; 0       = End of vertex group
+;
+; 9,12,1  = x,y,z
+; 4       = Connected to vertex with index 4 (i.e. 15,9,1).
+; 0       = End of vertex group
+;
+; and so on.
 ; *******************************************************************
 claw1:  dc.b 6,4,1,2,8,0
         dc.b 3,9,1,3,0
@@ -19036,7 +19340,7 @@ web7:   dc.w 15,7
 
 web8:   dc.w 15,15
         dc.w 7,7,5,5,3,5,1,7    ;figure-8
-        dc.w 1,9,3,11,5,11,7,9  
+        dc.w 1,9,3,11,5,11,7,9
         dc.w 9,7,11,5,13,5,15,7
         dc.w 15,9,13,11,11,11,9,9,7,7,-1
 
@@ -19123,15 +19427,15 @@ web20:  dc.w 13,6        ;giraffes neck kind of a shape
         dc.w -1,16,-3,15,-3,13,-3,11,-1,9,1,8,3,7,5,6,7,4,8,2,9,0,10,-2,12,-3,14,-3,-1,16,0
         dc.w -112,-64,-64,-32,-16,-16,-16,-32,-48,-48,-48,-16,0
         dc.w 0,$10,$21,$31,$42,$52,$63,$73,$64,$54,$45,$36,$27,$18
-        
+
 web21:  dc.w 7,3        ;tiny nut
         dc.w 7,5,5,7,5,9,7,11,9,11,11,9,11,7,9,5,7,5,-1
-        dc.w 96,64,32,0,-32,-64,-96,128  
+        dc.w 96,64,32,0,-32,-64,-96,128
         dc.w 0,$20,$40,$60,$80,$60,$40,$20
 
 web22:  dc.w 11,3        ;tiny star
         dc.w 7,5,5,7,3,8,5,9,7,11,8,13,9,11,11,9,13,8,11,7,9,5,8,3,7,5,-1
-        dc.w 96,112,16,32,48,-48,-32,-16,-112,-96,-80,80  
+        dc.w 96,112,16,32,48,-48,-32,-16,-112,-96,-80,80
         dc.w 0,$14,$34,$40,$54,$74,$80,$74,$54,$40,$34,$14
 
 web23:  dc.w 15,3    ;spiraloid
@@ -19204,13 +19508,42 @@ web36:  dc.w 12,3    ;kiss of death
         dc.w 48,16,16,0,-16,-16,-48,-112,128,112,-112,128,112
         dc.w $d0,$b0,$90,$70,$90,$b0,$d0,$d0,$b0,$90,$90,$b0,$d0
 
-web37:  dc.w 15,2    ;backwards C 
+web37:  dc.w 15,2    ;backwards C
         dc.w 6,10,4,12,6,14,8,14,10,13,12,12,14,11,15,9,15,7,14,5,12,4,10,3,8,2,6,2,4,4,6,6,6,10,0
         dc.w 96,32,0,-16,-16,-16,-48,-64,-80,-112,-112,-112,128,96,32
         dc.w $f0,$f1,$e2,$e3,$d4,$d5,$c6,$c7,$b8,$b9,$aa,$ab,$9c,$9d,$ae
 
 ; *******************************************************************
-; Vertext list defining different enemy objects.
+; Vertex list defining different enemy objects.
+; Each vertex group has the components:
+;   - x,y,z
+;   - a list of connected vertices terminated with a 0
+;     or
+;     -1 followed by the value of the color to use when drawing
+; Each array terminates with a 0.
+;
+; So for example, 'shot' breaks down as follows:
+; 8,7,1   = x,y,z
+; 2       = Connected to vertex  with index 2 (i.e. 10,11,1).
+; 0       = End of vertex group
+;
+; 10,11,1 = x,y,z
+; 0       = End of vertex group
+;
+; 10,7,1  = x,y,z
+; 4       = Connected to vertex with index 4 (i.e. 8,11,1)
+; 0       = End of vertex group
+;
+; and so on.
+; An example with a color command is:
+;   dc.b 7,8,1,-1,255,9,19,0
+; This breaks down as:
+; 7,8,1   = x,y,z
+; -1      = Need to change color
+; 255     = New color value to use when drawing lines
+; 9       = Connected to vertex with index 9.
+; 19      = Connected to vertex with index 19.
+; 0       = End of vertex group
 ; *******************************************************************
 shot:   dc.b 8,7,1,2,0
         dc.b 10,11,1,0
@@ -19307,6 +19640,9 @@ spiker: dc.b 10,9,1,2,0
         dc.b 13,14,1,12,0
         dc.b 6,15,1,0,0
 
+; *******************************************************************
+; Evitez Las Puntes (Avoid the spikes)
+; *******************************************************************
 ev:     dc.b 3,1,1,2,0
         dc.b 1,1,1,3,0
         dc.b 1,5,1,4,0
@@ -19726,8 +20062,8 @@ pvolt3:      dc.b "sound fx VOLUME",0
 pvolts:      dc.l pvolt2,pvolt3
 
 fires:       dc.l $20000000
- dc.l        $02000000
- dc.l        $00002000
+             dc.l        $02000000
+             dc.l        $00002000
 
 testpage:   dc.b "ORIGINAL GAME DESIGNED BY/       dave theurer~"
             dc.b "JAGUAR VERSION BY/      yak~"
@@ -20252,7 +20588,7 @@ tunlvl2:dc.b 0,0,2,2,-2,-2,2,2
         dc.b -6,-6,-5,-5,-4,-4,-3,-3
 
         dc.b -2,-2,-1,-1,8,-2,8,-2
-        dc.b -7,-5,-7,0,0,0,0,0  
+        dc.b -7,-5,-7,0,0,0,0,0
 
 tunlvl3:dc.b 0,0,2,2,2,2,2,2
         dc.b -3,-3,-3,-3,-3,-3,-3,-3
@@ -20264,7 +20600,7 @@ tunlvl3:dc.b 0,0,2,2,2,2,2,2
         dc.b -6,-6,-6,-6,-6,-6,-6,-6
 
         dc.b 0,0,0,0,6,-6,6,-6
-        dc.b 7,7,7,7,0,0,0,0  
+        dc.b 7,7,7,7,0,0,0,0
 
 tunlvl4:dc.b 0,0,0,0,0,0,0,0
         dc.b 7,7,7,7,7,7,7,7
@@ -20276,7 +20612,7 @@ tunlvl4:dc.b 0,0,0,0,0,0,0,0
         dc.b -7,-7,-7,-7,-7,-7,-7,-7
 
         dc.b -7,-7,-7,-7,-7,-7,-7,-7
-        dc.b 8,8,8,8,0,0,0,0  
+        dc.b 8,8,8,8,0,0,0,0
 
 tunlvl5:dc.b 0,0,2,4,6,2,6,4
         dc.b -4,-2,-3,-1,-4,-2,-3,-1
@@ -20361,7 +20697,7 @@ sz_stuff:
         dc.l $14000,$14000,$15000,$15000,$16000,$16000,$16000,$16000
         dc.l $15000,$16000,$16000,$17000,$17000,$18000,$18000,$18000
         dc.l $15000,$16000,$16000,$17000,$17000,$18000,$18000,$18000
-        
+
 ; *******************************************************************
 ; Flipper z speeds for each web
 ; *******************************************************************
@@ -20454,7 +20790,7 @@ views:  dc.w 0,0,0,0    ;(x,y,z,?)
 ; *******************************************************************
 pixcols:dc.b 0,0,$f0,0,0,$0f,0,0,0,$80,0,$ff  ;11
         dc.b 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0  ;30
-        dc.b 0,0,0,0,0,$88,0,0,$55 
+        dc.b 0,0,0,0,0,$88,0,0,$55
 
 ; *******************************************************************
 ; The 9 different objects in our object list. The first one is the
@@ -20487,11 +20823,11 @@ rantab:
 ; *******************************************************************
 ; Table of the draw routines for all solid polygons in Tempest 2000
 ; *******************************************************************
-solids: 
+solids:
         dc.l rrts,cdraw_sflipper,draw_sfliptank,s_shot,draw_sfuseball,draw_spulsar,draw_sfusetank,ringbull,draw_spulstank  ;8
         dc.l draw_pixex,draw_pup1,draw_gate,draw_h2hclaw,draw_mirr,draw_h2hshot,draw_h2hgen,dxshot        ;16
         dc.l draw_pprex,draw_h2hball,draw_blueflip,ringbull,supf1,supf2,draw_beast,dr_beast3,dr_beast2        ;25
-        dc.l draw_adroid            
+        dc.l draw_adroid
 
 ; *******************************************************************
 ; Start of ROM
@@ -20558,7 +20894,7 @@ romstart:
         dc.w $70,$0f
         dc.w $6000,$280
         dc.w $c00,$c0
- 
+
         dc.w $80,$16
         dc.w $40,$1c
         dc.w $2000,$100
@@ -20658,14 +20994,24 @@ copstart:
 
 ; *******************************************************************
 ; This contains the object code from syn6.o, which is the Imagitec
-; 'mod' player for the Jaguar, adapted for Tempest 2K. 
+; 'mod' player for the Jaguar, adapted for Tempest 2K.
 ; 'Mod' is a sound file format. All of the T2K tunes use the format.
 ; The Sound FX do not used the 'mod' format, they are just PCM data.
 ; The Imagitec Mod player is basically a 4 channel protrack mod player and 4 channels for sfx.
 ; https://forums.atariage.com/topic/157184-imagitec-designs-mod-player-informations/
 ; *******************************************************************
 .include "moomoo.dat"
+
+; *******************************************************************
+; These are the data structures for the solid polygon objects such
+; as the flipper, fusetank, claws etc.
+; They are used by the drawsolidxy routine and the polyo2d gpu routine
+; in horse.gas to draw solid polygonal objects on the screen.
+; *******************************************************************
 .include "obj2d.s"
+; *******************************************************************
+; These are font definitions for afont, bfont, and cfont.
+; *******************************************************************
 .include "afont.s"
 .include "bfont.s"
 .include "cfont.s"
@@ -20725,7 +21071,7 @@ pgens:  dc.w $80,$16
         dc.w $70,$0f
         dc.w $6000,$280
         dc.w $c00,$c0
- 
+
         dc.w $80,$16
         dc.w $40,$1c
         dc.w $2000,$100
@@ -21092,7 +21438,7 @@ r_ud:             dc.w 0
 l_sc:             dc.w 0
 r_sc:             dc.w 0
 _won:             dc.w 0
-z:                dc.w 0
+z:                dc.w 0     ; The 'Stop and Reset' flag.
 optpress:         dc.w 0
 pauen:            dc.w 0
 auto:             dc.w 0
