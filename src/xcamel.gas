@@ -1297,6 +1297,9 @@ pasthack:
         jump (r0)
         nop                     ;all done       
 
+; *******************************************************************
+; snglpix
+; *******************************************************************
 snglpix: movei #in_buf,r0
         load (r0),dstx
         addq #4,r0
@@ -1380,7 +1383,8 @@ notpal:
         jump (r0)
         nop
 
-pring:
+; *******************************************************************
+; pring
 ;
 ; Pixel Ring. Enter with:
 ; in_buf=# pixels this ring
@@ -1389,6 +1393,8 @@ pring:
 ; +12=Z centre          ;all 16:16 frax
 ; +16=Raw colour        ;0-255
 ; +20=Radius as 16:16 frac
+; *******************************************************************
+pring:
 
 ;       dstx            REGEQU r21
 ;       dsty            REGEQU r26              preEviously defined

@@ -1,3 +1,4 @@
+; vim:ft=asm68k
 
         Base equ $f00000
 
