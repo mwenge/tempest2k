@@ -178,13 +178,13 @@
         move.l d0,OLP
         
         lea romstart,a0                ; clear RAM
-        lea copstart,a1
+        lea copstart,a1 ; Point a1 at copstart.
         
         move #(romend-romstart),d0
         lsr #2,d0                      ; moving longs
 crom:   move.l (a0)+,(a1)+             ; copy var defaults to ram
         dbra d0,crom
-        lea zerstart,a0
+        lea zerstart,a0 ; Point a0 at zerstart.
         
         move.l #(zerend-zerstart),d0
         lsr.l #2,d0 ; Divide by 4.
@@ -449,65 +449,73 @@ notpal1: rts
 ; Game Over in Head-to-Head mode.
 ; *******************************************************************
 h2hover:
-        move.l #screen3,a0
-        move.l gpu_screen,a1
-        move #0,d0
-        move #0,d1
-        move #384,d2                  ; Full screen width.
-        move #32,d3
-        move #0,d4
-        move #0,d5
-        jsr pmfade                    ; Do a melto-vision transition.
-        move.l #screen1,a0
-        jsr clrscreen                 ; Clear the screen in a0.
-        move.l #screen2,a0
-        jsr clrscreen                 ; Clear the screen in a0.
-        move.l #screen3,a0
-        jsr clrscreen                 ; Clear the screen in a0.
-        tst practise
-        bne rreset                    ; Return to the title screen.
-        tst rounds
-        bpl nxtround
-        clr h2h                       ; Ensure head-to-head mode turned off.
-        bra rreset                    ; Return to the title screen.
+        ; Do a melt-o-vision transition.
+        move.l #screen3,a0     ; Set the source screen
+        move.l gpu_screen,a1   ; Set the gpu screen.
+        move #0,d0             ; X position in source screen
+        move #0,d1             ; Y position in source screen
+        move #384,d2           ; Full screen width.
+        move #32,d3            ; 32 lines high
+        move #0,d4             ; X position in destination screen.
+        move #0,d5             ; Y position in destination screen.
+        jsr pmfade             ; Do a melto-vision transition.
         
+        ; Clear the screens
+        move.l #screen1,a0     ; Point a0 to screen1.
+        jsr clrscreen          ; Clear the screen in a0.
+        move.l #screen2,a0     ; Point a0 to screen2.
+        jsr clrscreen          ; Clear the screen in a0.
+        move.l #screen3,a0     ; Point a0 to screen3.
+        jsr clrscreen          ; Clear the screen in a0.
+        
+        ; Game over or another round?
+        tst practise           ; Was it a practice?
+        bne rreset             ; If so, return to the title screen.
+        tst rounds             ; Do we still have some rounds left?
+        bpl nxtround           ; If so, go to next round
+        clr h2h                ; Otherwise, ensure head-to-head mode turned off.
+        bra rreset             ; Return to the title screen.
+        
+        ; Set up next round in head-to-head mode.
 nxtround:
         clr sync                      ; Signal to mainloop it can draw a new screen.
-        move.l #screen3,a0
-        move.l a0,gpu_screen
+        move.l #screen3,a0 ; Make screen3..
+        move.l a0,gpu_screen ; .. the gpu screen.
         jsr clrscreen                 ; Clear the screen in a0.
+
         move p1wins,d0
         add.b #'0',d0
         move.b d0,rndmsg+11
         move p2wins,d0
         add.b #'0',d0
         move.b d0,rndmsg+26
-        lea rndmsg,a0                 ; "player one 0   player two 0"
+        lea rndmsg,a0                 ; Point a0 at "player one 0   player two 0"
         lea cfont,a1                  ; Load the small regular font to a1.
         move #50,d0                   ; Set text y pos.
         jsr centext                   ; Display horizontally centred text.
-        lea nxrmsg,a0
+
+        lea nxrmsg,a0 ; Point a0 at "press fire to play next round".
         move #-1,flock
-        sub #1,rounds
-        bpl godoit
+        sub #1,rounds ; Decrement rounds played.
+        bpl godoit ; If still more to play, skip next line.
         lea fnlmsg,a0                 ; "final score"
-godoit:
-        lea cfont,a1                  ; Load the small regular font to a1.
+godoit: lea cfont,a1                  ; Load the small regular font to a1.
         move #170,d0                  ; Set Y position of text.
         jsr centext                   ; Display horizontally centred text.
-        tst rounds
-        bpl raww
+
+        tst rounds ; Still more rounds to play?
+        bpl raww ; If so, go to zaqw.
         move #100,flock
         move.b rndmsg+11,d0
         and #$ff,d0                   ; Keep it between 0 and 255
         move.b rndmsg+26,d1
-        and #$ff,d1
+        and #$ff,d1 ; Keep d1 between 0 and 255.
         move.b #'1',d2
         cmp d0,d1
         blt zaqw
         move.b #'2',d2
-zaqw: move.b d2,wonmsg+7              ; set who won...
-        lea wonmsg,a0                 ; "player 1 wins!"
+zaqw:   move.b d2,wonmsg+7              ; set who won...
+        lea wonmsg,a0                 ; Point a0 at "player 1 wins!"
         lea afont,a1                  ; Load the 'Atari' font to a1.
         move #110,d0                  ; Set Y position of text.
         jsr centext                   ; display it
@@ -552,7 +560,7 @@ dobeastly:
         move #20,d0 ; Set Y position of text.
         jsr centext ; Display horizontally centred text.
 
-        lea victpage,a5
+        lea victpage,a5 ; Point a5 at victpage.
         tst beastly
         beq stvpa
         lea victpage2,a5
@@ -575,7 +583,7 @@ stvpa:
         move #88,d5
         tst pal
         beq certnotpal
-        add palfix2,d5
+        add palfix2,d5 ; Adjust for PAL screens if required.
 certnotpal:
         move #63,d0
         move #63,d1
@@ -597,34 +605,34 @@ glocube:
         move.l #(PITCH1|PIXEL16|WID384),d0
         move.l d0,source_flags
         move.l d0,dest_flags
-        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
-        move.l cscreen,(a0)      ;source screen is already-displayed screen
-        move.l #384,4(a0) ; Full screen width.
-        move.l #240,d0 ; Full screen height.
-        add palfix1,d0
-        move.l d0,8(a0)          ;X and Y dest rectangle size
-        move.l #$1ec,12(a0)
-        move.l #$1ec,16(a0)      ;X and Y scale as 8:8 fractions
-        move.l #0,20(a0)         ;initial angle in brads
-        move.l #$c00000,24(a0)   ;source x centre in 16:16
-        move.l #$780000,d0
-        add.l palfix3,d0
-        move.l d0,28(a0)         ;y centre the same
-        move.l #$0,32(a0)        ;offset of dest rectangle
-        move.l delta_i,36(a0)    ;change of i per increment
-        move.l #2,gpu_mode       ;op 2 of this module is Scale and Rotate
-        move.l #demons,a0 ; Load the GPU module in antelope.gas.
-        jsr gpurun               ; Run the selected GPU module.
-        jsr gpuwait ; Wait for the GPU to finish.
-
-        move frames,d0 ; Stash the frame count in d0.
-        lea sines,a0 ; Load the sine table to a0.
-        lsr #2,d0 ; Divide by 4.
-        and #$ff,d0 ; Keep it between 0 and 255
-        move.b 0(a0,d0.w),d0
-        ext d0
-        asl #1,d0 ; Multiply it by 2.
-        move d0,polspd2
+        lea in_buf,a0                        ; Point our GPU RAM input buffer at a0.
+        move.l cscreen,(a0)                  ; source screen is already-displayed screen
+        move.l #384,4(a0)                    ; Put full screen width in GPU input buffer.
+        move.l #240,d0                       ; Full screen height.
+        add palfix1,d0                       ; Adjust for PAL
+        move.l d0,8(a0)                      ; Put width in input buffer.
+        move.l #$1ec,12(a0)                  ; Put X scale in GPU input buffer.
+        move.l #$1ec,16(a0)                  ; Put Y scale in GPU inputbuffer.
+        move.l #0,20(a0)                     ; Put initial angle in brads in GPU input buffer.
+        move.l #$c00000,24(a0)               ; Put x centre  postion in GPU input buffer.
+        move.l #$780000,d0                   ; Set Y centre.
+        add.l palfix3,d0                     ; Adjust for PAL
+        move.l d0,28(a0)                     ; Add y centre  to CPU input buffer.
+        move.l #$0,32(a0)                    ; offset of dest rectangle in input buffer
+        move.l delta_i,36(a0)                ; change of i per increment in input buffer
+        move.l #2,gpu_mode                   ; op 2 of this module is Scale and Rotate
+        move.l #demons,a0                    ; Load the GPU module in antelope.gas.
+        jsr gpurun                           ; Run the selected GPU module.
+        jsr gpuwait                          ; Wait for the GPU to finish.
+        
+        move frames,d0                       ; Stash the frame count in d0.
+        lea sines,a0                         ; Load the sine table to a0.
+        lsr #2,d0                            ; Divide by 4.
+        and #$ff,d0                          ; Keep it between 0 and 255
+        move.b 0(a0,d0.w),d0                 ; Use frames as index to pick a value from sine table.
+        ext d0                               ; Make it long
+        asl #1,d0                            ; Multiply it by 2.
+        move d0,polspd2                      ; Store it in polspd2, the speed.
         jmp ppolydemo2
 
 ; *******************************************************************
@@ -636,6 +644,7 @@ dumint: move #$0101,INT1
 
 ; *******************************************************************
 ; glopyr
+; Do a glowing pyramid.
 ; A 'demo_routine' routine
 ; *******************************************************************
 glopyr:
@@ -647,21 +656,21 @@ glopyr:
         asr #5,d6
         and.l #$ff,d6 ; Keep it between 0 and 255
 
-        move.l #(PITCH1|PIXEL16|WID384),d0
+        move.l #(PITCH1|PIXEL16|WID384),d0 ; Set the GPU flags.
         move.l d0,source_flags
         move.l d0,dest_flags
         lea in_buf,a0                        ;Point our GPU RAM input buffer at a0.
         move.l cscreen,(a0)                  ;source screen is already-displayed screen
         move.l #384,4(a0)                    ;Full screen width.
         move.l #240,d0                       ;Full screen height.
-        add palfix1,d0
+        add palfix1,d0 ; Adjust for PAL screens if required.
         move.l d0,8(a0)                      ;X and Y dest rectangle size
-        move.l #$1ec,12(a0)
-        move.l #$1ec,16(a0)                  ;X and Y scale as 8:8 fractions
-        move.l d6,20(a0)                     ;initial angle in brads
+        move.l #$1ec,12(a0); Store X scale as 8:8 fraction in GPU buffer.
+        move.l #$1ec,16(a0) ; Store Y scale as 8:8 fraction in GPU buffer.                 
+        move.l d6,20(a0)                     ; Put initial angle in brads in GPU buffer.
         move.l #$c00000,24(a0)               ;source x centre in 16:16
         move.l #$780000,d0
-        add.l palfix3,d0
+        add.l palfix3,d0 ; Adjust for PAL screens if required.
         move.l d0,28(a0)                     ;y centre the same
         move.l #$0,32(a0)                    ;offset of dest rectangle
         move.l delta_i,36(a0)                ;change of i per increment
@@ -868,7 +877,7 @@ keepset:tst t2k                            ; Are we playing Tempest 2000?
         bne sh2h
         move trad_max,d0
         move d0,topsel
-        cmp #15,d0
+        cmp #15,d0 ; Is it less than 15?
         bgt not2k
         move #0,d0
         bra not2k
@@ -880,18 +889,18 @@ not2k:  move d0,cwave                      ; Store 0 in current level
         move d0,cweb                       ; Store 0 in current web
         
         ; Set up the gpu screen
-        lea beasties,a0                    ; the main screen
-        move.l gpu_screen,d2
-        move #SIDE,d0
+        lea beasties,a0                    ; Point a0 the beasties object list.
+        move.l gpu_screen,d2               ; Set gpu_screen as the screen data for the object. 
+        move #SIDE,d0                      ; Set the X position.
         sub palside,d0                     ; Adjust X origin for PAL screens.
-        move #TOP-16,d1
+        move #TOP-16,d1                    ; Set the Y posision.
         add paltop,d1                      ; Adjust Y origin for PAL screens.
         swap d0                            ; Swap position of the first 2 bytes with last 2 bytes.
         swap d1                            ; Swap position of the first 2 bytes with last 2 bytes.
-        move #0,d5
-        move #$24,d3
-        move #$24,d4
-        jsr makeit_trans
+        move #0,d5                         ; Set the index to ObTypes to 0, i.e. the full screen object type.
+        move #$24,d3                       ; Set the width? (Appears to be unused.)
+        move #$24,d4                       ; Set the height? (Appears to be unused.)
+        jsr makeit_trans                   ; Make a transparent object entry in beasties.                     
         
         move.l #screen3,gpu_screen
         jsr clearscreen                    ; Clear the current GPU screen.
@@ -907,19 +916,19 @@ nbmsg:  lea cfont,a1                       ; Load the small regular font to a1.
         jsr centext                        ; Display horizontally centred text.
         
         ; Set up the GPU screen.
-        lea beasties+64,a0
-        move.l #screen3,d2
-        move #SIDE,d0
+        lea beasties+64,a0                 ; Point a0 at the second entry in the beasties object list.
+        move.l #screen3,d2                 ; Set gpu_screen as the screen data for the object. 
+        move #SIDE,d0                      ; Set the X position.
         sub palside,d0                     ; Adjust X origin for PAL screens.
-        move #TOP,d1
+        move #TOP,d1                       ; Set the Y position.
         add paltop,d1                      ; Adjust Y origin for PAL screens.
-        move #1,mfudj
+        move #1,mfudj                      
         swap d0                            ; Swap position of the first 2 bytes with last 2 bytes.
         swap d1                            ; Swap position of the first 2 bytes with last 2 bytes.
-        move #8,d5
-        move #$24,d3
-        move #$24,d4
-        jsr makeit_trans                   ; put up some TC screen for status display
+        move #8,d5                         ; Set the index to ObTypes to 8: 48-pixel high bit of cry screen.
+        move #$24,d3                       ; Set the width?
+        move #$24,d4                       ; Set the height?
+        jsr makeit_trans                   ; Make a transparent object entry in beasties.         
         
         jsr clvp                           ; Clear the viewpoint co-ordinates.
         
@@ -970,7 +979,7 @@ draw_oo:
         move #180,d0 ; Set Y position of text.
         tst pal
         beq gnopal2
-        add palfix2,d0
+        add palfix2,d0 ; Adjust for PAL screens if required.
 gnopal2:jmp centext ; Display horizontally centred text.
         ; Returns
 
@@ -981,29 +990,32 @@ gnopal2:jmp centext ; Display horizontally centred text.
 ; updating the bonus points for the selectedlevel that this takes care
 ; of.
 ; *******************************************************************
-draw_o: cmp #1,webcol
-        bne do_2
-        add #1,wpt
+draw_o: cmp #1,webcol ; Is the web the default colour? 
+        bne do_2 ; If yes, skip.
+        add #1,wpt ; 
         and #7,wpt
         bne do_1
-        bsr swebpsych
+        bsr swebpsych ; Make the web psychedelic.
         bra do_2
 do_1:
 do_2:
         jsr draw_objects ; Do all the object drawing.
         tst.l csmsg ; Do we have any bonus points to show?
         beq rrrts ; If no bonus points to show, return now.
+
+        ; Clear a spot for us to display the bonuspoints.
         move.l #screen3,gpu_screen
-        move #0,d0
-        move #84,d1
+        move #0,d0 ; Source X position.
+        move #84,d1 ; Source Y position.
         move #384,d2 ; Full screen width.
         move #32,d3 ; Set height
-        move #0,d4
-        move #0,d5
-        move.l #screen3,a0
-        move.l #screen3,a1
+        move #0,d4 ; Destination X position;
+        move #0,d5 ; Destination Y position;
+        move.l #screen3,a0 ; Source screen
+        move.l #screen3,a1 ; Destination screen.
         jsr ecopy    ;just blit a clear bit
 
+        ; Display bonus points.
         lea afont,a1      ; Load the 'Atari' font to a1.
         move.l csmsg,a0   ; Load the bonus points for the selected level as our text.
         clr.l csmsg       ; Clear csmsg for next time.
@@ -1275,26 +1287,29 @@ ccnt3: sub #4,d0
 
 ; *******************************************************************
 ; mandy
+; settrue3
+; Create the second entry in the beasties object list. It's a full-screen
+; object.
 ;
 ; do Mandelbrot-sets and stuff; the Pause Mode demos
 ; *******************************************************************
 mandy:
 settrue3:
-        move #TOP,d1
+        move #TOP,d1         ; Set the Y position.
 settrue33:
-        lea beasties+64,a0
-        move.l #screen3,d2
-        move #SIDE,d0
-        sub palside,d0 ; Adjust X origin for PAL screens.
-        swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
-        add paltop,d1 ; Adjust Y origin for PAL screens.
-        swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
-        clr d1
-        move #0,d5
-        move #$24,d3
-        move #$24,d4
-        jsr makeit_trans
-        move.l #rrts,fx
+        lea beasties+64,a0   ; Point a0 at the second entry in the beasties list.
+        move.l #screen3,d2   ; Set screen3 as the screen data for the object.
+        move #SIDE,d0        ; Set the X posision
+        sub palside,d0       ; Adjust X origin for PAL screens.
+        swap d0              ; Swap position of the first 2 bytes with last 2 bytes.
+        add paltop,d1        ; Adjust Y origin for PAL screens.
+        swap d1              ; Swap position of the first 2 bytes with last 2 bytes.
+        clr d1               ; Clear the lowest byte of the Y position.
+        move #0,d5           ; Set the index to ObTypes to 0, i.e. the full screen object type.
+        move #$24,d3         ; Set the width? (Appears to be unused.)
+        move #$24,d4         ; Set the height? (Appears to be unused.)
+        jsr makeit_trans     ; Make a transparent object entry in beasties.                        
+        move.l #rrts,fx      ; Turn sound and starfield fx off.
         rts
 
 ; *******************************************************************
@@ -1309,20 +1324,20 @@ strue:
         move #TOP,d1
 ; *******************************************************************
 ; stru
-; Set up a GPU object starting at the top left of the screen.
+; Set up an object entry in beasties starting at the top left of the screen.
 ; *******************************************************************
 stru:
-        move #SIDE,d0
-        sub palside,d0 ; Adjust X origin for PAL screens.
-        swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
-        add paltop,d1 ; Adjust Y origin for PAL screens.
-        swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
-        clr d1
-        move #0,d5
-        move #$24,d3
-        move #$24,d4
-        jsr makeit_trans
-        move.l #rrts,fx
+        move #SIDE,d0      ; Set the X position
+        sub palside,d0     ; Adjust X origin for PAL screens.
+        swap d0            ; Swap position of the first 2 bytes with last 2 bytes.
+        add paltop,d1      ; Adjust Y origin for PAL screens.
+        swap d1            ; Swap position of the first 2 bytes with last 2 bytes.
+        clr d1             ; Clear the lowest byte of the Y position.
+        move #0,d5         ; Set the index to ObTypes to 0, i.e. the full screen object type.
+        move #$24,d3       ; Set the width? (Appears to be unused.)
+        move #$24,d4       ; Set the height? (Appears to be unused.)
+        jsr makeit_trans   ; Make a transparent object entry in beasties.
+        move.l #rrts,fx    ; Turn sound and starfield fx off.
         rts
 
 ; *******************************************************************
@@ -1338,35 +1353,36 @@ sthang: bsr settrue
         move.l #sthiing,demo_routine
         bra mp_demorun
 
-sthiing: move.l #0,gpu_mode
+sthiing: 
+        move.l #0,gpu_mode
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
         jsr gpuwait ; Wait for the GPU to finish.
 
-        lea chev,a1
+        lea chev,a1 ; Point a1 at chev.
         lea p_sines,a4 ; Load the positive sine table to a4.
         clr.l d2
         clr.l d3
         move #63,d7
         move pongx,d4
 sthng: move d7,-(a7) ; Stash some values in the stack so we can restore them later.
-        and #$ff,d4
+        and #$ff,d4 ; Keep d4 between 0 and 255.
         move.b 0(a4,d4.w),d1
         and.l #$ff,d1 ; Keep it between 0 and 255
         move d1,d7
         add #48,d1
         swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
         lsr.l #4,d1
-        bsr pulser
+        bsr pulser ; Calculate a pulse colour.
         move d6,8(a1)
         move (a7)+,d7 ; Restore stashed values from the stack.
         move d7,d0
         lsl #2,d0 ; Multiply it by 4
         and.l #$ff,d0 ; Keep it between 0 and 255
         move d4,-(a7) ; Stash some values in the stack so we can restore them later.
-        bsr drawsolid
+        bsr drawsolid ; Draw a solid polygon with default centering.
         move (a7)+,d4 ; Restore stashed values from the stack.
         move pongxv,d5
         add d5,d4
@@ -1377,10 +1393,10 @@ sthng: move d7,-(a7) ; Stash some values in the stack so we can restore them lat
         bpl rrrts
         move.b pongzv+1,pongzv
 
-        lea ainc,a0
-        lea adec,a1
-        lea binc,a2
-        lea bdec,a3
+        lea ainc,a0 ; Point a0 at ainc.
+        lea adec,a1 ; Point a1 at adec.
+        lea binc,a2 ; Point a2 at binc.
+        lea bdec,a3 ; Point a3 at bdec.
         bra gjoy
 
 ; *******************************************************************
@@ -1430,14 +1446,14 @@ xork:
         move #7,d7
 tunn:
         move d7,-(a7) ; Stash some values in the stack so we can restore them later.
-        lea chevron,a1
+        lea chevron,a1 ; Point a1 at chevron.
         move.l d1,d7
         swap d7 ; Swap position of the first 2 bytes with last 2 bytes.
-        bsr pulser
+        bsr pulser ; Calculate a pulse colour.
         move d6,8(a1)
         eor #$ff,d6
         move d6,24(a1)
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         and #$03,d0
         add #2,d0
         move.l #$100,d6
@@ -1448,7 +1464,7 @@ tunn:
         swap d4 ; Swap position of the first 2 bytes with last 2 bytes.
         add frames,d4 ; Stash the frame count in d4.
         lea sines,a0 ; Load the sine table to a0.
-        and #$ff,d4
+        and #$ff,d4 ; Keep d4 between 0 and 255.
         move.b 0(a0,d4.w),d3
         ext d3
         swap d3 ; Swap position of the first 2 bytes with last 2 bytes.
@@ -1513,10 +1529,10 @@ sflip:
         jsr gpurun      ;do clear screen
         jsr gpuwait ; Wait for the GPU to finish.
 
-        lea prevshape,a0
-        lea nextshape,a1
-        lea away,a2
-        lea towards,a3
+        lea prevshape,a0 ; Point a0 at prevshape.
+        lea nextshape,a1 ; Point a1 at nextshape.
+        lea away,a2 ; Point a2 at away.
+        lea towards,a3 ; Point a3 at towards.
         bsr gjoy
 
         move frames,d0 ; Stash the frame count in d0.
@@ -1532,7 +1548,7 @@ sflip:
         move pongx,d2
         lsr #2,d2 ; Divide by 4.
         and #$fc,d2
-        lea shapes,a2
+        lea shapes,a2 ; Point a2 at shapes.
         move.l 0(a2,d2.w),d2
         bpl shok
         clr pongx
@@ -1557,7 +1573,7 @@ shapes: dc.l draw_sflipper,draw_sfliptank,draw_sfuseball,draw_spulsar,draw_sfuse
 ; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_h2hgen:
-        lea leaf,a1
+        lea leaf,a1 ; Point a1 at leaf.
         move #7,d7
         move #$20,d6
         bra s_multi
@@ -1648,22 +1664,23 @@ draw_blueflip:
 ; *******************************************************************
 draw_adroid:
         cmp #2,20(a6)         ; check for are we zapping someone
-        bne dadr
+        bne dadr              ; If not, skip.
         
+        ; Draw the zapping.
         movem.l d0-d5,-(a7)   ; Stash some values in the stack so we can restore them later.
-        move.l #192,xcent
-        move.l #120,d6
-        add palfix2,d6
-        move.l d6,ycent
+        move.l #192,xcent     ; Set 192 as x centre.
+        move.l #120,d6        ; Set 120 as y centre and store in d6.
+        add palfix2,d6        ; Adjust for PAL screens if required.
+        move.l d6,ycent       ; Store in ycent.
         lea in_buf,a0         ; set up func/linedraw
-        move.l d2,(a0)+       ; Add it to our GPU RAM input buffer.
-        move.l d3,(a0)+       ; Add it to our GPU RAM input buffer.
-        move #webz+80,d6
+        move.l d2,(a0)+       ; Add X source to our GPU RAM input buffer.
+        move.l d3,(a0)+       ; Add Y source to our GPU RAM input buffer.
+        move #webz+80,d6      ; Get web z and put in d6.
         swap d6               ; Swap position of the first 2 bytes with last 2 bytes.
-        move.l d6,(a0)+       ; XYZ source
-        move.l d2,(a0)+       ; Add it to our GPU RAM input buffer.
-        move.l d3,(a0)+       ; Add it to our GPU RAM input buffer.
-        move.l d1,(a0)+       ; XYZ dest
+        move.l d6,(a0)+       ; Add as our z source.
+        move.l d2,(a0)+       ; Add X destination to our GPU RAM input buffer.
+        move.l d3,(a0)+       ; Add Y destination to our GPU RAM input buffer.
+        move.l d1,(a0)+       ; Add Z dest_flags to our GPU RAM input bufffer.
         move frames,d0        ; Stash the frame count in d0.
         and.l #$0f,d0         ; Keep it between 0 and 15
         or #$80,d0
@@ -1680,6 +1697,7 @@ draw_adroid:
         jsr WaitBlit          ; Wait for the blitter to finish.
         movem.l (a7)+,d0-d5   ; Restore stashed values from the stack.
         
+        ; Draw the droid.
 dadr:   lea adroid,a1         ; Point a1 at the polygon's data structure.
         bra drawsolidxy       ; Draw it as a solid polygon.
 
@@ -1712,7 +1730,7 @@ draw_beast:
         bne dntdbl
         lsl #1,d0  ;angle x2
 dntdbl:
-        lea beastybits,a0
+        lea beastybits,a0 ; Point a0 at beastybits.
 drbeast:
         move.l (a0)+,a1
         movem.l d0-d7/a0,-(a7) ; Stash some values in the stack so we can restore them later.
@@ -1790,7 +1808,7 @@ draw_pup1:
         cmp #$0a,44(a6)
         bne pupring
         movem.l d1-d3,-(A7) ; Stash some values in the stack so we can restore them later.
-        lea pwrlaser,a1
+        lea pwrlaser,a1 ; Point a1 at pwrlaser.
         move.l d1,d0
         clr d0
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
@@ -1814,7 +1832,7 @@ draw_spulsar:
         move.l #9,d5
 upulsa:
         move pucnt,d6
-        lea spulsars,a0
+        lea spulsars,a0 ; Point a0 at spulsars.
         and #$0f,d6
         lsl #2,d6 ; Multiply it by 4.
         move.l 0(a0,d6.w),a1
@@ -1830,7 +1848,7 @@ draw_spulstank:
         move pucnt,d2
         move frames,d6 ; Store frames in d6.
         add.b d6,d0
-        lea spulsars,a0
+        lea spulsars,a0 ; Point a0 at spulsars.
         and #$0f,d2
         lsl #2,d2 ; Multiply it by 4.
         move.l 0(a0,d2.w),a1
@@ -1857,7 +1875,7 @@ draw_sfuseball:
         move #4,d7             ; We'll loop 4 times in fleg.
 fleg:   move.l d0,-(a7)        ; Stash some values in the stack so we can restore them later.
         lea fbpiece1,a1        ; Point a1 at the polygon data structure for 1st leg of fuseball.
-        jsr rannum             ; Put a random number between 0 and 255 in d0.
+        jsr rannum             ; Put a random number between 0 and d1 in d0.
         btst #0,d0             ; Is it zero?
         bne dsfb1              ; If so, skip next line.
         lea fbpiece2,a1        ; If no, point a1 at the 2nd leg polygon data structure instead.
@@ -1882,7 +1900,7 @@ dsfb1:  move.l (a7)+,d0        ; Restore stashed values from the stack.
 ; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_sfusetank:
-        lea fbcols,a6
+        lea fbcols,a6 ; Point a6 at fbcols.
         move #4,d7
         move frames,d6 ; Store frames in d6.
         add.b d6,d0
@@ -1909,36 +1927,36 @@ futank:
 
 ; *******************************************************************
 ; s_sattest
+; Draw coloured legs of the fuseball
 ; A member of the 'shapes' list
 ; *******************************************************************
 s_sattest:
-        lea fbcols,a6
-        move #15,d7
-        move frames,d6 ; Store frames in d6.
-        asr #1,d6 ; Divide by 2.
-        and #$ff,d6
-ssat:
-        move d7,-(a7) ; Stash some values in the stack so we can restore them later.
-        and #$03,d7
-        lea fbpiece2,a1
-        move.b 0(a6,d7.w),d2
-        move.b d2,9(a1)
-        move.b d2,25(a1)  ;colour leg of fuseball
-        movem.l d0-d1,-(A7) ; Stash some values in the stack so we can restore them later.
-        bsr drawsolid
-        jsr gpuwait ; Wait for the GPU to finish.
-        movem.l (a7)+,d0-d1 ; Restore stashed values from the stack.
-        movem.l d0-d1,-(a7) ; Stash some values in the stack so we can restore them later.
-        lea fbpiece1,a1
-        move.b 0(a6,d7.w),d2
-        move.b d2,9(a1)
-        move.b d2,25(a1)  ;colour leg of fuseball
-        bsr drawsolid
-        jsr gpuwait ; Wait for the GPU to finish.
-        movem.l (a7)+,d0-d1 ; Restore stashed values from the stack.
-        add.b d6,d0
-        move (a7)+,d7 ; Restore stashed values from the stack.
-        dbra d7,ssat
+        lea fbcols,a6          ; Point a6 at fbcols.
+        move #15,d7            ; We'll iterate the ssat loop 15 times.
+        move frames,d6         ; Store frames in d6.
+        asr #1,d6              ; Divide by 2.
+        and #$ff,d6            ; Keep d6 between 0 and 255.
+ssat:   move d7,-(a7)          ; Stash some values in the stack so we can restore them later.
+        and #$03,d7            ; Keep d7 between 0 and 3 so we can use it as an index into fbcols.
+        lea fbpiece2,a1        ; Point at 2nd leg of fuseball.
+        move.b 0(a6,d7.w),d2   ; Get the element of fbcols indexed by d7.
+        move.b d2,9(a1)        ; Store the colour in the fbpiece2 data structure.
+        move.b d2,25(a1)       ; Store the colour in the fbpiece2 data structure.
+        movem.l d0-d1,-(A7)    ; Stash some values in the stack so we can restore them later.
+        bsr drawsolid          ; Draw a solid polygon with default centering.
+        jsr gpuwait            ; Wait for the GPU to finish.
+        movem.l (a7)+,d0-d1    ; Restore stashed values from the stack.
+        movem.l d0-d1,-(a7)    ; Stash some values in the stack so we can restore them later.
+        lea fbpiece1,a1        ; Point at 1st leg of fuseball.
+        move.b 0(a6,d7.w),d2   ; Get the element of fbcols indexed by d7.
+        move.b d2,9(a1)        ; Store the color in the fbpiece1 data structure.
+        move.b d2,25(a1)       ; Store the color in the fbpiece1 data structure.
+        bsr drawsolid          ; Draw a solid polygon with default centering.
+        jsr gpuwait            ; Wait for the GPU to finish.
+        movem.l (a7)+,d0-d1    ; Restore stashed values from the stack.
+        add.b d6,d0            ; Add the frames to d0 (not used elsewhere here).
+        move (a7)+,d7          ; Restore stashed values from the stack.
+        dbra d7,ssat           ; Loop until d7 is zero.
         rts
 
 
@@ -1964,19 +1982,19 @@ draw_sfliptank:
         bra drawsolidxy      ; Draw it as a solid polygon.
 
 ; *******************************************************************
-; pulser
+; pulser ; Calculate a pulse colour.
 ;
 ; enter with d7=counter, return pulse colour in d6, uses d5-7 and a2
 ; *******************************************************************
 pulser:
-        and #$ff,d7
+        and #$ff,d7 ; Keep d7 between 0 and 255.
         lea sines,a2 ; Load the sine table to a2.
-        move.b 0(a2,d7.w),d5
-        ext d5
-        add.b #$40,d7
-        move.b 0(a2,d7.w),d6
-        sub.b #$40,d7
-        ext d6
+        move.b 0(a2,d7.w),d5 ; Use d7 as an index into the sine table.
+        ext d5 ; Make the result a long.
+        add.b #$40,d7 ; Add $40 to d7.
+        move.b 0(a2,d7.w),d6 ; Use that as an index into the sine table.
+        sub.b #$40,d7 ; Subtract $40 back out again from d7.
+        ext d6 ; Make the value from the sine table a long.
         add #$80,d5
         add #$80,d6
         and #$f0,d5
@@ -1986,7 +2004,7 @@ pulser:
         rts
 
 ; *******************************************************************
-; drawsolid
+; drawsolid ; Draw a solid polygon with default centering.
 ;
 ; draw a solid Tempest enemy, enter with a1=poly shape address, d0=angle, d1=Z-position
 ; d2-d3=XY, d4-d5=Centre position
@@ -2065,8 +2083,8 @@ ddthis: move.l #gofeed,demo_routine
 ; Implements the game over display effect.
 ; *******************************************************************
 gofeed:
-        move.l #(PITCH1|PIXEL16|WID384),d0
-        move.l d0,source_flags
+        move.l #(PITCH1|PIXEL16|WID384),d0 ; Set the GPU flags in d0.
+        move.l d0,source_flags ; Pass them to the GPU's source flags.
         move.l d0,dest_flags
         lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         add.l #$2000,pongz
@@ -2076,14 +2094,14 @@ gofeed:
         move.l cscreen,(a0)    ;source screen is already-displayed screen
         move.l #384,4(a0) ; Full screen width.
         move.l #240,d1 ; Full screen height.
-        add palfix1,d1
-        move.l d1,8(a0)    ;X and Y dest rectangle size
-        move.l #$1f4,12(a0)
-        move.l #$1f4,16(a0)    ;X and Y scale as 8:8 fractions
-        move.l d0,20(a0)      ;initial angle in brads
+        add palfix1,d1 ; Adjust for PAL
+        move.l d1,8(a0)    ; Store height in GPU input buffer.
+        move.l #$1f4,12(a0) ; Store X scale in GPU input buffer.
+        move.l #$1f4,16(a0)    ; Store Y scale in GPU input buffer.
+        move.l d0,20(a0)      ; Store initial angle in brads in GPU buffer.
         move.l #$c00000,24(a0)    ;source x centre in 16:16
         move.l #$780000,d0
-        add.l palfix3,d0
+        add.l palfix3,d0 ; Adjust for PAL screens if required.
         move.l d0,28(a0)    ;y centre the same
         move.l #$0,32(a0)    ;offset of dest rectangle
         move.l delta_i,36(a0)    ;change of i per increment
@@ -2099,7 +2117,7 @@ gofeed:
         add #15,pongx
         add #17,pongy
         and #$ff,d0 ; Keep it between 0 and 255
-        and #$ff,d3
+        and #$ff,d3 ; Keep d3 between 0 and 255.
         move.b 0(a0,d0.w),d1
         move.b 0(a0,d3.w),d2
         and.l #$ff,d1 ; Keep it between 0 and 255
@@ -2153,15 +2171,15 @@ clearfeed:
         move.l cscreen,(a0)    ;source screen is already-displayed screen
         move.l #384,4(a0) ; Full screen width.
         move.l #240,d0 ; Full screen height.
-        add palfix1,d0
+        add palfix1,d0 ; Adjust for PAL screens if required.
         move.l d0,8(a0)    ;X and Y dest rectangle size
         move.l pongx,d0
         move.l d0,12(a0)
         move.l d0,16(a0)    ;X and Y scale as 8:8 fractions
-        move.l #3,20(a0)      ;initial angle in brads
+        move.l #3,20(a0)      ; Put initial angle in brads in GPU buffer.
         move.l #$c00000,24(a0)    ;source x centre in 16:16
         move.l #$780000,d0
-        add.l palfix3,d0
+        add.l palfix3,d0 ; Adjust for PAL screens if required.
         move.l d0,28(a0)    ;y centre the same
         move.l #$0,32(a0)    ;offset of dest rectangle
         move.l delta_i,36(a0)
@@ -2171,10 +2189,10 @@ clearfeed:
         jsr gpuwait ; Wait for the GPU to finish.
 
         move #10,d1
-        jsr rand
+        jsr rand ; Put a random number between 0 and d1 in d0.
         move d0,d2
         move #10,d1
-        jsr rand
+        jsr rand ; Put a random number between 0 and d1 in d0.
         move d2,d1
 
         add #186,d0
@@ -2197,12 +2215,12 @@ clearfeed:
 ; *******************************************************************
 versionscreen:
         move.l #rrts,routine
-        jsr InitBeasties
-        lea beasties,a0              ; Set main screen to 16-bit
-        move.l #screen2,d2           ; Set screen2 as..
-        move.l d2,gpu_screen         ; .. our GPU screen.
-        move #TOP-16,d1
-        bsr stru                     ; Create the transparent GPU object.
+        jsr InitBeasties       ; Initialize the beasties object list.
+        lea beasties,a0        ; Point a0 at the start of the beasties object list.
+        move.l #screen2,d2     ; Set screen2 as..
+        move.l d2,gpu_screen   ; ..  the source data for the beasties object.
+        move #TOP-16,d1        ; Set the X position.
+        bsr stru               ; Create the entry in the beasties object list.
         
         ; Set screen 3 as our gpu screen.
         move.l #screen3,gpu_screen   ; Set screen3 as gpu screen.
@@ -2288,11 +2306,11 @@ versiondraw:
         move.l a5,(a0)    ;source screen is already-displayed screen
         move.l #384,4(a0) ; Full screen width.
         move.l #240,d0 ; Full screen height.
-        add palfix1,d0
+        add palfix1,d0 ; Adjust for PAL screens if required.
         move.l d0,8(a0)    ;X and Y dest rectangle size
         move.l #$1ee,12(a0)
         move.l #$1ee,16(a0)    ;X and Y scale as 8:8 fractions
-        move.l d7,20(a0)      ;initial angle in brads
+        move.l d7,20(a0)    ; Put initial angle in brads in GPU buffer.
         move pongzv,d0
         add #1,pongzv
         and #$ff,d0 ; Keep it between 0 and 255
@@ -2312,7 +2330,7 @@ versiondraw:
         asr.l #4,d2
         add.l #$c10000,d1
         add.l #$7c0000,d2
-        add.l palfix2,d2
+        add.l palfix2,d2 ; Adjust for PAL screens if required.
         move.l d1,24(a0)    ;source x centre in 16:16
         move.l d2,28(a0)    ;y centre the same
         move.l #$0,32(a0)    ;offset of dest rectangle
@@ -2366,9 +2384,9 @@ ppyr:
 ; Display centred text on the screen.
 ; *******************************************************************
 centext:
-        move.l a0,d2
+        move.l a0,d2 ; Store the address of our text in d2.
         lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
-        move.l d2,(a0)    ;Set up texter: address of text $
+        move.l d2,(a0)    ; Add address to text to GPU input buffer.
         move.l a1,4(a0)    ;font data structure
         move.l #0,8(a0)
         move.l #0,12(a0)    ;dropshadow vector
@@ -2394,8 +2412,8 @@ centext:
 ; *******************************************************************
 setfires:
         lea fire_2,a0
-        lea firea,a1
-        lea fires,a2
+        lea firea,a1 ; Point a1 at firea.
+        lea fires,a2 ; Point a2 at fires.
         lea o4s1,a3    ;option select messages here
 
         move #2,d0
@@ -2424,7 +2442,7 @@ fslp:
         bne firsend
         cmp #3,selected
         beq firsend    ;user selected exit
-        lea fires,a0
+        lea fires,a0 ; Point a0 at fires.
         move.l selbutt,d0  ;get button(s) used for select
         move #0,d7
 whb:
@@ -2448,7 +2466,7 @@ gotwhr:
         beq fslp    ;it's the same as usual, leave it
         move selected,d5
         lsl #1,d5 ; Multiply it by 2.
-        lea firea,a0
+        lea firea,a0 ; Point a0 at firea.
         move 0(a0,d5.w),d4  ;get old setting into d4
         move d7,0(a0,d5.w)  ;put requested setting in
         lsl #1,d6 ; Multiply it by 2.
@@ -2639,7 +2657,7 @@ dispop: bsr fade                          ; going to do option on top of a displ
         move.l #webz,d0
         swap d0                           ; Swap position of the first 2 bytes with last 2 bytes.
         move.l d0,12(a0)                  ; initial Z is further away than the usual
-        move #1,34(a0)
+        move #1,34(a0) ; Draw routine in draw_vex is 'draw'.
         move.l #vecoptdraw,demo_routine
 
         ; Option choose loop for hardware interlace/fat vectors.
@@ -2747,7 +2765,7 @@ npling:
         move selected,keyplay
         move selected,d0
         asl #2,d0 ; Multiply it by 4.
-        lea keys,a0
+        lea keys,a0 ; Point a0 at keys.
         move.b 3(a0,d0.w),d0
         and #$ff,d0 ; Keep it between 0 and 255
         add #1,d0
@@ -3008,6 +3026,7 @@ dropts2:
 
 ; *******************************************************************
 ; text2_setup
+; Set-up text in the large 'DEMO' font.
 ; *******************************************************************
 text2_setup:
         lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
@@ -3016,10 +3035,11 @@ text2_setup:
 
 ; *******************************************************************
 ; text_setup
+; Set up text in the 'Atari' font.
 ; *******************************************************************
 text_setup:
         lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
-        move.l #afont,4(a0)    ;font data structure
+        move.l #afont,4(a0)    ; 'Atari' font data structure
 tsu:
         move.l #0,8(a0)
         move.l #0,12(a0)    ;dropshadow vector
@@ -3129,7 +3149,7 @@ _tunn:
         move d0,d1  ;get diff level
         and #$07,d1
         lsl #2,d1 ; Multiply it by 4.
-        lea tunnels,a0
+        lea tunnels,a0 ; Point a0 at tunnels.
         move.l 0(a0,d1.w),pongx  ;set course no.
         and #$30,d0
         lsr #4,d0
@@ -3159,7 +3179,7 @@ _tunn:
         move pauen,_pauen
         bsr gogame
         clr noxtra
-        move #-1,beasties+140
+        move #-1,beasties+140 ; Turn off beasties?
         tst z          ; Has the player done a hard reset?
         bne rrrts
         bsr ofade ; Do a melto-vision transition.
@@ -3186,7 +3206,7 @@ sjoycon:
         move.b pad_now+1,d0
         rol.b #2,d0
         and #$03,d0
-        lea iacon,a0
+        lea iacon,a0 ; Point a0 at iacon.
         jsr inertcon    ;control roll of tunnel on jpad
 weewee:
         bsr run_pgens    ;run the sidewall pattern generators
@@ -3201,26 +3221,26 @@ run_pgens:
         sub #1,pgenctr
         bpl rpg1
         move #800,pgenctr
-        lea pgens,a0
+        lea pgens,a0 ; Point a0 at pgens.
         move #1,d7
         tst victree
         bmi rndpgs
         addq #1,d7
 rndpgs:
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         and #$f,d0
         add #1,d0
         asl #2,d0 ; Multiply it by 4.
         move d0,2(a0)
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         and #$7,d0
         add #1,d0
         asl #2,d0 ; Multiply it by 4.
         move d0,6(a0)
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         lsl #1,d0 ; Multiply it by 2.
         move d0,10(a0)
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         and #$7f,d0
         add #$10,d0
         move d0,14(a0)
@@ -3230,7 +3250,7 @@ rndpgs:
 rpg1:
         move tunadd,d0
         add d0,pgenphase
-        lea pgens,a0
+        lea pgens,a0 ; Point a0 at pgens.
         move #1,d7    ;2 blocks of these
         tst victree
         bmi r_pgens    ;(could be threee)...
@@ -3311,7 +3331,7 @@ stalp:
         move d5,d7
         lsl #2,d6 ; Multiply it by 4.
         add d6,d7
-        bsr pulser
+        bsr pulser ; Calculate a pulse colour.
         lsl #8,d6
         or d6,d4
         move.l d4,4(a0)
@@ -3394,37 +3414,41 @@ dingy:
 
         cmp #90,cwave
         bge sttoat      ;Warp not after l90
-        add #4,cwave
-        add #4,cweb      ;Warp 4 levels
-        movem.l d0-d7/a0-a6,-(a7) ; Stash some values in the stack so we can restore them later.
+
+        add #4,cwave ; Warp 4 levels.
+        add #4,cweb                   ; Warp 4 levels
+        movem.l d0-d7/a0-a6,-(a7)     ; Stash some values in the stack so we can restore them later.
         move.l gpu_screen,d0
-        move.l d0,-(a7) ; Stash some values in the stack so we can restore them later.
+        move.l d0,-(a7)               ; Stash some values in the stack so we can restore them later.
         move.l #screen3,a0
         move #64,d1
-        move #384,d2 ; Full screen width.
+        move #384,d2                  ; Full screen width.
         move #48,d3
         move #$000,d4
-        jsr BlitBlock    ;clear the crosshair that was already there
-        move.l #screen3,gpu_screen
-        lea warpytxt,a0 ; Load 'Warp 5 levels' string.
-        lea afont,a1 ; Load the 'Atari' font to a1.
-        move #75,d0 ; Set Y position of text.
-        jsr centext    ;display msg 'Warp 5 Levels'
-        lea beasties+128,a0
-        move.l #screen3+(768*64),d2
-        move #SIDE,d0
-        sub palside,d0 ; Adjust X origin for PAL screens.
-        move #TOP+202+180,d1
-        add paltop,d1 ; Adjust Y origin for PAL screens.
-        swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
-        swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
-        move #8,d5
-        move #$24,d3
-        move #$24,d4
-        jsr makeit_trans
-        move.l (a7)+,d0 ; Restore stashed values from the stack.
+        jsr BlitBlock                 ; clear the crosshair that was already there
+        
+        move.l #screen3,gpu_screen ; Use screen3 as the gpu_screen.
+        lea warpytxt,a0               ; Load 'Warp 5 levels' string.
+        lea afont,a1                  ; Load the 'Atari' font to a1.
+        move #75,d0                   ; Set Y position of text.
+        jsr centext                   ; display msg 'Warp 5 Levels'
+        
+        lea beasties+128,a0           ; Point a0 at the third entry in the beasties object list.
+        move.l #screen3+(768*64),d2   ; Set data after screen 3 as the screen data for the object.
+        move #SIDE,d0                 ; Set the X position.
+        sub palside,d0                ; Adjust X origin for PAL screens.
+        move #TOP+202+180,d1          ; Set the Y position.
+        add paltop,d1                 ; Adjust Y origin for PAL screens.
+        swap d0                       ; Swap position of the first 2 bytes with last 2 bytes.
+        swap d1                       ; Swap position of the first 2 bytes with last 2 bytes.
+        move #8,d5                    ; Set the index to ObTypes to 8: 48-pixel high bit of cry screen.
+        move #$24,d3                  ; Set the width?
+        move #$24,d4                  ; Set the height?
+        jsr makeit_trans              ; Make a transparent object entry in beasties.                       
+        
+        move.l (a7)+,d0               ; Restore stashed values from the stack.
         move.l d0,gpu_screen
-        movem.l (a7)+,d0-d7/a0-a6 ; Restore stashed values from the stack.
+        movem.l (a7)+,d0-d7/a0-a6     ; Restore stashed values from the stack.
 
 sttoat:
         move.b d1,2(a1)
@@ -3444,7 +3468,7 @@ sttoat:
         and #$ff,d0 ; Keep it between 0 and 255
         move iacon,d1      ;get current loc
         neg d1
-        and #$ff,d1
+        and #$ff,d1 ; Keep d1 between 0 and 255.
         sub d0,d1      ;get distance between
         bpl xono
         neg d1        ;(absolute)
@@ -3554,7 +3578,7 @@ restuff:
         clr d3
         move.l #9,d4
         move.l #9,d5
-        lea epyr,a1
+        lea epyr,a1 ; Point a1 at epyr.
         asr.l #1,d2 ; Divide by 2.
         move.l d2,d6
         neg.l d6
@@ -3601,7 +3625,7 @@ pobjs:
         move.l 8(a3),8(a0)
         move.l 12(a3),32(a0)
         move.l a0,-(a7) ; Stash some values in the stack so we can restore them later.
-        bsr pulser
+        bsr pulser ; Calculate a pulse colour.
         and.l #$ff,d6 ; Keep it between 0 and 255
         move.l d6,28(a0)
         move.l #pobj,(a0)  ;Particle Object draw - pointer to p.obj data struct
@@ -3616,13 +3640,13 @@ xxxooo:
         bne snoxy
         move.l #pobj2,(a0)
         move d0,d2
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         and.l #$07,d0
         add #1,d0
         move.l d0,16(a0)
         move.l d0,20(a0)
         move.l d0,24(a0)
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         and.l #$1f,d0
         move.l d0,32(a0)
         move.l #$88,28(a0)
@@ -3646,7 +3670,7 @@ nxtox:
         move #180,d0 ; Set Y position of text.
         tst pal
         beq gnopal
-        add palfix2,d0
+        add palfix2,d0 ; Adjust for PAL screens if required.
 gnopal:
         jsr centext ; Display horizontally centred text.
         sub #1,psmsgtim
@@ -3809,7 +3833,7 @@ m7go:
         move d0,d1  ;get diff level
         and #$07,d1
         lsl #2,d1 ; Multiply it by 4.
-        lea courses,a0
+        lea courses,a0 ; Point a0 at courses.
         move.l 0(a0,d1.w),cg_ptr  ;set course no.
         lsl #1,d0 ; Multiply it by 2.
         lsl #8,d0
@@ -3841,22 +3865,23 @@ m7go:
         move #$000,d4
         jsr BlitBlock
         jsr clearscreen ; Clear the current GPU screen.
-        lea beasties+128,a0
-        move.l #screen3+(768*64),d2
-        move #SIDE,d0
-        sub palside,d0 ; Adjust X origin for PAL screens.
-        move #TOP+202,d1
-        add paltop,d1 ; Adjust Y origin for PAL screens.
-        tst pal
-        beq nopalll
-        add #26,d1
-nopalll:
-        swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
-        swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
-        move #8,d5
-        move #$24,d3
-        move #$24,d4
-        jsr makeit_trans    ;put up some TC screen for cross hair display
+
+        ; Put up some TC screen for cross hair display
+        lea beasties+128,a0           ; Point a0 at the third entry in the beasties object list.
+        move.l #screen3+(768*64),d2   ; Set data after screen 3 as the screen data for the object.
+        move #SIDE,d0                 ; Set X position.
+        sub palside,d0                ; Adjust X origin for PAL screens.
+        move #TOP+202,d1              ; Set Y position.
+        add paltop,d1                 ; Adjust Y origin for PAL screens.
+        tst pal                       ; PAL fix required?
+        beq nopalll                   ; If not, skip.
+        add #26,d1                    ; Adjust for PAL.
+nopalll:swap d0                       ; Swap position of the first 2 bytes with last 2 bytes.
+        swap d1                       ; Swap position of the first 2 bytes with last 2 bytes.
+        move #8,d5                    ; Set the index to ObTypes to 8: 48-pixel high bit of cry screen.
+        move #$24,d3                  ; Set the width?
+        move #$24,d4                  ; Set the height?
+        jsr makeit_trans              ; Make a transparent object entry in beasties. 
 
         move #250,d0
         move #110,d1
@@ -3868,10 +3893,8 @@ nopalll:
         move.l #screen3,a1
         jsr CopyBlock
 
-
         clr.l vp_x
         move.l #$4000,vp_y
-
 
         clr.l vp_z
 
@@ -3879,7 +3902,7 @@ nopalll:
         move.l #m7run,routine
         move pauen,_pauen
         bsr gogame
-        move #-1,beasties+140
+        move #-1,beasties+140 ; Turn off the object list?
         tst z          ; Has the player done a hard reset?
         bne rrrts
         move.l #$ffffffff,warp_flash
@@ -3910,21 +3933,20 @@ nopalll:
         add #4,cwave
         add #4,cweb
 
-        lea beasties+128,a0
-        move.l #screen3+(768*64),d2
-        move #SIDE,d0
-        sub palside,d0 ; Adjust X origin for PAL screens.
-        move #TOP+202+180,d1
-        add paltop,d1 ; Adjust Y origin for PAL screens.
-        swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
-        swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
-        move #8,d5
-        move #$24,d3
-        move #$24,d4
-        jsr makeit_trans
-sttoat2:
+        lea beasties+128,a0           ; Point a0 at the third entry in the beasties object list.
+        move.l #screen3+(768*64),d2   ; Set data after screen 3 as the screen data for the object.
+        move #SIDE,d0                 ; Set the X position.
+        sub palside,d0                ; Adjust X origin for PAL screens.
+        move #TOP+202+180,d1          ; Set the Y position.
+        add paltop,d1                 ; Adjust Y origin for PAL screens.
+        swap d0                       ; Swap position of the first 2 bytes with last 2 bytes.  
+        swap d1                       ; Swap position of the first 2 bytes with last 2 bytes. 
+        move #8,d5                    ; Set the index to ObTypes to 8: 48-pixel high bit of cry screen.
+        move #$24,d3                  ; Set the width?
+        move #$24,d4                  ; Set the height?
+        jsr makeit_trans              ; Make a transparent object entry in beasties.                   
 
-        move #11,d0
+sttoat2: move #11,d0
         jsr doscore    ;give player 20,000
         move.l #vicbon,demo_routine  ;display Victory Bonus screen
         move.l #vicrun,routine
@@ -3934,7 +3956,7 @@ sttoat2:
         move #400,pongx
         move pauen,_pauen
         bsr gogame
-        move #-1,beasties+140
+        move #-1,beasties+140 ; Turn off the object list?
         tst z          ; Has the player done a hard reset?
         bne rrrts
         bsr ofade ; Do a melto-vision transition.
@@ -3961,13 +3983,13 @@ vicbon1:
         move.b pongxv,d0
         add.b #$40,d0
         move.b d0,pongxv+1
-bobo:
-        lea pic,a2
+
+bobo:   lea pic,a2 ; Point a2 at pic.
         move.l #$6e0089,d0
         move.l #$4400b2,d1
         move.l #$6000,d5
         move frames,d6 ; Store frames in d6.
-        and #$ff,d6
+        and #$ff,d6 ; Keep d6 between 0 and 255.
         lea sines,a0 ; Load the sine table to a0.
         move.b 0(a0,d6.w),d2
         add.b #$40,d6
@@ -3984,7 +4006,7 @@ bobo:
         move.l d5,d4
         move.l #$220000,d6
         move.l #$e50000,delta_i
-        bsr yh
+        bsr yh ; Call the GPU shader and draw it.
         rts
 
 ; *******************************************************************
@@ -4010,7 +4032,7 @@ m7run:
 
         move.l rot_cum,d0
         clr.l rot_cum
-        lea ixcon,a0
+        lea ixcon,a0 ; Point a0 at ixcon.
         add.l d0,roach
         jsr iii        ;do x control off the rotary thang
         move.l (a0),d0
@@ -4024,7 +4046,7 @@ m7run:
         rol.b #4,d1
         and #2,d1
         or d1,d0      ;combine buttons a and c for up/down
-        lea iycon,a0
+        lea iycon,a0 ; Point a0 at iycon.
         jsr inertcon
         move.l (a0),d0
         move.l d0,d1
@@ -4035,7 +4057,7 @@ m7run:
         move.b pad_now+5,d0
         rol.b #2,d0
         and #$03,d0
-        lea ixcon,a0
+        lea ixcon,a0 ; Point a0 at ixcon.
         jsr inertcon
         move.l (a0),d0
         move.l d0,m7y
@@ -4048,7 +4070,7 @@ wjoy:
         move.b pad_now+1,d0
         rol.b #2,d0
         and #$03,d0
-        lea ixcon,a0
+        lea ixcon,a0 ; Point a0 at ixcon.
         jsr inertcon
         move.l (a0),d0
         move.l d0,m7y
@@ -4059,7 +4081,7 @@ wjoy:
 do_yy:
         rol.b #4,d0
         and #$03,d0
-        lea iycon,a0
+        lea iycon,a0 ; Point a0 at iycon.
         jsr inertcon
         move.l (a0),d0
         move.l d0,d1
@@ -4090,7 +4112,6 @@ cg:
         move.l grndvel,d0
         sub.l d0,cg_cnt
         bpl rrrts
-;  add #$10,cg_cnt
         add #$0c,cg_cnt
         tst cg_tim
         bmi rrrts    ;check for cg turned off
@@ -4117,26 +4138,25 @@ nflippit:
         bpl slegg
         move #-1,cg_tim  ;shutdown; end of wave
         rts
-slegg:
-        and #$ff,d2
+
+slegg:  and #$ff,d2 ; Keep d2 between 0 and 255.
         move.l a5,cg_ptr  ;save pointer
         move.l freeobjects,a6  ;get pointer to a new Thang
-        move.l #-11,(a6)  ;Polyo DRAW_GATE
+        move.l #-11,(a6)  ; Set index into solid polygon draw routine in 'solids': draw_gate.
         move.l d0,4(a6)
         move.l d1,8(a6)    ;X and Y position
         move.l #$ff0000,12(a6)  ;z=255
         move d2,42(a6)
-        move #1,34(a6)
+        move #1,34(a6) ; Draw routine in draw_vex is 'draw'.
         clr 50(a6)
-        move #27,54(a6)    ;type is run-gate
+        move #27,54(a6) ; Object update routine in run_vex is 'run_gate'.
         clr 20(a6)
         move.l a6,a0
         sub #1,tunc
         bpl isso
         move #1,20(a6)
         move #2,tunc
-isso:
-        jmp insertobject  ;make it
+isso:   jmp insertobject  ;make it
 
 ; *******************************************************************
 ; run_gate
@@ -4149,7 +4169,6 @@ run_gate:
         cmp #2,12(a6)
         bgt rrrts
         move vp_x,d0
-;  neg d0
         sub 4(a6),d0
         bpl lamag1
         neg d0
@@ -4158,7 +4177,6 @@ lamag1:
         bpl mist
         move d0,d1
         move vp_y,d0
-;  neg d0
         sub 8(a6),d0
         bpl lamag2
         neg d0
@@ -4168,12 +4186,12 @@ lamag2:
         add d1,d0
         move d0,-(a7) ; Stash some values in the stack so we can restore them later.
         move #$20,d1
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         btst #0,d0
         bne lnpt
         neg d1
 lnpt:
-        lea gatefx,a0
+        lea gatefx,a0 ; Point a0 at gatefx.
         move 42(a6),d0
         asl #2,d0 ; Multiply it by 4.
         move.l 0(a0,d0.w),a0
@@ -4213,7 +4231,7 @@ nanna:
         clr 50(a6)
         add #$ff,12(a6)
         move.l a6,a0
-        jsr insertobject
+        jsr insertobject ; Add it to the activeobjects list.
         move.l (a7)+,a0 ; Restore stashed values from the stack.
         move (a7)+,d0 ; Restore stashed values from the stack.
         move.l a0,-(a7) ; Stash some values in the stack so we can restore them later.
@@ -4221,23 +4239,20 @@ nanna:
         cmp #2,d0
         ble llaleg
         move #2,d0
-llaleg:
-        neg d0
+llaleg: neg d0
         add #2,d0
         bsr xbon
-;  bsr xbonx
         move.l (A7)+,a6
         bra ennd
-mist:
-;  bra ennd
-        clr _pauen ; Disable pausing.
+
+mist:   clr _pauen ; Disable pausing.
         move.l #failfade,demo_routine
         move.l #failcount,routine
         move #150,pongx
         move #1,pongz
         move.l #$f80000,delta_i
-ennd:
-        move #1,50(a6)
+
+ennd:   move #1,50(a6)
         clr 54(a6)
         rts
 
@@ -4248,8 +4263,9 @@ ennd:
 ; https://www.trademarkia.com/melt-o-vision-74534584
 ; go into FADE after merging screen3 to current screen and turning off BEASTIES+64
 ; *******************************************************************
-fade:   tst beasties+76
-        bmi ofade ; Do a melto-vision transition.
+fade:   tst beasties+76 ; ; Are we ready to do a melto-vision already?
+        bmi ofade ; If so, do a melto-vision transition.
+        ; If not do a merge first.
         move.l #screen3,a0
         move.l gpu_screen,a1
         moveq #0,d0       ; X position in source screen
@@ -4267,15 +4283,15 @@ pmfade: tst mfudj
         beq pmf2
         add #8,d5
         clr mfudj
-pmf2:
-        jsr MergeBlock
-        move #-1,beasties+76
+pmf2:   jsr MergeBlock
+        move #-1,beasties+76 ; Signal we can do a fade now.
 
-ofade:  clr _pauen                  ;can't pause in fade ; Do a melto-vision transition.
+        ; Now we can do the fade part of the melto-vision.
+ofade:  clr _pauen                  ;can't pause in fade
         move.l #ffade,demo_routine
         move.l #failcount,routine
         move #150,pongx
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         and #$7,d0
         sub #$03,d0
         and #$ff,d0 ; Keep it between 0 and 255
@@ -4357,11 +4373,12 @@ draw_gate:
 dopsy:
         move 42(a6),d4  ;get Type
         beq noicon  ;Type zero has no icon
-        lea icondraws,a0
+
+        lea icondraws,a0 ; Point a0 at icondraws.
         asl #2,d4 ; Multiply it by 4.
-        move.l 0(a0,d4.w),a0
+        move.l 0(a0,d4.w),a0 ; Use d4 as an index into icondraws.
         movem.l d0-d3,-(a7) ; Stash some values in the stack so we can restore them later.
-        jsr (a0)
+        jsr (a0) ; Call the routine we picked from icondraws.
         movem.l (a7)+,d0-d3 ; Restore stashed values from the stack.
         bra noicon  ;call icon draw routine
 
@@ -4371,30 +4388,30 @@ icondraws:
 ardn:   move.l #$80,d0
         bra rup
 arup:   clr.l d0
-rup:    lea arr,a1
+rup:    lea arr,a1 ; Point a1 at arr.
 
 ; *******************************************************************
 ; zqz
 ; *******************************************************************
 zqz:
-        move.l #9,d4
-        move.l #9,d5
+        move.l #9,d4 ; Set X centre to 9.
+        move.l #9,d5 ; Set Y centre to 9.
         bsr drawsolidxy ; Draw it as a solid polygon.
         jmp gpuwait ; Wait for the GPU to finish.
 
 zappy:
         clr d6
-        lea dchev,a1
+        lea dchev,a1 ; Point a1 at dchev.
         clr.l d0
         bra zqz
 pyrri:
-         lea epyr,a1
+        lea epyr,a1 ; Point a1 at epyr.
         clr.l d0
         bra zqz
 
 ; *******************************************************************
 ; dsclaw
-; Draw a player claw.
+; Draw a solid player claw.
 ; A member of the draw_vex list.
 ; Called during the draw_objects sequence as a member of the draw_vex list.
 ; *******************************************************************
@@ -4444,7 +4461,7 @@ noicon:
         move.l d0,(a0)+  ;XYZ position
         move frames,d7 ; Store frames in d7.
         asl #1,d7 ; Multiply it by 2.
-        bsr pulser
+        bsr pulser ; Calculate a pulse colour.
         and.l #$0f,d6 ; Keep it between 0 and 15
         move.l d6,(a0)+  ;colour
         move.l d4,(a0)+  ;radius 16:16
@@ -4458,7 +4475,7 @@ noicon:
 polygate:
         move.l #18,d4
         move.l #9,d5
-        lea gibbits,a1
+        lea gibbits,a1 ; Point a1 at gibbits.
         move 20(a6),d6
         asl #2,d6 ; Multiply it by 4.
         move.l 0(a1,d6.w),a1
@@ -4514,20 +4531,20 @@ failfade:
         move.l d0,source_flags
         move.l d0,dest_flags
         lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
-        move pongz,d0
+        move pongz,d0 ; Put initial angle in d0.
         and.l #$ff,d0 ; Keep it between 0 and 255
-        move.l cscreen,(a0)      ;source screen is already-displayed screen
-        move.l #384,4(a0)        ; Width
-        move.l #240,d1           ; Height
-        add palfix1,d1
-        move.l d1,8(a0)          ;X and Y dest rectangle size
-        move.l #$1f4,12(a0)
-        move.l #$1f4,16(a0)      ;X and Y scale as 8:8 fractions
-        move.l d0,20(a0)         ;initial angle in brads
+        move.l cscreen,(a0)      ; Put source screen (already-displayed screen) in GPU buffer.
+        move.l #384,4(a0)        ; Store full-screen width in GPU buffer.
+        move.l #240,d1           ; Store full-screen height in d1.
+        add palfix1,d1 ; Adjust for PAL screens if required.
+        move.l d1,8(a0)          ; Store height in buffer.
+        move.l #$1f4,12(a0) ; Put X scale in GPU buffer.
+        move.l #$1f4,16(a0)      ; Put Y scale in GPU buffer.
+        move.l d0,20(a0)         ; Put initial angle in brads in GPU buffer.
         move.l #$c00000,24(a0)   ;source x centre in 16:16
-        move.l #$780000,d0
-        add.l palfix3,d0
-        move.l d0,28(a0)         ;y centre the same
+        move.l #$780000,d0 ; Set inital y centre position.
+        add.l palfix3,d0 ; Adjust for PAL screens if required.
+        move.l d0,28(a0)         ; Put y centre in GPU buffer.
         move.l #$0,32(a0)        ;offset of dest rectangle
         move.l delta_i,36(a0)    ;change of i per increment
         move.l #2,gpu_mode       ;op 2 of this module is Scale and Rotate
@@ -4546,20 +4563,20 @@ m7test:
         move.l d0,source_flags
         move.l d0,dest_flags
         lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
-        move pongz,d0
+        move pongz,d0 ; Put initial angle in d0.
         and.l #$ff,d0 ; Keep it between 0 and 255
-        move.l cscreen,(a0)      ;source screen is already-displayed screen
-        move.l #384,4(a0)        ;Width
-        move.l #240,d1           ;Height
-        add palfix1,d1
-        move.l d1,8(a0)          ;X and Y dest rectangle size
-        move.l #$1d4,12(a0)
-        move.l #$1e4,16(a0)      ;X and Y scale as 8:8 fractions
-        move.l d0,20(a0)         ;initial angle in brads
+        move.l cscreen,(a0)      ; Put source screen (already-displayed screen) in GPU buffer.
+        move.l #384,4(a0)        ; Store full-screen width in GPU buffer.
+        move.l #240,d1           ; Store full-screen height in d1.
+        add palfix1,d1 ; Adjust for PAL screens if required.
+        move.l d1,8(a0)          ; Store height in buffer.
+        move.l #$1d4,12(a0) ; Put X scale in GPU buffer.
+        move.l #$1e4,16(a0)      ; Put Y scale in GPU buffer.
+        move.l d0,20(a0)         ; Put initial angle in brads in GPU buffer.
         move.l #$c00000,24(a0)   ;source x centre in 16:16
-        move.l #$780000,d0
-        add.l palfix3,d0
-        move.l d0,28(a0)         ;y centre the same
+        move.l #$780000,d0 ; Set inital y centre position.
+        add.l palfix3,d0 ; Adjust for PAL screens if required.
+        move.l d0,28(a0)         ; Put y centre in GPU buffer.
         move.l #$0,32(a0)        ;offset of dest rectangle
         move.l delta_i,36(a0)    ;change of i per increment
         move.l #2,gpu_mode       ;op 2 of this module is Scale and Rotate
@@ -4677,7 +4694,7 @@ npsu1:
 ;  sub.l vp_y,d3 ; Subtract the player/camera viewpoint Y position.
 ;  move.l #18,d4
 ;  move.l #9,d5
-;  lea chevron,a1
+;  lea chevron,a1 ; Point a1 at chevron.
 ;  move #7,d7
 ;  move #$20,d6
 ;  bsr s_multi
@@ -4716,8 +4733,8 @@ joyz:
 skankzz:
         lea m7incy,a0
         lea m7decy,a1
-        lea rrts,a2
-        lea rrts,a3
+        lea rrts,a2 ; Point a2 at rrts.
+        lea rrts,a3 ; Point a3 at rrts.
         bra gjoy
 
 m7incx:
@@ -4767,27 +4784,27 @@ m7zdec:
 ; *******************************************************************
 rndbox:
         move #300,d1
-        jsr rand
+        jsr rand ; Put a random number between 0 and d1 in d0.
         move d0,d2
         move #200,d1
-        jsr rand
+        jsr rand ; Put a random number between 0 and d1 in d0.
         move d0,d3
         move #319,d1
         sub d2,d1
-        jsr rand
+        jsr rand ; Put a random number between 0 and d1 in d0.
         add #1,d0
         move d0,d4
         move #255,d1
         sub d3,d1
-        jsr rand
+        jsr rand ; Put a random number between 0 and d1 in d0.
         add #1,d0
         move d0,d5
         movem d2-d5,-(a7) ; Stash some values in the stack so we can restore them later.
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         move #$44,d4
         lsl #8,d4
         move frames,d5 ; Store frames in d5.
-        and #$ff,d5
+        and #$ff,d5 ; Keep d5 between 0 and 255.
         or d5,d4
         movem (a7)+,d0-d3 ; Restore stashed values from the stack.
         move.l #screen5,a0
@@ -4837,7 +4854,7 @@ setscore:
         movem.l (a7)+,d1/a0  ;get player initials
         tst z          ; Has the player done a hard reset?
         bne rrrts    ;abort if player did reset
-        lea entxt,a1
+        lea entxt,a1 ; Point a1 at entxt.
         move (a1)+,(a0)+
         move.b (a1)+,(a0)+
         move t2k_high,d4
@@ -4850,7 +4867,7 @@ setscore:
         lea hscom1,a0
         lea 80(a0),a0
         move #9,d1
-        lea entxt,a1
+        lea entxt,a1 ; Point a1 at entxt.
 xntxx:
         move.b (a1)+,(a0)+
         dbra d1,xntxx
@@ -4876,8 +4893,8 @@ getinitials:
         bmi stditals    ;no
 okey:
         lsl #2,d4 ; Multiply it by 4.
-        lea keys,a0
-        lea entxt,a1
+        lea keys,a0 ; Point a0 at keys.
+        lea entxt,a1 ; Point a1 at entxt.
         move #2,d5
         lea 0(a0,d4.w),a0  ;point at Key
 grabkey:
@@ -4898,14 +4915,14 @@ nohiscore:
         move akeys,d0  ;No hi score but may get key
         cmp #3,d0
         blt newkey    ;Key available, ask for initials
-        lea keys,a0
+        lea keys,a0 ; Point a0 at keys.
         move t2k_max,d0
         sub #1,d0
         bclr #0,d0
         move #3,d7
 chkbig:
         move.b 3(a0),d1
-        and #$ff,d1
+        and #$ff,d1 ; Keep d1 between 0 and 255.
         cmp d0,d1
         bmi newkey    ;Bigger, can replace
         lea 4(a0),a0
@@ -4939,7 +4956,7 @@ initgo:
         beq setkey    ;New table place. Use SETKEY.
 gakey:
         move.b 3(a0),d5
-        and #$ff,d5
+        and #$ff,d5 ; Keep d5 between 0 and 255.
         cmp t2k_max,d5    ;Check level reached
         bmi setkey    ;Was greater so go and overwrite
         rts
@@ -4959,12 +4976,12 @@ deerdeer:
         bsr fplace    ;Look for possible Key already existing
         tst d4
         bmi gakey    ;You were lucky.
-        lea keys,a0
+        lea keys,a0 ; Point a0 at keys.
         move #3,d4    ;Were we high enough to bop someone else?
         move #100,d3
 lfbop:
         move.b 3(a0),d5
-        and #$ff,d5
+        and #$ff,d5 ; Keep d5 between 0 and 255.
         cmp d5,d3    ;Look for lower
         bmi lfbop1
         move d5,d3
@@ -4986,7 +5003,7 @@ lfbop1:
 ; *******************************************************************
 fplace:
         lea keys,a0    ;Happy, happy, joy, joy.  You got an easy Key.
-        lea entxt,a1
+        lea entxt,a1 ; Point a1 at entxt.
 lkey0:
         move #2,d4
         move.l a1,a2
@@ -5031,7 +5048,7 @@ txenter:
 
         move ennum,enmax
 
-        lea entxt,a0
+        lea entxt,a0 ; Point a0 at entxt.
         move.l a0,pongxv
         move ennum,d0    ;<<< no. of letters to enter this time
 clent:
@@ -5244,7 +5261,7 @@ sletend:
         move.b 0(a2,d0.w),(a0)  ;currently selected char to entered text slot
 
 stettin:
-        lea entxt,a0
+        lea entxt,a0 ; Point a0 at entxt.
         lea bfont,a1 ; Load the 'large' font.
         move #150,d0 ; Set Y position of text.
         jmp centext ; Display horizontally centred text.
@@ -5267,15 +5284,19 @@ clvpx:
 ; hisettrue
 ; *******************************************************************
 hisettrue:
-        lea beasties,a0    ;set main screen to 16-bit
-        move.l #screen2,d2
-        move.l d2,gpu_screen
-        move #TOP-16,d1
-        bsr stru
-
+        lea beasties,a0        ; Point a0 at the first entry in beasties.
+        move.l #screen2,d2     ; Set screen2 as our source data for the entry.
+        move.l d2,gpu_screen   ; And also as our gpu_screen.
+        move #TOP-16,d1        ; Set the X position.
+        bsr stru               ; Set up the rest of the object as normal.
+        ; Fall through to hisettrue3.
+        
+; *******************************************************************
+; hisettrue3
+; *******************************************************************
 hisettrue3:
-        move #TOP-16,d1
-        bra settrue33
+        move #TOP-16,d1        ; Set the X position.
+        bra settrue33          ; Set up the rest of the object as normal.
 
 ; *******************************************************************
 ; showscores
@@ -5341,7 +5362,7 @@ ctl:
         move.l #webz,d0
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         move.l d0,12(a0)
-        move #1,34(a0)
+        move #1,34(a0) ; Draw routine in draw_vex is 'draw'.
         jsr hisettrue3
         move.l #swebby,demo_routine
         move #800,attime
@@ -5398,7 +5419,7 @@ stlp:
         move d5,d7
         lsl #2,d6 ; Multiply it by 4.
         add d6,d7
-        bsr pulser
+        bsr pulser ; Calculate a pulse colour.
         lsl #8,d6
         or d6,d4
         move.l d4,4(a0)
@@ -5452,7 +5473,7 @@ snopal: jsr centext                    ;Display horizontally centred text.
         move #20+16,d1
         tst pal
         beq snopal2
-        add palfix2,d1
+        add palfix2,d1 ; Adjust for PAL screens if required.
 snopal2:jsr pager                      ;Write the credits text to screen.
 
         ; When we're finished do a melt-o-vision transition.
@@ -5548,12 +5569,12 @@ notatari:
         move pongy,d7
         move.l pongz,d6
         move pongx,d5
-        and #$ff,d5
+        and #$ff,d5 ; Keep d5 between 0 and 255.
         swap d5 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d5
         move frames,d4 ; Stash the frame count in d4.
         asl #6,d4
-        and #$ff,d4
+        and #$ff,d4 ; Keep d4 between 0 and 255.
 
         ; Loop to stretch and rotate the selected graphic in the background.
 dyakhead:
@@ -5568,7 +5589,7 @@ dyakhead:
         move.l d0,(a0)+        ;y-scale
         lea sines,a4           ;Load the sine table to a4.
         move.b pongxv,d1
-        and #$ff,d1
+        and #$ff,d1 ; Keep d1 between 0 and 255.
         move.b 0(a4,d1.w),d0
         ext d0
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
@@ -5657,7 +5678,7 @@ rexfb:
         move.l #$6c0120,(a0)+  ;srce size
 
         move pongx,d1
-        and #$ff,d1
+        and #$ff,d1 ; Keep d1 between 0 and 255.
         move #9,d2
         lea p_sines,a2 ; Load the positive sine table to a2.
         move.b 0(a2,d1.w),d0
@@ -5669,7 +5690,7 @@ rexfb:
         move.l d0,(a0)+    ;x-scale
 
         move pongy,d1
-        and #$ff,d1
+        and #$ff,d1 ; Keep d1 between 0 and 255.
         move.b 0(a2,d1.w),d0
         and.l #$ff,d0 ; Keep it between 0 and 255
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
@@ -5680,7 +5701,7 @@ rexfb:
 
         lea sines,a2 ; Load the sine table to a2.
         move pongz,d1
-        and #$ff,d1
+        and #$ff,d1 ; Keep d1 between 0 and 255.
         move.b 0(a2,d1.w),d0
         ext d0
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
@@ -5689,7 +5710,7 @@ rexfb:
         move.l #0,(a0)+    ;x shear
 
         move pongxv,d1
-        and #$ff,d1
+        and #$ff,d1 ; Keep d1 between 0 and 255.
         move.b 0(a2,d1.w),d0
         ext d0
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
@@ -5863,7 +5884,7 @@ sphertypes:
 
 ; *******************************************************************
 ; draw_pixex
-; Draws a pixel.
+; Draws a pixel based explosion.
 ; A member of the draw_vex and solids list.
 ; Called during the draw_objects sequence as a member of the draw_vex list.
 ; Called during the draw_objects sequence as a member of the solids list.
@@ -5914,6 +5935,7 @@ dxshot:
 
 ; *******************************************************************
 ; draw_pring
+; A non-stop particle beam.
 ; Called during the draw_objects sequence as a member of the draw_vex list.
 ; *******************************************************************
 draw_pring:
@@ -5959,7 +5981,7 @@ prloo:
         move.l d1,(a0)+    ; XYZ position
         move.l d1,d7
         swap d7            ; Swap position of the first 2 bytes with last 2 bytes.
-        bsr pulser
+        bsr pulser ; Calculate a pulse colour.
         and.l #$ff,d6 ; Keep it between 0 and 255
         move.l d6,(a0)+    ; colour
         move 44(a6),d0
@@ -5988,7 +6010,7 @@ opupring:
         move.l d3,(a0)+ ; Add it to our GPU RAM input buffer.
         move.l d1,(a0)+  ;XYZ position
         move frames,d7 ; Store frames in d7.
-        bsr pulser
+        bsr pulser ; Calculate a pulse colour.
         and.l #$ff,d6 ; Keep it between 0 and 255
         move.l d6,(a0)+  ;colour
         move 48(a6),d0
@@ -6012,7 +6034,7 @@ prloo4:
         move.l d3,(a0)+ ; Add it to our GPU RAM input buffer.
         move.l d1,(a0)+  ;XYZ position
         move d7,-(a7) ; Stash some values in the stack so we can restore them later.
-        bsr pulser
+        bsr pulser ; Calculate a pulse colour.
         move (a7)+,d7 ; Restore stashed values from the stack.
         and.l #$ff,d6 ; Keep it between 0 and 255
         move.l d6,(a0)+  ;colour
@@ -6254,8 +6276,6 @@ ringa2:
 polyr:
         move.l #testpoly,in_buf
         bsr itpoly
-;  lea parrot,a0 ; Load the GPU module in camel.gas.
-;  jsr gpuload    ;load the GPU code for the demos
 
         lea beasties,a0    ;set main screen to 16-bit
         move.l #screen2,d2
@@ -6475,11 +6495,11 @@ ppsize:
 makepyr:
         movem d6-d7,-(a7) ; Stash some values in the stack so we can restore them later.
         move pc_1,d7
-        bsr pulser
+        bsr pulser ; Calculate a pulse colour.
         move d6,d4
         move d4,popo1
         move pc_2,d7
-        bsr pulser
+        bsr pulser ; Calculate a pulse colour.
         move d6,d5
         move d5,popo2
 
@@ -6810,23 +6830,23 @@ itppoly:
 rtppoly:
         move frames,d6 ; Store frames in d6.
         lea sines,a0 ; Load the sine table to a0.
-        lea testppoly,a1
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        lea testppoly,a1 ; Point a1 at testppoly.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         move d0,d4
         add #64,d4
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         and #$3f,d0
         move d0,d5
         add #64,d5
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         and #$7f,d0
         add #$3f,d0
         move d0,d3
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         add d6,d0
         move #2,d7
 rtpp:
-;  jsr rannum ; Put a random number between 0 and 255 in d0.
+;  jsr rannum ; Put a random number between 0 and d1 in d0.
         and #$ff,d0 ; Keep it between 0 and 255
         move.b 0(a0,d0.w),d1
         ext d1
@@ -6849,7 +6869,7 @@ rtpp:
         move (a7)+,d1 ; Restore stashed values from the stack.
         move d1,(a1)+
         move d0,-(a7) ; Stash some values in the stack so we can restore them later.
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         move d0,(a1)+
         move (a7)+,d0 ; Restore stashed values from the stack.
         dbra d7,rtpp
@@ -6863,18 +6883,18 @@ itpoly:
 rtpoly:
         move frames,d6 ; Store frames in d6.
         lea sines,a0 ; Load the sine table to a0.
-        lea testpoly,a1
+        lea testpoly,a1 ; Point a1 at testpoly.
         move #2,d7
 rtp:
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         move d0,d4
         add #64,d4
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         and #$3f,d0
         move d0,d5
         add #64,d5
 
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         add d6,d0
         and #$ff,d0 ; Keep it between 0 and 255
         move.b 0(a0,d0.w),d1
@@ -6896,7 +6916,7 @@ rtp:
         move (a7)+,d1 ; Restore stashed values from the stack.
         move d1,(a1)+
         dbra d7,rtp
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         move d0,(a1)
         rts
 
@@ -6951,7 +6971,7 @@ pyrfb:
         move.l #0,gpu_mode ; Op 0 is 'fline' in ox.gas.
         move.l #192,xcent
         move.l #120,d6
-        add palfix2,d6
+        add palfix2,d6 ; Adjust for PAL screens if required.
         move.l d6,ycent
 
         lea in_buf,a0      ;set up func/linedraw
@@ -7064,7 +7084,7 @@ feedback:
         move.l cscreen,(a0)    ;source screen is already-displayed screen
         move.l #384,4(a0) ; Full screen width.
         move.l #240,d0 ; Full screen height.
-        add palfix1,d0
+        add palfix1,d0 ; Adjust for PAL screens if required.
         move.l d0,8(a0)    ;X and Y dest rectangle size
         clr.l d0
         move pongy,d0
@@ -7081,7 +7101,7 @@ feedback:
         clr d0
         move.l d0,24(a0)    ;source x centre in 16:16
         move pongzv,d0
-        add palfix2,d0
+        add palfix2,d0 ; Adjust for PAL screens if required.
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d0
         move.l d0,28(a0)    ;y centre the same
@@ -7106,30 +7126,30 @@ nrseti:
 
         btst.b #5,pad_now
         beq skank00
-        lea iypos,a0
-        lea dypos,a1
-        lea dxpos,a2
-        lea ixpos,a3
+        lea iypos,a0 ; Point a0 at iypos.
+        lea dypos,a1 ; Point a1 at dypos.
+        lea dxpos,a2 ; Point a2 at dxpos.
+        lea ixpos,a3 ; Point a3 at ixpos.
         bsr gjoy
 
 
 skank00:
         btst.b #1,pad_now
         beq skank0
-        lea drang,a0
-        lea irang,a1
-        lea ddelta,a2
-        lea idelta,a3
+        lea drang,a0 ; Point a0 at drang.
+        lea irang,a1 ; Point a1 at irang.
+        lea ddelta,a2 ; Point a2 at ddelta.
+        lea idelta,a3 ; Point a3 at idelta.
         bsr gjoy
 
 skank0:
         btst.b #5,pad_now+2
         beq skank
 
-        lea dxscl,a0
-        lea ixscl,a1
-        lea dyscl,a2
-        lea iyscl,a3
+        lea dxscl,a0 ; Point a0 at dxscl.
+        lea ixscl,a1 ; Point a1 at ixscl.
+        lea dyscl,a2 ; Point a2 at dyscl.
+        lea iyscl,a3 ; Point a3 at iyscl.
         bsr gjoy
 
 skank:
@@ -7139,10 +7159,10 @@ polyfb:
         move.l pad_now,d0
         and.l #$22002000,d0
         bne njoy
-        lea prevshape,a0
-        lea nextshape,a1
-        lea away,a2
-        lea towards,a3
+        lea prevshape,a0 ; Point a0 at prevshape.
+        lea nextshape,a1 ; Point a1 at nextshape.
+        lea away,a2 ; Point a2 at away.
+        lea towards,a3 ; Point a3 at towards.
 unskank:
         bsr gjoy
 
@@ -7160,7 +7180,7 @@ njoy:
         move pongx,d2
         lsr #2,d2 ; Divide by 4.
         and #$fc,d2
-        lea shapes,a2
+        lea shapes,a2 ; Point a2 at shapes.
         move.l 0(a2,d2.w),d2
         bpl shokk
         clr pongx
@@ -7223,7 +7243,7 @@ rotate:
 rorota:
         add #$01,d0
         move d0,d1
-        and #$ff,d1
+        and #$ff,d1 ; Keep d1 between 0 and 255.
         move d1,in_buf+22    ;Rotation-Angle
         and #$3ff,d0
         move.l d0,d1
@@ -7253,36 +7273,36 @@ scarp0:
 siner:
          move.l #screen3,gpu_screen
 sner:
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         asr.l #8,d0
         move.l d0,in_buf
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         asr.l #8,d0
         move.l d0,in_buf+4
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         move.l d0,in_buf+8
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         move.l d0,in_buf+12
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         and.l #$ff,d0 ; Keep it between 0 and 255
         asl.l #3,d0
         move.l d0,in_buf+16
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         and.l #$ff,d0 ; Keep it between 0 and 255
         asl.l #3,d0
         move.l d0,in_buf+20
 
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         lsr.l #6,d0
         move.l d0,palad0
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         move d0,palad2
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         lsr.l #6,d0
         move.l d0,palad3    ;Randomise pal generator
@@ -7542,7 +7562,7 @@ dscal:
 iscal:
         move.l #1,d1
 sscal:
-        lea pongscale,a0
+        lea pongscale,a0 ; Point a0 at pongscale.
         lea in_buf+12,a1
         btst.b #5,pad_now+2  ;fire C held modifies other scale parameter
         beq sscal0
@@ -7631,8 +7651,9 @@ curcy:
         bge curset
         move d2,cursy
 curset:
-        move cursx,beasties+64
-        move cursy,beasties+68  ;put x and y into RMW object's data struct.
+        ; put x and y into RMW object's data struct.
+        move cursx,beasties+64   ; Put the x position in the second entry of beasties object list.
+        move cursy,beasties+68   ; Put the x position in the second entry of beasties object list.
         rts
 
 
@@ -7666,41 +7687,42 @@ zarka:  bsr setlives
 
         ; Set up and play a head-to-head game.
 h2hin:  bsr h2hclaws
-        move.l gpu_screen,-(a7) ; Stash some values in the stack so we can restore them later.
+        move.l gpu_screen,-(a7)      ; Stash some values in the stack so we can restore them later.
         move.l #screen3,gpu_screen
-        jsr clearscreen ; Clear the current GPU screen.
-        lea beasties+64,a0
-        move.l #screen3,d2
-        move #SIDE,d0
-        sub palside,d0 ; Adjust X origin for PAL screens.
-        move #TOP,d1
-        add paltop,d1 ; Adjust Y origin for PAL screens.
-        swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
-        swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
-        move #7,d5
-        move #$24,d3
-        move #$24,d4
-        jsr makeit_trans    ;put up some TC screen for status display
-
+        jsr clearscreen              ; Clear the current GPU screen.
+        
+        lea beasties+64,a0   ; Point a0 at the second entry in the beasties object list.
+        move.l #screen3,d2   ; Set screen3 as our source data.
+        move #SIDE,d0        ; Set the X position.
+        sub palside,d0       ; Adjust X origin for PAL screens.
+        move #TOP,d1         ; Set the Y position.
+        add paltop,d1        ; Adjust Y origin for PAL screens.
+        swap d0              ; Swap position of the first 2 bytes with last 2 bytes.
+        swap d1              ; Swap position of the first 2 bytes with last 2 bytes.
+        move #7,d5           ; Set the index to ObTypes to 7: 32-pixel high bit of cry screen.
+        move #$24,d3         ; Set the width?
+        move #$24,d4         ; Set the height?
+        jsr makeit_trans     ; Make a transparent object entry in beasties.
+        
         move #19,d0
         move #20,d1
         move #16,d6
         move #52,d7
         move.l #$40000,pc_1
         move.l #$560100,pc_2
-        bsr makepyr      ;make a pyramid for hit points display
-        jsr ppyr      ;draw that pyramid
-
+        bsr makepyr                  ; make a pyramid for hit points display
+        jsr ppyr                     ; draw that pyramid
+        
         move #19,d0
         move #20,d1
         move #48,d6
         move #52,d7
         move.l #$840000,pc_1
         move.l #$d60100,pc_2
-        bsr makepyr      ;make a pyramid for hit points display
-        jsr ppyr      ;draw that pyramid
-
-        jsr h2hinsc      ;make the lives-pyramids
+        bsr makepyr                  ; make a pyramid for hit points display
+        jsr ppyr                     ; draw that pyramid
+        
+        jsr h2hinsc                  ; make the lives-pyramids
 
         move.l (a7)+,gpu_screen ; Restore stashed values from the stack.
 
@@ -7716,28 +7738,28 @@ h2hin:  bsr h2hclaws
 ; Initialize and start a single-player game.
 ; *******************************************************************
 stdinit:
-        lea beasties+64,a0
-        move.l #screen3,d2
-        move #SIDE,d0
-        sub palside,d0 ; Adjust X origin for PAL screens.
-        move #TOP,d1
-        add paltop,d1 ; Adjust Y origin for PAL screens.
-        swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
-        swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
-        move #8,d5
-        move #$24,d3
-        move #$24,d4
-        jsr makeit_trans    ;put up some TC screen for status display
-
+        lea beasties+64,a0         ; Point a0 at the second entry in the beasties object list.
+        move.l #screen3,d2         ; Set data after screen 3 as the screen data for the object.
+        move #SIDE,d0              ; Set the X position.
+        sub palside,d0             ; Adjust X origin for PAL screens.
+        move #TOP,d1               ; Set the Y position.
+        add paltop,d1              ; Adjust Y origin for PAL screens.
+        swap d0                    ; Swap position of the first 2 bytes with last 2 bytes.
+        swap d1                    ; Swap position of the first 2 bytes with last 2 bytes.
+        move #8,d5                 ; Set the index to ObTypes to 8: 48-pixel high bit of cry screen.
+        move #$24,d3               ; Set the width?
+        move #$24,d4               ; Set the height?
+        jsr makeit_trans           ; Make a transparent object entry in beasties.
+        
         move.l freeobjects,_claw
-        move players,plc  ;player loop counter
+        move players,plc           ; player loop counter
 zipp:   move.l freeobjects,a6
-        move plc,d7
-        bsr setclaw    ;init claw object and put it on the web
-        bsr insertobject
-        bsr makedroid    ;init the droid
-        sub #1,plc
-        bne zipp
+        move plc,d7                ; Store the plc in d7.
+        bsr setclaw                ; init claw object and put it on the web
+        bsr insertobject           ; Add it to the activeobjects list.
+        bsr makedroid              ; Make the droid and add it to the activeobjects list.
+        sub #1,plc                 ; Decrement counter.
+        bne zipp                   ; Loop until zero.
 
         ; The common entry point for single-player and head-to-head games.
 go_in:  move.l #rotate_web,routine
@@ -7745,7 +7767,7 @@ go_in:  move.l #rotate_web,routine
         move.l #draw_objects,mainloop_routine
         move pauen,_pauen
         clr db_on
-        bra mainloop      ; Enter the mainloop until we lose a life.
+        bra mainloop               ; Enter the mainloop until we lose a life.
         ; Returns
 
 ; *******************************************************************
@@ -7794,7 +7816,7 @@ wbsel:
         asl #2,d0 ; Multiply it by 4.
         lea raw_webs,a0  ;<<<
         move.l 0(a0,d0.w),d6
-        lea webs,a0
+        lea webs,a0 ; Point a0 at webs.
         asl #5,d0
         lea 0(a0,d0.w),a0
         lea 32(a0),a1
@@ -7817,13 +7839,13 @@ wbsel:
         move cwave,d0 ; Get current level
         lsr #4,d0
         and #$07,d0
-        lea webtunes,a0
+        lea webtunes,a0 ; Point a0 at webtunes.
         move.b 0(a0,d0.w),d0
         move d0,modnum    ;request tune 4 this level
 
 gnosis:
         move #15,d0
-        lea bulls,a0
+        lea bulls,a0 ; Point a0 at bulls.
 clbulls:
         clr.l (a0)+
         dbra d0,clbulls
@@ -7838,7 +7860,7 @@ clokay: move.l #$70007,shots
         move #1,szap_avail  ;Nuevo Superzapper!
         clr szap_on
         clr _sz
-        lea spikes,a0
+        lea spikes,a0 ; Point a0 at spikes.
         move #19,d0
 clsps:
         clr.l (a0)+
@@ -7854,7 +7876,7 @@ rsetw:  move cwave,d0   ; Get current wave
         cmp #48,d0
         blt dontwrap
         and #$0f,d0
-        lea tradmax,a0
+        lea tradmax,a0 ; Point a0 at tradmax.
         asl #2,d0 ; Multiply it by 4.
         move.l 0(a0,d0.w),a0  ;get looped wave pointer
         move d1,d2
@@ -7888,25 +7910,25 @@ setemm:
         move #127,d3
 billy:
         lsr #4,d3
-        lea rospeeds,a0
+        lea rospeeds,a0 ; Point a0 at rospeeds.
         move.b 0(a0,d3.w),d3
-        and #$ff,d3
+        and #$ff,d3 ; Keep d3 between 0 and 255.
         move d3,flip_rospeed
-        lea crossdels,a0
+        lea crossdels,a0 ; Point a0 at crossdels.
         move.b 0(a0,d3.w),d3
-        and #$ff,d3
+        and #$ff,d3 ; Keep d3 between 0 and 255.
         move.b d3,fuse_crossdelay
         move.b d3,fuse_crossdelay+1
-        lea pauses,a0
+        lea pauses,a0 ; Point a0 at pauses.
         move.b 0(a0,d3.w),d3
-        and #$ff,d3
+        and #$ff,d3 ; Keep d3 between 0 and 255.
         move.b d3,flip_pause
         move.b d3,flip_pause+1
 
         move d1,d0
         asr #1,d1 ; Divide by 2.
         and #$fffe,d1    ;word every 4 waves
-        lea pudels,a0
+        lea pudels,a0 ; Point a0 at pudels.
         move 0(a0,d1.w),pudel  ;set pulsar phase change delay
         lea pup_stuff,a0
         move 0(a0,d1.w),pupcount  ;set powerup delay
@@ -7942,9 +7964,9 @@ billy:
         beq dntclr
         clr d0
 dntclr:
-        lea webcols,a0
+        lea webcols,a0 ; Point a0 at webcols.
         move 0(a0,d0.w),webcol  ;set the right colours for this web
-        lea flipcols,a0
+        lea flipcols,a0 ; Point a0 at flipcols.
         move 0(a0,d0.w),d0
         move d0,flipcol
         lea s_flipper,a0
@@ -7957,7 +7979,7 @@ dntclr:
         lea _web,a0
         move.l (a0),a1
         move.l #1,(a1)    ;set web all rotate
-        move webcol,40(a0)
+        move webcol,40(a0) ; Put the web colour in the GPU buffer.
         move webcol,d0    ;paint web in current web-colour
         lsl #8,d0    ;web-colour to top of conn word
         move.l 40(a1),a1  ;now points at this object's c-list
@@ -8013,7 +8035,7 @@ nomaxx:
         move cwave,d0 ; Get current level
         and #1,d0
         asl #2,d0 ; Multiply it by 4.
-        lea fields,a0
+        lea fields,a0 ; Point a0 at fields.
         move.l 0(a0,d0.w),a0
         jsr (a0)      ;make starfields
         clr screaming
@@ -8192,7 +8214,7 @@ swebpsych:
         bmi kzkk
         asl #2,d7 ; Multiply it by 4.
 kzkk:
-        bsr pulser
+        bsr pulser ; Calculate a pulse colour.
         move d6,40(a0)
         move.l 40(a1),a1   ;now points at this object's c-list
 pintwb:
@@ -8200,7 +8222,7 @@ pintwb:
         beq pintd          ;zero, it's done
 pers:
         add #2,d7
-        bsr pulser
+        bsr pulser ; Calculate a pulse colour.
         move d6,d0         ;paint web in current web-colour
         lsl #8,d0          ;web-colour to top of conn word
         move (a1)+,d1
@@ -8307,7 +8329,7 @@ ondd:
         move d4,d5
         swap d4 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d4
-        lea rantab,a1
+        lea rantab,a1 ; Point a1 at rantab.
         move.b 0(a1,d5.w),d0
         and #$7f,d0
         add #$04,d0
@@ -8321,9 +8343,8 @@ ondd:
 ; ips
 ; Indirect call for initpstarfield
 ; *******************************************************************
-ips:
-        bra initpstarfield
-
+ips:    bra initpstarfield
+        ; Returns
 
 ; *******************************************************************
 ; makedroid
@@ -8341,27 +8362,27 @@ makedroid:
 mkdroid:
         move.l freeobjects,a0
         sub #1,ofree
-        move.l _cube,(a0)
+        move.l _cube,(a0); Set address of the vector object to draw: _cube.
         move #webz-90,12(a0)
         move web_firstseg,d0
         add #2,d0
-        move d0,16(a0)
-        clr 18(a0)
-        clr.l 20(a0)
-        clr.l 24(a0)
-        clr.l 28(a0)
-        clr 32(a0)
-        move #0,34(a0)
-        move #136,40(a0)
-        move #-1,42(a0)
-        clr 44(a0)      ;New Mode=get target
-        clr 52(a0)
-        move #21,46(a0)
-        move #17,54(a0)      ;use Rez Claw stuff
-        move.l a0,a6 ; Move our newly created object into the activeobjects list.
-        bsr toweb      ;Attach the droid to the web
-        bsr set_rezclaw
-        bra insertobject
+        move d0,16(a0)          ; Set it as the position on the web.
+        clr 18(a0)              ; Set
+        clr.l 20(a0)            ; Set velocity to 0.
+        clr.l 24(a0)            ; Set acceleration to 0.
+        clr.l 28(a0)            ; Set pitcha nd roll to 0.
+        clr 32(a0)              ; Set pitch to 0.
+        move #0,34(a0)          ; Draw routine in draw_vex is 'rrts', i.e. draw nothing.
+        move #136,40(a0)        ; Set the colour.
+        move #-1,42(a0)         ; Set the scale factor.
+        clr 44(a0)              ; Set the mode to 'get target'
+        clr 52(a0)              ; Set so not an enemy.
+        move #21,46(a0)         ; Set size of pixel data.
+        move #17,54(a0)         ; Object update routine in run_vex is 'rez_claw'.
+        move.l a0,a6            ; Put the addres of our object in a6 so it can be added to activeobjects.
+        bsr toweb               ; Set X/Y/Z position so we attach the droid to the web
+        bsr set_rezclaw         ; Set it up to behave like a rezclaw.
+        bra insertobject        ; Add it to the activeobjects list.
 
 ; *******************************************************************
 ; rundroid
@@ -8394,7 +8415,7 @@ always_2:
         sub #1,shots+2
         move.l a6,a1
         move #$80,d7      ;marker for bullets to distinguish pl. 1 and pl 2 shots
-        move.l _chevre,d5    ;graphic is the chevron
+        move.l _chevre,d5 ; Set address of the vector object to draw: _chevre.
         bsr frab0      ;frab0 is fire w. arbitrary graphic
 nodfire:
         tst 44(a6)
@@ -8528,8 +8549,8 @@ h2hclaws:
         move #1,42(a0)
         move #150,48(a0)
         clr.l 50(a6)
-        move #17,54(a6)
-        jsr insertobject
+        move #17,54(a6) ; Object update routine in run_vex is 'rez_claw'. 
+        jsr insertobject ; Add it to the activeobjects list.
         move.l freeobjects,a0
         move.l a0,a6 ; Move our newly created object into the activeobjects list.
         move.l #0,(a0)
@@ -8551,17 +8572,18 @@ h2hclaws:
         move #1,42(a0)
         move #150,48(a0)
         clr.l 50(a6)
-        move #17,54(a6)
-        jsr insertobject
+        move #17,54(a6) ; Object update routine in run_vex is 'rez_claw'. 
+        jsr insertobject ; Add it to the activeobjects list.
 
         move #webz-76,d0    ;make the players' mirrors.  Always at (C-2) object.
         bsr makemirr
         move #webz+76,d0
+
 makemirr:
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d0
         move.l freeobjects,a0
-        move.l #-13,(a0)
+        move.l #-13,(a0)  ; Set index into draw routine in 'solids': draw_mirr.
         clr.l 4(a0)       ; Clear X position
         clr.l 8(a0)       ; Clear Y position
         move.l d0,12(a0)  ; Clear Z position.
@@ -8570,8 +8592,9 @@ makemirr:
         clr 28(a0)        ; Clear XZ orientation.
         move #0,34(a0)    ; Clear draw routine.
         clr.l 50(a0)      ; Make sure not marked for deletion.
-        move #31,54(a0)   ; Set object type to claw.
-        jmp insertobject
+        move #31,54(a0) ; Object update routine in run_vex is 'run_mirr'.    ; Set object type to claw.
+        jmp insertobject ; Add it to the activeobjects list.
+        ; Returns.
 
 ; *******************************************************************
 ; setclaw
@@ -8609,11 +8632,16 @@ setdouble:
         bne set_rezclaw    ;modifications for player 2's claw
         move #95,40(a0)    ;Colour of second claw
         add #2,16(a0)    ;Second claw rezzes nearby
+
+; *******************************************************************
+; set_rezclaw
+; Set up the activeobject object so that it can be a rezclaw.
+; *******************************************************************
 set_rezclaw:
         move #$f000,36(a6)
         move #2,44(a6)
-        move #17,54(a6)
-        move #0,34(a6)
+        move #17,54(a6) ; Object update routine in run_vex is 'rez_claw'. 
+        move #0,34(a6) ; Draw routine in draw_vex is 'rrts', i.e. draw nothing.
         move #-1,38(a6)
         move #0,52(a6)
         rts
@@ -8631,21 +8659,24 @@ make_bits:
         move.l #0,d5
         clr.l d6
         clr d7
-        lea ev,a1
+        lea ev,a1 ; Point a1 at ev.
         movem.l d0-d7,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr make_vo3d
         movem.l (a7)+,d0-d7 ; Restore stashed values from the stack.
         move.l a0,_ev
+
         lea la_routine,a1
         movem.l d0-d7,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr make_vo3d
         movem.l (a7)+,d0-d7 ; Restore stashed values from the stack.
         move.l a0,_la
-        lea pu,a1
+
+        lea pu,a1 ; Point a1 at pu.
         movem.l d0-d7,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr make_vo3d
         movem.l (a7)+,d0-d7 ; Restore stashed values from the stack.
         move.l a0,_pu
+
         move.l #$00,d0      ;parameters for object - XYZ scale...
         move.l #$01,d1
         move.l #$01,d2
@@ -8654,86 +8685,100 @@ make_bits:
         move.l #0,d5
         clr.l d6
         clr d7        ;standard stuff...
-        lea shot,a1
+
+        lea shot,a1 ; Point a1 at shot.
         movem.l d0-d7,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr make_vo3d
         movem.l (a7)+,d0-d7 ; Restore stashed values from the stack.
         move.l a0,_shot
-        lea chevre,a1
+
+        lea chevre,a1 ; Point a1 at chevre.
         movem.l d0-d7,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr make_vo3d
         movem.l (a7)+,d0-d7 ; Restore stashed values from the stack.
         move.l a0,_chevre
 
-        lea flipper,a1
+        lea flipper,a1 ; Point a1 at flipper.
         movem.l d0-d7,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr make_vo3d
         movem.l (a7)+,d0-d7 ; Restore stashed values from the stack.
         move.l a0,_flipper
-        lea zap,a1
+
+        lea zap,a1 ; Point a1 at zap.
         movem.l d0-d7,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr make_vo3d
         movem.l (a7)+,d0-d7 ; Restore stashed values from the stack.
         move.l a0,_zap
-        lea fliptank,a1
+
+        lea fliptank,a1 ; Point a1 at fliptank.
         movem.l d0-d7,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr make_vo3d
         movem.l (a7)+,d0-d7 ; Restore stashed values from the stack.
         move.l a0,_fliptank
-        lea fusetank,a1
+
+        lea fusetank,a1 ; Point a1 at fusetank.
         movem.l d0-d7,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr make_vo3d
         movem.l (a7)+,d0-d7 ; Restore stashed values from the stack.
         move.l a0,_fusetank
-        lea pulstank,a1
+
+        lea pulstank,a1 ; Point a1 at pulstank.
         movem.l d0-d7,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr make_vo3d
         movem.l (a7)+,d0-d7 ; Restore stashed values from the stack.
         move.l a0,_pulstank
-        lea spike,a1
+
+        lea spike,a1 ; Point a1 at spike.
         movem.l d0-d7,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr make_vo3d
         movem.l (a7)+,d0-d7 ; Restore stashed values from the stack.
         move.l a0,_spike
-        lea spiker,a1
+
+        lea spiker,a1 ; Point a1 at spiker.
         movem.l d0-d7,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr make_vo3d
         movem.l (a7)+,d0-d7 ; Restore stashed values from the stack.
         move.l a0,_spiker
+
         lea fuse1,a1
         movem.l d0-d7,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr make_vo3d
         movem.l (a7)+,d0-d7 ; Restore stashed values from the stack.
         move.l a0,_fuse1
+
         lea fuse2,a1
         movem.l d0-d7,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr make_vo3d
         movem.l (a7)+,d0-d7 ; Restore stashed values from the stack.
         move.l a0,_fuse2
+
         lea b250,a1
         movem.l d0-d7,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr make_vo3d
         movem.l (a7)+,d0-d7 ; Restore stashed values from the stack.
         move.l a0,_bons
+
         lea b500,a1
         movem.l d0-d7,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr make_vo3d
         movem.l (a7)+,d0-d7 ; Restore stashed values from the stack.
         move.l a0,_bons+4
+
         lea b750,a1
         movem.l d0-d7,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr make_vo3d
         movem.l (a7)+,d0-d7 ; Restore stashed values from the stack.
         move.l a0,_bons+8
-        lea oneup,a1
+
+        lea oneup,a1 ; Point a1 at oneup.
         movem.l d0-d7,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr make_vo3d
         movem.l (a7)+,d0-d7 ; Restore stashed values from the stack.
         move.l a0,_oneup
+
         lea raw_pus,a2
         lea _pus,a3
-mkpus:
-        move.l (a2)+,a1
+mkpus:  move.l (a2)+,a1
         movem.l d0-d7/a1-a3,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr make_vo3d
         movem.l (a7)+,d0-d7/a1-a3 ; Restore stashed values from the stack.
@@ -8745,7 +8790,7 @@ mkpus:
         move.l #2,d3
         move.l #2,d4
         move.l #2,d5
-        lea cube,a1
+        lea cube,a1 ; Point a1 at cube.
         bsr make_vo3d
         move.l a0,_cube
 
@@ -8783,8 +8828,7 @@ mclaws: move d7,-(a7)         ; Stash some values in the stack so we can restore
 ; *******************************************************************
 make_webs:
         lea raw_webs,a6
-        lea webs,a5
-;  move #15,d7
+        lea webs,a5 ; Point a5 at webs.
 mk_webs:
         movem.l a5-a6/d7,-(a7) ; Stash some values in the stack so we can restore them later.
         move.l (a6),a1
@@ -8871,7 +8915,7 @@ h2hfrab:
         move #1,sfx_pri ; Set the sound's priority compared to others.
         jsr fox ; Play selected sound effect.
         move.l freeobjects,a0    ;address of new shot
-        lea bulls,a3
+        lea bulls,a3 ; Point a3 at bulls.
 hgoaty:
         move bully,d0
         move bulland,d1
@@ -8892,12 +8936,12 @@ hfreeslot:
         move.l 16(a1),16(a0)    ;Web position from claw
         clr.l 28(a0)
         clr 32(a0)      ;Zero roll, pitch and yaw
-        move #1,34(a0)      ;Std. draw
+        move #1,34(a0)      ; Draw routine in draw_vex is 'draw'.
         move.l (a7)+,36(a0)    ;get saved velocity
         move #0,32(a0)      ;bullet ID (player ownership) changed from 44() to 32()
         move #1,52(a0)    ;not alien and Type
-        move #32,54(a0)
-        bra insertobject
+        move #32,54(a0) ; Object update routine in run_vex is 'run_h2hshot'. 
+        bra insertobject ; Add it to the activeobjects list.
 
 
 ; *******************************************************************
@@ -8987,7 +9031,7 @@ bunce_p1:
         bne rrts
         move.b #'1',wonmsg+7
         add #1,p1wins
-        lea wonmsg,a0
+        lea wonmsg,a0 ; Point a0 at wonmsg.
 showwin:
         move #180,_won
         clr.l d0
@@ -9003,10 +9047,10 @@ bunce_p2:
         bne p2_prac
         move.b #'2',wonmsg+7
         add #1,p2wins
-        lea wonmsg,a0
+        lea wonmsg,a0 ; Point a0 at wonmsg.
         bra showwin
 p2_prac:
-        lea wonprc,a0
+        lea wonprc,a0 ; Point a0 at wonprc.
         bra showwin
 
 
@@ -9016,11 +9060,11 @@ p2_prac:
 ; fire a bullet
 ; *******************************************************************
 frab:
-        move.l _shot,d5
+        move.l _shot,d5; Set address of the vector object to draw: _shot.
 
 frab0:
         move.l freeobjects,a0   ;address of new shot
-        lea bulls,a3
+        lea bulls,a3 ; Point a3 at bulls.
 goaty:
         move bully,d0
         move bulland,d1
@@ -9041,7 +9085,7 @@ freeslot:
         move.l 16(a1),16(a0)    ;Web position from claw
         clr.l 28(a0)
         clr 32(a0)              ;Zero roll, pitch and yaw
-        move #1,34(a0)          ;Std. draw
+        move #1,34(a0)           ; Draw routine in draw_vex is 'draw'.
         move #$88,40(a0)        ;Colour
         move #1,42(a0)          ;Fine rez
         move d7,32(a0)          ;bullet ID (player ownership) changed from 44() to 32()
@@ -9050,7 +9094,7 @@ freeslot:
         bne oaafire
         move #1,sfx ; Select 'Player Shot Normal 2' sound effect.
         jsr fox ; Play selected sound effect.
-        bra insertobject
+        bra insertobject ; Add it to the activeobjects list.
 
 oaafire:
         move.l #$b6000a,d0
@@ -9062,9 +9106,8 @@ oaafire:
 konk:
         move.l #$10000,d2
         move.l #$10000,d3
-        move.l #-9,(a0)
-        move #5,34(a0)    ;pixex draw
-;  move #10,34(a0)    ;pixex draw
+        move.l #-9,(a0); Set index into solid polygon draw routine in 'solids': draw_pixex.
+        move #5,34(a0)     ; Draw routine in draw_vex is 'draw_pixex'.
         move.l d3,42(a0)  ;initial pixel expansion
         move.l d0,36(a0)
         move.l d1,46(a0)
@@ -9074,9 +9117,9 @@ konk:
         move #5,sfx ; Select 'Player Shot Normal' sound effect.
         move #1,sfx_pri ; Set the sound's priority compared to others.
         jsr fox ; Play selected sound effect.
-        jmp insertobject
+        jmp insertobject ; Add it to the activeobjects list.
 oaafire2:
-        move #10,34(a0)
+        move #10,34(a0) ; Draw routine in draw_vex is 'draw_pring'.
         move #$0b,sfx ; Select 'Power Up Shot' sound effect.
         move #1,sfx_pri ; Set the sound's priority compared to others.
         jsr fox ; Play selected sound effect.
@@ -9088,7 +9131,7 @@ oaafire2:
 make_h2hball:
         move.l freeobjects,a0
         move web_max,d1
-        jsr rand
+        jsr rand ; Put a random number between 0 and d1 in d0.
         move #webz,d1
         swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d1
@@ -9097,18 +9140,18 @@ make_h2hball:
         move #-1,18(a0)      ;Timer for player zappage
         clr.l 30(a0)
         clr 20(a0)
-        move #1,34(a0)
+        move #1,34(a0) ; Draw routine in draw_vex is 'draw'.
         move.l #-18,(a0)
         clr.l 50(a0)
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         sub #$80,d0
         move d0,22(a0)      ;Direction to move, + or -
         move #$0404,24(a0)    ;Speed of motion
         clr 48(a0)
-        move #34,54(a0)
+        move #34,54(a0) ; Object update routine in run_vex is 'run_h2hball'.  ; Object Update routine is 'run_h2hball'.
         move.l a0,a6 ; Move our newly created object into the activeobjects list.
-        jsr toweb
-        jmp insertobject
+        jsr toweb ; Set X and Y to attach it to the web.
+        jmp insertobject ; Add it to the activeobjects list.
 
 ; *******************************************************************
 ; run_h2hball
@@ -9184,16 +9227,16 @@ make_h2hgen:
         move.l #$30000,d1      ;start web position
         move.l d1,16(a0)
         move #0,20(a0)      ;Mode. 0=Move in direction
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         sub #$80,d0
         move d0,22(a0)      ;Direction to move, + or -
         move d2,24(a0)    ;Speed of motion (delay between 1/16 steps)
-        move #1,34(a0)
+        move #1,34(a0) ; Draw routine in draw_vex is 'draw'.
         clr.l 50(a0)
-        move #33,54(a0)
+        move #33,54(a0) ; Object update routine in run_vex is 'run_h2hgen'. 
         move.l a0,a6 ; Move our newly created object into the activeobjects list.
         bsr toweb
-        bra insertobject
+        bra insertobject ; Add it to the activeobjects list.
 
 ; *******************************************************************
 ; run_h2hgen
@@ -9329,25 +9372,28 @@ arse:
 ; A member of the run_vex list.
 ; *******************************************************************
 player_shot:
-
-        add #8,28(a6)      ;spin it
-        add.b #$30,41(a6)    ;make it flash
-        move.l shotspeed,d0
-        add.l d0,12(a6)    ;move me on the z axis baby  $38000 std
-        cmp #webz+80,12(a6)
-        blt rrts
-        move.l 24(a6),a1
-        clr.l (a1)
+        add #8,28(a6)      ;Increment the XZ orientation to spin it
+        add.b #$30,41(a6)    ; Increment the color value to make it flash
+        move.l shotspeed,d0 ; Put shot speed in d0.
+        add.l d0,12(a6)    ; Increment the z position by the shot speed, so that it moves along the web.
+        cmp #webz+80,12(a6) ; Check if it has reached the end of the web yet?
+        blt rrts ; If not, we're done.
+        move.l 24(a6),a1 ; Otherwise, point a1 at the XY orientation..
+        clr.l (a1) ;.. and clear it.
+        ; And fall through to remove the shot completely.
 
 ; *******************************************************************
 ; kill_shot
 ; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 kill_shot:
-        move.l a6,a0
-        move #3,50(a6)      ;tell FG to unlink
+        move.l a6,a0 ; Point a0 at the object data.
+        move #3,50(a6)      ; Mark the object for deletion.
         rts
 
+; *******************************************************************
+; xshot
+; *******************************************************************
 xshot:
         add #3,30(a6)
         cmp #30,30(a6)
@@ -9356,7 +9402,6 @@ xshot:
 
 ; *******************************************************************
 ; alienfire
-;
 ; try and shoot from the current alien
 ; *******************************************************************
 alienfire:
@@ -9374,33 +9419,36 @@ afid:
         move.l freeobjects,a0
         sub #1,ashots
         sub #1,afree
-        move.l _shot,d0
+        move.l _shot,d0; Set address of the vector object to draw: _shot.
         clr 20(a0)
         tst blanka
         beq vfyre
         move.l #-3,d0
         bra vfyre
+        
+        ; Make an enemy bullet object and add it to the activeobjects list.
 slongfur:
         move.l #-7,d0
-        move #1,20(a0)
-vfyre:
-        move.l d0,(a0)    ;header of shot data
-        move.l 4(a6),4(a0)
-        move.l 8(a6),8(a0)
-        move.l 12(a6),12(a0)    ;XYZ same as firer
-        move.l 16(a6),16(a0)    ;Web position from claw
-        clr.l 28(a0)
-        clr 32(a0)      ;Zero roll, pitch and yaw
-        move #1,34(a0)      ;Std. draw
-        move #$48,40(a0)    ;Colour
-        move #0,42(a0)      ;Std rez (make larger than player's shots)
-        clr 44(a0)      ;to allow shots to fly off of web
-        move #1,52(a0)
-        move #8,54(a0)      ;type is alien-shot
-        bra insertobject    ;Do it!
+        move #1,20(a0)         ; Set the velocity to 1.
+vfyre:  move.l d0,(a0)         ; Put selected value of d0 in the header.
+        move.l 4(a6),4(a0)     ; Set the X position as the enemy's current position.
+        move.l 8(a6),8(a0)     ; Set the Y position as the enemy's current position.
+        move.l 12(a6),12(a0)   ; Set the Y position as the enemy's current position.
+        move.l 16(a6),16(a0)   ; Set the position on we same as enemy's current position.
+        clr.l 28(a0)           ; Clear the orientation.
+        clr 32(a0)             ; Clear the rotation.
+        move #1,34(a0)         ; Draw routine in draw_vex is 'draw'.
+        move #$48,40(a0)       ; Set the colour
+        move #0,42(a0)         ; Set the scale factor, std rez (make larger than player's shots)
+        clr 44(a0)             ; Set web behaviour to zero to to allow shots to fly off of web
+        move #1,52(a0)         ; Set 1 to signal it's an enemy.
+        move #8,54(a0)         ; Object update routine in run_vex is 'run_ashot'.
+        bra insertobject       ; Add the object to the activeobjects list.
+        ; Returns
 
 ; *******************************************************************
 ; run_ashot
+; Update an enemy bullet object.
 ; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_ashot:
@@ -9416,9 +9464,7 @@ run_ashot:
         move #10,d0
 chove:
         cmp 12(a6),d0
-;  blt rrts
         bpl rash1
-;  move #1,44(a6)
         bsr checlane
         bne rrts
 shouch:
@@ -9450,13 +9496,13 @@ ouch:
         beq ouch1p
         cmp #2,players
         bne ouch1p
-        move #20,54(a0)      ;blow up one claw while allowing play to proceed with the other
+        move #20,54(a0) ; Object update routine in run_vex is 'pzap'.       ;blow up one claw while allowing play to proceed with the other
         move #0,52(a0)
         bra ow
 
 ouch1p: move.l #zap_player,routine
 
-ow:     move.l _zap,(a0)    ;Claw shape to zap
+ow:     move.l _zap,(a0); Set address of the vector object to draw: _zap.
         clr 36(a0)
         bsr clzapa
         clr laser_type
@@ -9465,7 +9511,7 @@ ow:     move.l _zap,(a0)    ;Claw shape to zap
         move.l bshotspeed,shotspeed
         move #-17,38(a0)
         move #3,44(a0)
-        move #2,34(a0)      ;set claw to ztrail
+        move #2,34(a0)      ; Draw routine in draw_vex is 'draw_z'.
         bra zapson
 
 tsphkillme:
@@ -9475,7 +9521,7 @@ tsphkillme:
 sphkillme:
         move #1,48(a6)
 ospher:
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         and #$f,d0
         lsl #4,d0 ; Multiply it by 32.
         move d0,46(a6)
@@ -9491,7 +9537,7 @@ killme:
         move #$10,d0 ; Select 'Normal Explosion' sound effect.
         move d0,sfx
         move #2,sfx_pri ; Set the sound's priority compared to others.
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         and.l #$ff,d0 ; Keep it between 0 and 255
         add.l #128,d0
         move.l d0,sfx_pitch
@@ -9499,11 +9545,9 @@ killme:
         bra sphkillme
 
 ;##### New shit
-
         clr 48(a6)
-kime:
-        move #0,54(a6)
-        move #9,34(a6)
+kime:   move #0,54(a6) ; Clear the motion routine.
+        move #9,34(a6) ; Draw routine in draw_vex is 'changex'.
         rts
 
 
@@ -9523,14 +9567,14 @@ changex:
         tst t2k ; Are we playing Tempest 2000?
         beq nobobo    ;powerups only on t2k
 
-dpring: move #11,34(a6)      ;get ready for Pring explosion
+dpring: move #11,34(a6)      ; Draw routine in draw_vex is 'draw_prex'.
         move #16,46(a6)
         clr 44(a6)
-        move #24,54(a6)
+        move #24,54(a6) ; Object update routine in run_vex is 'run_prex'. 
         tst h2h ; Are we playing a head-to-head game?
         beq rrts
 
-        move #1,34(a6)  ; Set the index into draw_vex: draw.
+        move #1,34(a6)   ; Draw routine in draw_vex is 'draw'.
         move.l #-17,(a6)
         rts
 
@@ -9548,13 +9592,13 @@ nobobo: sub.b #1,pupcount
         jsr fox             ; Play selected sound effect.
         
         bsr toweb           ; Calculate the X and Y position from position on the web.
-        move #1,34(a6)      ; Set the index into draw_vex: draw.
+        move #1,34(a6)       ; Draw routine in draw_vex is 'draw'.
         move #300,48(a6)    ; initial rez diameter
         move #$0a,44(a6)
         move bonum,46(a6)
-        move.l #-10,(a6)
+        move.l #-10,(a6); Set index into solid polygon draw routine in 'solids': draw_pup1.
         clr 52(a6)
-        move #25,54(a6)     ; Set type to power-up.
+        move #25,54(a6) ; Object update routine in run_vex is 'run_pup'. 
         cmp #3,cwave        ; Are we already past level 3?
         bgt noidiot         ; If so, no need for a message.
         ; Otherwise, tell the player to collect power-ups.
@@ -9590,16 +9634,16 @@ setsphk:move #1,48(a6)
         move.l 46(a6),d4
         bsr xpixex
         move.l d4,46(a6)
-        move #13,34(a6)
+        move #13,34(a6) ; Draw routine in draw_vex is 'drawsphere'.
         rts
 
 ; *******************************************************************
 ; xpixex
 ; *******************************************************************
 xpixex:
-        move #5,34(a6)    ;pixex draw
+        move #5,34(a6)     ; Draw routine in draw_vex is 'draw_pixex'.
         clr 52(a6)
-        move #22,54(a6)
+        move #22,54(a6) ; Object update routine in run_vex is 'run_pixex'. 
         move.l d3,42(a6)  ;initial pixel expansion
         move.l d0,36(a6)
         move.l d1,46(a6)
@@ -9729,7 +9773,7 @@ pupvex:
 suprise:
         tst startbonus
         bne bonnk
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         cmp #$08,d0
         bgt bonnk
         move #1,szap_on
@@ -9878,7 +9922,7 @@ run_pixex:
 ; *******************************************************************
 run_prex:
         add #1,44(a6)
-        cmp #13,34(a6)
+        cmp #13,34(a6) ; Draw routine in draw_vex is 'drawsphere'.
         beq biggrx
         cmp #50,44(a6)
         bgt kikik
@@ -9892,12 +9936,12 @@ biggrx:
 ; vectorzap
 ; *******************************************************************
 vectorzap:
-        move.l _zap,(a6)    ;Explosion header frame
+        move.l _zap,(a6)  ; Set address of the vector object to draw: _zap.
         move #$c8,40(a6)    ;Explo colour
-        move #1,34(a6)      ;Std draw
+        move #1,34(a6)       ; Draw routine in draw_vex is 'draw'.
         clr 52(a6)      ;NOT vulnerable to the Superzapper
-        move #3,54(a6)      ;Type run_explo
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        move #3,54(a6) ; Object Update routine is 'run_zap'.       ;Type run_explo
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         move d0,28(a6)      ;random orientation
         rts
 
@@ -9927,30 +9971,29 @@ make_adroid:
         sub #1,afree
 
         move.l freeobjects,a0
-        move web_max,d1
-        jsr rand
-        move #webz+80,d1
+        move web_max,d1 ; Store web_max in d1.
+        jsr rand ; Put a random number between 0 and d1 in d0.
+        move #webz+80,d1 ; Put the web Z position in d1.
         swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
-        clr d1
-        move.l d1,12(a0)
-        move d0,16(a0)
+        clr d1 ; Clear the lowest byte in d1.
+        move.l d1,12(a0) ; Set d1 as the Y position.
+        move d0,16(a0) ; Set the position on web.
         move #$2020,18(a0)    ;duration of zappage
-        clr.l 30(a0)
+        clr.l 30(a0) ; Set rotation to 0.
         move #3,20(a0)      ;mode=go up web
-        move #1,34(a0)
-        move.l #-26,(a0)
-        clr 50(a0)
-        move #1,52(a0)
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        move #1,34(a0) ; Draw routine in draw_vex is 'draw'.
+        move.l #-26,(a0) ; Set the header.
+        clr 50(a0) ; Make sure it's not marked for deletion.
+        move #1,52(a0) ; Set it as an enemy type.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         sub #$80,d0
         move d0,22(a0)      ;Direction to move, + or -
-        move #$0202,24(a0)    ;Speed of motion
+        move #$0202,24(a0)    ; Set Speed of motion
         clr 48(a0)
-        move #39,54(a0)      ;MADROID
+        move #39,54(a0) ; Object update routine in run_vex is 'run_adroid'.       ;MADROID
         move.l a0,a6 ; Move our newly created object into the activeobjects list.
-        jsr toweb
-;  jsr insertobject
-        bsr ipix
+        jsr toweb ; Set its X/Y/Z co-ordinates so its attached to the web.
+        bsr ipix ; Add it to the activeobjects list and make it very far away (pixel size).
         clr d0
         rts
 
@@ -9960,7 +10003,7 @@ make_adroid:
 ; *******************************************************************
 run_adroid:
         sub #2,28(a6)    ;rotate the adroid
-        lea adroidmodes,a0
+        lea adroidmodes,a0 ; Point a0 at adroidmodes.
         move 20(a6),d0
         lsl #2,d0 ; Multiply it by 4
         move.l 0(a0,d0.w),a0
@@ -10059,7 +10102,7 @@ make_flipper:
         tst t2k ; Are we playing Tempest 2000?
         beq maflip
 
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         cmp sflip_prob3,d0
         bmi make_sflip2
 
@@ -10068,35 +10111,39 @@ maflip:
         bmi rrts
         sub #1,afree
         move.l freeobjects,a0
-        move.l _flipper,d0
+        move.l _flipper,d0; Set address of the vector object to draw: _flipper.
         tst blanka      ;check for solid flag
         beq nsf
         move.l #-1,d0      ;solid #1 is the flipper
 nsf:
-        move.l d0,(a0)
+        move.l d0,(a0); Set address of the vector object to draw: _flipper.
         move #webz+80,12(a0)
         clr 14(a0)
         move web_max,d1
-        bsr rand
+        bsr rand ; Put a random number between 0 and d1 in d0.
 
         move d0,16(a0)    ;initial webpos of this flipper
         clr.l 30(a0)      ;clear Y and Z rotate
-        move #3,34(a0)      ;std draw with displaced x centre
+        move #3,34(a0)  ; Draw routine in draw_vex is 'draw_vxc'.
         clr.l 36(a0)      ;x centre to default
         move flipcol,40(a0)    ;Flippers are RED
         move flip_pause,26(a0)    ;Set the delay between flips
         move #1,42(a0)      ;Fine rez
-        move #2,54(a0)      ;Type
+        move #2,54(a0) ; Object Update routine is 'run_flipper'.  ; Object Update routine is 'run_flipper'. ; Object Update routine is 'run_flipper'.       ;Type
         move #0,24(a0)      ;Flipper mode 0 (Ride up rail)
         clr 44(a0)
         move #1,52(a0)      ;IS vulnerable to the Superzapper
         move.l a0,a6 ; Move our newly created object into the activeobjects list.
         bsr toweb      ;Attach the flipper to the web
 
+; *******************************************************************
+; ipix 
+; Add it to the activeobjects list and make it very far away (pixel size).
+; *******************************************************************
 ipix:
-        bsr insertobject
-        neg 34(a6)
-        add #300,12(a6)      ;make remote shrunk pixel!
+        bsr insertobject ; Add it to the activeobjects list.
+        neg 34(a6) ; Clear the draw routine.
+        add #300,12(a6)      ; Increase its z position so its far away, make remote shrunk pixel!
         clr d0
         rts
 
@@ -10120,7 +10167,7 @@ run_flipper:
         bsr zappit
         bra fkillme
 flipok:
-        lea flipmodes,a0
+        lea flipmodes,a0 ; Point a0 at flipmodes.
         move 24(a6),d0      ;get flipper's Mode
         asl #2,d0 ; Multiply it by 4.
         move.l 0(a0,d0.w),a0
@@ -10129,7 +10176,7 @@ flipok:
 rail:
         move 44(a6),d0      ;get Sflipper mode
         lsl #2,d0 ; Multiply it by 4
-        lea railopts,a0
+        lea railopts,a0 ; Point a0 at railopts.
         move.l 0(a0,d0.w),a0
         jmp (a0)
 
@@ -10146,9 +10193,9 @@ beastrail:
         add #23,d0
         and.l #$ff,d0 ; Keep it between 0 and 255
         neg.l d0
-        move #1,34(a4)
+        move #1,34(a4) ; Draw routine in draw_vex is 'draw'.
         move.l d0,(a4)    ;take over the bullet
-        move #38,54(a4)    ;and make it a Reflected Shot with Spin...
+        move #38,54(a4) ; Object update routine in run_vex is 'refsht2'.     ;and make it a Reflected Shot with Spin...
         move.l 24(a4),a1
         clr.l (a1)    ;...clear its bull table
         rts
@@ -10209,7 +10256,7 @@ flito:
         move 28(a6),d1
         add.b #128,d1
         ext d1
-        and #$ff,d1
+        and #$ff,d1 ; Keep d1 between 0 and 255.
         sub d1,d0      ;compare to th' dest
         bne flipcollie      ;same, not there yet, go and detecoll
         move #2,24(a6)      ;mode to Stop
@@ -10339,7 +10386,7 @@ fkm:
 stopped:
         move 44(a6),d0
         lsl #2,d0 ; Multiply it by 4
-        lea sstopmodes,a0
+        lea sstopmodes,a0 ; Point a0 at sstopmodes.
         move.l 0(a0,d0.w),a0
         jmp (a0)
 sstopmodes:
@@ -10403,9 +10450,9 @@ gotu:
 ;  add #1,dying
         tst lives
         beq singl_snatch
-        move #13,54(a0)      ;claw to godown mode
+        move #13,54(a0) ; Object update routine in run_vex is 'go_downc'.       ;claw to godown mode
         clr 52(a0)      ;mode to not vuln
-        move #14,54(a6)      ;flipper to godown mode
+        move #14,54(a6) ; Object update routine in run_vex is 'go_downf'.       ;flipper to godown mode
         rts
 
 singl_snatch:
@@ -10464,7 +10511,7 @@ _fset3:
         bgt toclaw1  ;Player Two is.
         cmp #500,d1  ;same: are they at default max?
         beq zzzz  ;They are, so we will not Flip.
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         btst #0,d0
         beq toclaw2  ;random L or R flip if distance is eq
 
@@ -10564,7 +10611,7 @@ fset:
         move.l web_otab,a0
         asl #1,d7 ; Multiply it by 2.
         move 0(a0,d7.w),d6    ;Got the target angle
-        and #$ff,d6
+        and #$ff,d6 ; Keep d6 between 0 and 255.
         move d6,22(a6)      ;save it
         move #1,24(a6)      ;change flipper mode to Flip
         move #9,36(a6)      ;Offset X centre
@@ -10613,7 +10660,7 @@ fset4:
         move.l web_otab,a0
         asl #1,d7 ; Multiply it by 2.
         move 0(a0,d7.w),d6    ;Got the target angle
-        and #$ff,d6
+        and #$ff,d6 ; Keep d6 between 0 and 255.
         move d6,22(a6)      ;save it
         move #1,24(a6)      ;change flipper mode to Flip
         move #-9,36(a6)      ;Offset X centre
@@ -10648,10 +10695,10 @@ m_ptank:
         move #2,d3      ;tanker-type
         tst blanka
         beq upvt
-        move.l #-8,d2
+        move.l #-8,d2; Set index into solid polygon draw routine in 'solids': draw_spulstank.
         bra maketank
 upvt:
-        move.l _pulstank,d2
+        move.l _pulstank,d2; Set address of the vector object to draw: _pulstank.
         bra maketank
 
 ; *******************************************************************
@@ -10667,7 +10714,7 @@ make_futanker:
         move.l #-6,d2
         bra maketank
 vft:
-        move.l _fusetank,d2
+        move.l _fusetank,d2; Set address of the vector object to draw: _fusetank.
         bra maketank
 
 ; *******************************************************************
@@ -10676,40 +10723,38 @@ vft:
 ; Make an enemy of type FLIPPER TANKER
 ; *******************************************************************
 make_tanker:
-
         tst blanka
         beq mtv
-        move.l #-2,d2
+        move.l #-2,d2           ; Set index into solid polygon draw routine in 'solids': draw_sfliptank.
         clr d3
         bra maketank
-
-mtv:
-        move.l _fliptank,d2
+        
+mtv:    move.l _fliptank,d2     ; Set index into solid polygon draw routine in 'solids': _fliptank.
         clr d3
-
+        
 maketank:
         cmp #2,afree
-        blt rNrts      ;Tankers carry pairs of Objects
+        blt rNrts               ; Tankers carry pairs of Objects
         sub #3,afree
         move.l freeobjects,a0
-        move.l d2,(a0)
-        move #webz+80,12(a0)
+        move.l d2,(a0)          ; Set index to polygon draw routine we selected above.
+        move #webz+80,12(a0)    ; Set the Z position to match the web.
         clr 14(a0)
         move web_max,d1
         sub #2,d1
-        bsr rand
-        add #1,d0      ;its much easier if we can't appear in an end lane
-        move d0,16(a0)    ;initial webpos of this tanker
-        clr.l 30(a0)      ;clear Y and Z rotate
-        move #1,34(a0)      ;std draw
-        move #128,40(a0)    ;Tankers are PURPLE
-        move #1,42(a0)      ;std rez
-        move d3,44(a0)      ;Type of split
-        move #1,52(a0)      ;IS vulnerable to the Superzapper
-        move #5,54(a0)      ;Type
-        move.l a0,a6 ; Move our newly created object into the activeobjects list.
-        bsr toweb      ;Attach the Tanker to the web
-        bra ipix
+        bsr rand                ; Put a random number between 0 and d1 in d0.
+        add #1,d0               ; its much easier if we can't appear in an end lane
+        move d0,16(a0)          ; initial webpos of this tanker
+        clr.l 30(a0)            ; clear Y and Z rotate
+        move #1,34(a0)          ; Draw routine in draw_vex is 'draw'.
+        move #128,40(a0)        ; Tankers are PURPLE
+        move #1,42(a0)          ; std rez
+        move d3,44(a0)          ; Type of split
+        move #1,52(a0)          ; IS vulnerable to the Superzapper
+        move #5,54(a0)          ; Object Update routine in run_vex is 'run_tanker'.
+        move.l a0,a6            ; Move our newly created object into the activeobjects list.
+        bsr toweb               ; Attach the Tanker to the web
+        bra ipix                ; Add it to the activeobjects list and make it very far away (pixel size).
 
 ; *******************************************************************
 ; run_tanker
@@ -10736,7 +10781,7 @@ opentanker:
         move #3,sfx_pri ; Set the sound's priority compared to others.
         move.l #61,sfx_pitch
         jsr fox ; Play selected sound effect.
-        lea tankercontents,a0
+        lea tankercontents,a0 ; Point a0 at tankercontents.
         move 44(a6),d0
         asl #2,d0 ; Multiply it by 4.
         move.l 0(a0,d0.w),a0
@@ -10768,12 +10813,12 @@ openflippers:
 superflip:
         tst t2k ; Are we playing Tempest 2000?
         beq rrts    ;never exvept in t2k
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         cmp sflip_prob1,d0  ;check prob threshold
         bpl rrts
         move #2,44(a6)    ;Sflipper 2
         move #-1,26(a6)    ;No delay
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         and #3,d0
         add #1,d0
         tst d1
@@ -10782,7 +10827,7 @@ superflip:
 suprf1:
         move d0,48(a6)    ;set random scarper value
         move.l #-21,(a6)
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         cmp sflip_prob2,d0
         bpl rrts
         move #3,44(a6)    ;Sflipper 3
@@ -10794,16 +10839,16 @@ newflipper:
         move.l 4(a5),4(a6)
         move.l 8(A5),8(a6)
         move.l 12(A5),12(a6)    ;copy XYZ pos
-        move.l _flipper,d0
+        move.l _flipper,d0; Set address of the vector object to draw: _flipper.
         tst blanka
         beq nfvv
         move.l #-1,d0
 nfvv:
-        move.l d0,(a6)    ;def
+        move.l d0,(a6)    ; Set address of the vector object to draw: _flipper.
         move.l 16(a5),16(a6)    ;pos
         move 28(a5),28(a6)    ;<
         clr.l 30(a6)
-        move #3,34(a6)
+        move #3,34(a6) ; Draw routine in draw_vex is 'draw_vxc'.
         clr 36(a6)
         move flipcol,40(a6)
         clr 24(a6)
@@ -10811,9 +10856,9 @@ nfvv:
         move #1,42(a6)
         clr 44(a6)
         move #1,52(a6)
-        move #2,54(a6)
+        move #2,54(a6) ; Object Update routine is 'run_flipper'. 
         move.l a6,a0
-        bra insertobject
+        bra insertobject ; Add it to the activeobjects list.
 
 ; *******************************************************************
 ; openfuseballs
@@ -10832,7 +10877,7 @@ openfuseballs:
         bra tsphkillme
 
 newfuseball:
-        move.l _fuse1,d0
+        move.l _fuse1,d0; Set address of the vector object to draw: _fuse1.
         tst blanka
         beq nufu
         move.l #-4,d0
@@ -10842,11 +10887,11 @@ nufu:
         move 16(a5),16(a6)    ;initial webpos of this Fuseball
         clr.l 30(a6)      ;clear Y and Z rotate
         clr 18(a6)
-        move #1,34(a6)      ;standard draw
+        move #1,34(a6)   ; Draw routine in draw_vex is 'draw'.
         move #15,40(a6)      ;first Fuseball leg is CYAN
         move #1,42(a6)      ;Fine rez
         move #1,52(a6)      ;does count as an enemy in the wave-end check.
-        move #9,54(a6)      ;Type=RUN_FUSEBALL
+        move #9,54(a6) ; Object update routine in run_vex is 'run_fuseball'.       ;Type=RUN_FUSEBALL
         clr 44(a6)      ;Fuseball mode = Climb the rail
         move fuse_risetime,46(a6)
         move fuse_crossdelay,48(a6)
@@ -10858,7 +10903,7 @@ nufu:
         move.l d0,4(a6)      ;fixed point is now the lane side
         move.l d1,8(a6)
         move.l a6,a0
-        bra insertobject
+        bra insertobject ; Add it to the activeobjects list.
 
 ; *******************************************************************
 ; openpulsars
@@ -10868,7 +10913,7 @@ openpulsars:
         move.l freeobjects,a6
         bsr newflipper          ;new flipper in this lane
         bsr flip_set_right
-        move.l _pus+12,d0
+        move.l _pus+12,d0; Set address of the vector object to draw: _pus.
         tst blanka
         beq vop
         move.l #-5,d0
@@ -10891,19 +10936,18 @@ vop:
 
 ; *******************************************************************
 ; flipping_heck
+; make the current object behave as a Flipper
 ; *******************************************************************
 flipping_heck:
-;
-; make the current object behave as a Flipper
 
-        move #3,34(a6)
+        move #3,34(a6) ; Draw routine in draw_vex is 'draw_vxc'.
         clr.l 36(a6)
         clr 24(a6)
         move flip_pause,26(a6)    ;Set the delay between flips
         move #1,42(a6)
         clr 44(a6)      ;Clear the Superflipper flag!!!!!!!!!!!!!!!!!!!!
         move #1,52(a6)
-        move #2,54(a6)
+        move #2,54(a6) ; Object Update routine is 'run_flipper'. 
         bra flip_set
 
 zrts:
@@ -10916,29 +10960,28 @@ zrts:
 ; make a spike, in lane d0; uses a0/a1; ASSUMES SPIKE TABLE ADDRESS IN A1!
 ; *******************************************************************
 make_spike:
-
         tst afree
         bmi rrts
         sub #1,afree
         move.l freeobjects,a0
-        move.l _spike,(a0)
-        move #webz+80,12(a0)
-        clr 14(a0)
-        move d0,16(a0)    ;initial webpos of this tanker
+        move.l _spike,(a0); Set index into solid polygon draw routine in 'solids': _spike.
+        move #webz+80,12(a0) ; Set z position per web.
+        clr 14(a0) ; Clear lower byte of z position.
+        move d0,16(a0)    ;initial lane/webpos of this tanker
         asl #2,d0 ; Multiply it by 4.
         move.l a0,(a1)    ;address to spike table
         clr.l 30(a0)      ;clear Y and Z rotate
-        move #4,34(a0)      ;draw #4,draw_spike
+        move #4,34(a0)     ; Draw routine in draw_vex is 'draw_spike'.
         move #30,36(a0)    ;length of spike (max 120)
         move #143,40(a0)    ;Spikes are GREEN
         move #-1,42(a0)      ;Standard rez x2 (so it can be longer than +128!)
         move.l a1,44(a0)    ;position in spike table
         move #0,52(a0)      ;does not count as an enemy in the wave-end check.
-        move #6,54(a0)      ;Type=RUN_SPIKE
-        clr 20(a0)
+        move #6,54(a0) ; Object update routine in run_vex is 'run_spike'.       ;Type=RUN_SPIKE
+        clr 20(a0) ; Set velocity to zero.
         tst t2k ; Are we playing Tempest 2000?
         beq uspike
-        jsr rannum ; Put a random number between 0 and 255 in d0.
+        jsr rannum ; Put a random number between 0 and d1 in d0.
         cmp sflip_prob2,d0
         bpl uspike
         move #1,20(a0)      ;set Super Spike
@@ -10948,7 +10991,7 @@ uspike:
         bsr toweb      ;Attach the Tanker to the web
         move.l (a7)+,a6 ; Restore stashed values from the stack.
         sub #1,noclog
-        bra insertobject
+        bra insertobject ; Add it to the activeobjects list.
 
 ; *******************************************************************
 ; run_spike
@@ -11038,22 +11081,22 @@ make_spiker:
         sub #1,afree
         sub #1,max_spikers
         move.l freeobjects,a0
-        move.l _spiker,(a0)
+        move.l _spiker,(a0); Set address of the vector object to draw: _spiker.
         move #webz+80,12(a0)
         clr 14(a0)
         move web_max,d1
-        bsr rand
+        bsr rand ; Put a random number between 0 and d1 in d0.
         move d0,16(a0)          ;initial webpos of this spiker
         clr.l 30(a0)            ;clear Y and Z rotate
-        move #1,34(a0)          ;standard draw
+        move #1,34(a0)          ; Draw routine in draw_vex is 'draw'.
         move #143,40(a0)        ;Spikers are GREEN
         move #1,42(a0)          ;Fine rez
         move #1,52(a0)          ;does count as an enemy in the wave-end check.
-        move #7,54(a0)          ;Type=RUN_SPIKER
+        move #7,54(a0) ; Object update routine in run_vex is 'run_spiker'.           ;Type=RUN_SPIKER
         clr 44(a0)              ;Spiker mode = Go to new spike
         move.l a0,a6 ; Move our newly created object into the activeobjects list.
         bsr toweb               ;Attach the Spiker to the web
-        bra insertobject
+        bra insertobject ; Add it to the activeobjects list.
 
 spiker_vex:
         dc.l newspike,climbspike,descendspike
@@ -11129,11 +11172,11 @@ nuspik1:
         sub #1,d1
         bsr rand                   ;d1 already has # of free spikes
         asl #1,d0                  ;to point to the words, in scratch ram
-        lea spikescratch,a1
+        lea spikescratch,a1 ; Point a1 at spikescratch.
         move 0(a1,d0.w),d1         ;get lane number
         move d1,d0                 ;for init
         asl #2,d1                  ;make it point to longs
-        lea spikes,a1
+        lea spikes,a1 ; Point a1 at spikes.
         lea 0(a1,d1.w),a1          ;point to free spike table entry
         bsr make_spike             ;init a new spike
         move.l a0,a3
@@ -11194,18 +11237,18 @@ make_mirr:
         move.l freeobjects,a0
         move.l #-13,(a0)  ;draw_mirr
         move web_max,d1
-        jsr rand
+        jsr rand ; Put a random number between 0 and d1 in d0.
         move d0,16(a0)
         move #webz+80,12(a0)
         move.l fuse_zspeed,20(a0)
-        move #1,34(a0)
+        move #1,34(a0) ; Draw routine in draw_vex is 'draw'.
         clr 50(a0)
         move #$01,52(a0)
-        move #36,54(a0)
+        move #36,54(a0) ; Object update routine in run_vex is 'rumirr'. 
         move #4,24(a0)
         move.l a0,a6 ; Move our newly created object into the activeobjects list.
         jsr toweb
-        jmp ipix
+        jmp ipix ; Add it to the activeobjects list and make it very far away (pixel size).
 
 ; *******************************************************************
 ; rumirr
@@ -11240,9 +11283,9 @@ gomirr:
         move #3,sfx_pri ; Set the sound's priority compared to others.
         jsr fox ; Play selected sound effect.
 
-        move #1,34(a4)
+        move #1,34(a4) ; Draw routine in draw_vex is 'draw'.
         move.l #-7,(a4)    ;take over the bullet
-        move #37,54(a4)    ;and make it a Reflected Shot..
+        move #37,54(a4) ; Object update routine in run_vex is 'refsht'.     ;and make it a Reflected Shot..
         move.l 24(a4),a1
         clr.l (a1)    ;clear the entry in the Bull Lable
         rts
@@ -11275,35 +11318,32 @@ reshh:
 
 ; *******************************************************************
 ; make_fuseball
-; *******************************************************************
-make_fuseball:
 ;
 ; make a Fuseball, in a random Lane
-
-;  bra make_mirr
-
+; *******************************************************************
+make_fuseball:
         tst afree
         bmi rrts
         sub #1,afree
         move.l freeobjects,a0
-        move.l _fuse1,d0
+        move.l _fuse1,d0; Set address of the vector object to draw: _fuse1.
         tst blanka
         beq mfusb
         move.l #-4,d0
 mfusb:
-         move.l d0,(a0)
+        move.l d0,(a0)
         move #webz+80,12(a0)
         clr 14(a0)
         move web_max,d1
-        bsr rand
+        bsr rand ; Put a random number between 0 and d1 in d0.
         clr 18(a0)
         move d0,16(a0)    ;initial webpos of this Fuseball
         clr.l 30(a0)      ;clear Y and Z rotate
-        move #1,34(a0)      ;standard draw
+        move #1,34(a0)    ; Draw routine in draw_vex is 'draw'.
         move #15,40(a0)      ;first Fuseball leg is CYAN
         move #1,42(a0)      ;Fine rez
         move #1,52(a0)      ;does count as an enemy in the wave-end check.
-        move #9,54(a0)      ;Type=RUN_FUSEBALL
+        move #9,54(a0) ; Object update routine in run_vex is 'run_fuseball'.       ;Type=RUN_FUSEBALL
         clr 44(a0)      ;Fuseball mode = Climb the rail
         move fuse_risetime,46(a0)
         move fuse_crossdelay,48(a0)
@@ -11315,8 +11355,7 @@ mfusb:
         clr d1        ;Set position to left lane side
         move.l d0,4(a6)      ;fixed point is now the lane side
         move.l d1,8(a6)
-;  bra insertobject
-        bra ipix
+        bra ipix ; Add it to the activeobjects list and make it very far away (pixel size).
 
 fuse_vex:
         dc.l climbrail,crossrail,blowaway
@@ -11332,11 +11371,11 @@ run_fuseball:
         bne blowmeaway
 rfb:
         add #2,28(a6)    ;make 'em spin
-        move.l _fuse1,d1
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        move.l _fuse1,d1; Set address of the vector object to draw: _fuse1.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         and #1,d0
         bne r_fuse1
-        move.l _fuse2,d1
+        move.l _fuse2,d1; Set address of the vector object to draw: _fuse2.
 r_fuse1:
         tst blanka
         beq r_fuse2
@@ -11514,7 +11553,7 @@ make_pulsar:
 m_puls:
         sub #1,afree
         move.l freeobjects,a0
-        move.l _pus,d0
+        move.l _pus,d0; Set address of the vector object to draw: _pus.
         tst blanka
         beq vop2
         move.l #-5,d0
@@ -11523,17 +11562,17 @@ vop2:
         move #webz+80,12(a0)
         clr 14(a0)
         move web_max,d1
-        bsr rand
+        bsr rand ; Put a random number between 0 and d1 in d0.
         move d0,16(a0)    ;initial webpos of this Fuseball
         clr.l 30(a0)      ;clear Y and Z rotate
-        move #1,34(a0)      ;standard draw
+        move #1,34(a0)  ; Draw routine in draw_vex is 'draw'.
         move #$ff,40(a0)    ;Pulsars are YELLOW
         move #1,42(a0)      ;Fine rez
         move #1,52(a0)      ;does count as an enemy in the wave-end check.
-        move #11,54(a0)      ;Type=RUN_PULSAR
+        move #11,54(a0) ; Object update routine in run_vex is 'run_pulsar'.       ;Type=RUN_PULSAR
         move.l a0,a6 ; Move our newly created object into the activeobjects list.
         bsr toweb
-        bra ipix
+        bra ipix ; Add it to the activeobjects list and make it very far away (pixel size).
 
 ; *******************************************************************
 ; topulsar
@@ -11541,10 +11580,9 @@ vop2:
 ; transform a Flipper that looks like a pulsar into a real pulsar
 ; *******************************************************************
 topulsar:
-
-        move #1,34(a6)      ; Chane the draw routine to std. draw
+        move #1,34(a6)     ; Draw routine in draw_vex is 'draw'.
         clr 38(a6)
-        move #11,54(a6)      ; Change type to Pulsar.
+        move #11,54(a6) ; Object update routine in run_vex is 'run_pulsar'.       ; Change type to Pulsar.
         bra toweb      ;fix in centre of lane
 
 ; *******************************************************************
@@ -11552,12 +11590,12 @@ topulsar:
 ; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_pulsar:
-        lea _pus,a0
+        lea _pus,a0; Set address of the vector object to draw: _pus.
         tst blanka
         bne vop3
         move pucnt,d0
         and #$0f,d0      ;get pu frame ctr
-        lea pucycl,a1
+        lea pucycl,a1 ; Point a1 at pucycl.
         move.b 0(a1,d0.w),d0
         asl #2,d0 ; Multiply it by 4.
         move.l 0(a0,d0.w),(a6)    ;set header-frame
@@ -11631,13 +11669,13 @@ lanetop:
         tst t2k ; Are we playing Tempest 2000?
         beq flipping_heck  ;not T2K, Pulsars turn into flippers
 
-        move #23,54(a6)    ;Type to Pulsar-Spark
+        move #23,54(a6) ; Object update routine in run_vex is 'run_pspark'.     ;Type to Pulsar-Spark
         move prop_del,44(a6)  ;set propagation delay
         move #1,46(a6)    ;direction of propagation
         move.l a6,-(a7) ; Stash some values in the stack so we can restore them later.
         move.l freeobjects,a0  ;pick up new object
         move.l (a6),(a0)  ;get header of original
-        move #23,54(a0)
+        move #23,54(a0) ; Object update routine in run_vex is 'run_pspark'. 
         move prop_del,44(a0)
         move #-1,46(a6)    ;set Pspark stuff on new entity
         move.l 4(a6),4(a0)  ;general purpose dupe
@@ -11698,7 +11736,7 @@ blowmeaway:
         beq vecbons
 xbonx:
         move #3,d1
-        bsr rand
+        bsr rand ; Put a random number between 0 and d1 in d0.
 xbon:
         move d0,-(a7) ; Stash some values in the stack so we can restore them later.
         add #4,d0
@@ -11717,8 +11755,8 @@ ntfx:   move (a7)+,d0 ; Restore stashed values from the stack.
         move.l #$20000,d3
         bsr xpixex      ;extended game, bonusus are pixelshatter effects
         move.l #$80000,24(a6)
-        move #28,54(a6)      ;try XR_PIXEX
-        move #6,34(a6)
+        move #28,54(a6) ; Object update routine in run_vex is 'xr_pixex'.       ; Set motion routine to XR_PIXEX
+        move #6,34(a6) ; Draw routine in draw_vex is 'draw_mpixex'.
         rts
 
 ; *******************************************************************
@@ -11742,12 +11780,12 @@ any_pixex:
         move #webz+100,12(a0)
         move.l d0,20(a0)
         move.l d1,24(a0)    ;save it
-        move.l _oneup,(a0)
-        move #15,34(a0)
+        move.l _oneup,(a0) ; Set address of the vector object to draw: _oneup.
+        move #15,34(a0) ; Draw routine in draw_vex is 'dmpix'.
         move #150,46(a0)
-        move #35,54(a0)
+        move #35,54(a0) ; Object update routine in run_vex is 'oblow2'. 
         clr 52(a0)
-        bsr insertobject
+        bsr insertobject ; Add it to the activeobjects list.
         move.l (a7)+,a6 ; Restore stashed values from the stack.
         rts
 
@@ -11765,21 +11803,21 @@ vecbons:
         move.l d0,20(a6)
         move.l d1,24(a6)    ;save it
         move #3,d1
-        bsr rand
+        bsr rand ; Put a random number between 0 and d1 in d0.
         move d0,-(a7) ; Stash some values in the stack so we can restore them later.
         add #4,d0
         bsr doscore
         move (a7)+,d0 ; Restore stashed values from the stack.
         asl #2,d0 ; Multiply it by 4.
-        lea _bons,a1
-        move.l 0(a1,d0.w),(a6)    ;header to srandom bonus-points
+        lea _bons,a1; Set address of the vector object to draw: _bons.
+        move.l 0(a1,d0.w),(a6)    ; Use d0 as an index to select one of: _bons, _b250, _b500, _b750 as the vector draw routine.
         clr 36(a6)
         move #30,38(a6)
         clr 42(a6)      ;double rez
         move #4,44(a6)
-        move #2,34(a6)      ;set up ztrail
+        move #2,34(a6)    ; Draw routine in draw_vex is 'draw_z'.
         clr 28(a6)      ;clear rotate
-        move #10,54(a6)      ;blowaway
+        move #10,54(a6) ; Object update routine in run_vex is 'blowaway'.       ;blowaway
         clr 52(a6)      ;not an enemy
         move #150,46(a6)    ;duration
 ;  bsr webinfo
@@ -11826,13 +11864,13 @@ do_oneup:
         move #4,44(a0)         ; Set climb mode.
         move #2,34(a0)         ; Set the index into draw_vex (draw_z).
         clr 28(a0)             ; Clear the orientation/rotation.
-        move #12,54(a0)        ; Set the object type to oblow
+        move #12,54(a0) ; Object update routine in run_vex is 'oblow'.         ; Set the object type to oblow
         clr 52(a0)             ; Set it not be an enemy
         move #150,46(a0)       ; Set the duration
 
         tst blanka             ;
         beq veconeup           ; Insert it as object type oblow.
-        move #7,34(a0)         ; Set the object type to draw_oneup.
+        move #7,34(a0)          ; Draw routine in draw_vex is 'draw_oneup'.
 
 veconeup:
         bsr insertobject       ; Insert the object.
@@ -11881,8 +11919,7 @@ go_downc:
         bsr go_down
         blt rrts    ;go_down return >0 if we are at the btm
 llost:
-;  sub #1,dying
-        move #40,54(a6)    ;go to Loiter mode (waits for DYING=0 before proceeding)
+        move #40,54(a6) ; Object update routine in run_vex is 'loiter'.     ;go to Loiter mode (waits for DYING=0 before proceeding)
         clr 34(a6)    ;set to Not Displayed
         rts
 
@@ -11980,7 +12017,7 @@ zap_player:
         bsr rightit
         move.l _claw,a0
 
-npss:   move.l _zap,(a0)    ;Claw shape to zap
+npss:   move.l _zap,(a0) ; Set address of the vector object to draw: _zap.
         move.l 4(a0),vp_xtarg
         move.l 8(a0),vp_ytarg
         add #12,28(a0)
@@ -12038,7 +12075,7 @@ colok1:
         move 16(a6),d0
         move 12(a6),d1    ;Our web and Z position
         move bullmax,d7    ;8 bullets max
-        lea bulls,a5
+        lea bulls,a5 ; Point a5 at bulls.
 dog:
         move.l (a5)+,d2
         beq yap
@@ -12061,18 +12098,18 @@ bite:
         bne rrts    ;Return with bullet in a4
         tst h2h ; Are we playing a head-to-head game?
         bne h2h_special
-        cmp #10,34(a4)    ;draw mode #10 is particle beam, does not stop
+        cmp #10,34(a4)    ; Draw routine in draw_vex is 'draw_pring'. Is particle beam, does not stop
         bge xle3      ;Use XLE only to make ring bullets spark off end of Spikes
         tst blanka
         beq jstop    ;in old Tempest mode, bulls just stop
-        cmp #6,54(a6)
+        cmp #6,54(a6) ; Object update routine in run_vex is 'run_spike'. 
         beq xle      ;bullets off Spikes spatter
 jstop:
         move.l a4,a0
 kbull:
         move.l 24(a0),a1  ;Clear coll table entry
         clr.l (a1)
-        move #4,54(a0)    ;Kill nxttime
+        move #4,54(a0) ; Object update routine in run_vex is 'kill_shot'.     ;Kill nxttime
 xle2:
         move #1,d0    ;return a hit
         rts
@@ -12091,12 +12128,12 @@ dxle:
         move.l #-16,(a4)
         move #26,54(a4)    ;Make it splatter
         move #8,30(a4)
-        move #1,34(a4)
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        move #1,34(a4) ; Draw routine in draw_vex is 'draw'.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         move d0,46(a4)
         bra xle2
 xle3:
-        cmp #6,54(a6)    ;check for power ring hitting super spike
+        cmp #6,54(a6) ; Object update routine in run_vex is 'run_spike'.     ;check for power ring hitting super spike
         bne xle2    ;not a power ring, goes thru
         tst 20(a6)
         beq xle2    ;not Super
@@ -12110,17 +12147,17 @@ xle3:
 ; and stores it in the object's data.
 ; *******************************************************************
 toweb:
-        bsr webinfo
+        bsr webinfo ; Get the X and Y position for this lane.
         swap d4 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d4
         swap d5 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d5        ;midpoint to 16:16
-        move.l d4,4(a6)
-        move.l d5,8(a6)      ;position on web set...
+        move.l d4,4(a6) ; Set X position
+        move.l d5,8(a6)  ; Set Y position
         move 16(a6),d6
         lsl #1,d6 ; Multiply it by 2.
-        move.l web_otab,a1
-        move 0(a1,d6.w),28(a6)    ;align to web section
+        move.l web_otab,a1 ; Put the web orientation table in a1.
+        move 0(a1,d6.w),28(a6)    ; Use d6 to get the right orientation value from the web orientation table.
         rts
 
 
@@ -12160,6 +12197,8 @@ webinf:
 
 ; *******************************************************************
 ; webinfo
+; Use the position on the web to get an X and Y position from value
+; from the web position table (web_ptab).
 ; *******************************************************************
 webinfo:
         move 16(a6),d0
@@ -12224,9 +12263,9 @@ znazm:  lea _web,a0              ; Load the web data structure.
 rez_claw:
         tst h2h ; Are we playing a head-to-head game?
         beq srezclaw
-        move.l #-12,(a6)  ;set displayed
-        move #1,34(a6)
-        move #30,54(a6)
+        move.l #-12,(a6)  ; Set index into draw routine in 'solids': draw_h2hclaw.
+        move #1,34(a6) ; Draw routine in draw_vex is 'draw'.
+        move #30,54(a6) ; Object update routine in run_vex is 'run_h2hclaw'. 
         cmp #$8f,40(a6)
         bne rrts
         tst practise
@@ -12257,7 +12296,7 @@ balls:
         move (a7)+,d1 ; Restore stashed values from the stack.
         dbra d1,balls
 noball:
-        lea fightmsg,a0
+        lea fightmsg,a0 ; Point a0 at fightmsg.
         clr.l d0
         move.l #$8000,d1
         bsr setmsg    ;say Fight!
@@ -12266,7 +12305,7 @@ noball:
         rts
 
 srezclaw:
-        move #17,34(a6)
+        move #17,34(a6) ; Draw routine in draw_vex is 'dsclaw2'.
         add #$40,36(a6)  ;close rez spacing
         bne go_con
 
@@ -12280,10 +12319,10 @@ ncjmp:
         beq vclaw
         cmp #21,46(a6)
         beq vclaw    ;standard vector rez if a droid
-        move #16,34(a6)    ;this is draw solid claw
+        move #16,34(a6)     ; Draw routine in draw_vex is 'dsclaw'. This is draw solid claw.
         bra rclaw
 vclaw:
-        move #1,34(a6)    ;set drawmode normal
+        move #1,34(a6)     ; Draw routine in draw_vex is 'draw'.
 rclaw:
         move 46(a6),54(a6)  ;set clawcon as intrinsic routine
         move #-1,52(a6)    ;set mode to Vuln
@@ -12411,10 +12450,10 @@ h2hcc:
         bne nomirr
         tst 48(a6)
         bne rrts
-        move #1,34(a4)
+        move #1,34(a4) ; Draw routine in draw_vex is 'draw'.
         rts
 nomirr:
-        move #0,34(a4)
+        move #0,34(a4) ; Draw routine in draw_vex is 'rrts', i.e. draw nothing.
         move frames,d1 ; Store frames in d1.
         move.l #$40000,d0
         cmp #$8f,40(a6)
@@ -12696,7 +12735,7 @@ spdone:
         clr d1
         move.l d0,4(a6)
         move.l d1,8(a6)      ;place claw on th web
-        cmp #17,34(a6)
+        cmp #17,34(a6) ; Draw routine in draw_vex is 'dsclaw2'.
         bne nutargg
         rts
 
@@ -12718,7 +12757,7 @@ nutargg:
         sub d0,d1
         move d1,d0      ;opposite frame
 noflipme:
-        lea claws,a0
+        lea claws,a0 ; Point a0 at claws.
         move.l 0(a0,d0.w),(a6)    ;anim-frame of claw
         move 16(a6),d0
         lsl #1,d0 ; Multiply it by 2.
@@ -12743,7 +12782,7 @@ dood:   asr #1,d2 ; Divide by 2.
 dshrnk:
         move view,d0
         asl #3,d0 ; Multiply it by 8.
-        lea views,a0
+        lea views,a0 ; Point a0 at views.
         add 0(a0,d0.w),d2
         add 2(a0,d0.w),d3    ;translate targ to currently set vp
         move 4(a0,d0.w),vp_ztarg
@@ -13197,7 +13236,7 @@ zoom44: move.l zoomspeed,d4
 zipp0:  move.l freeobjects,a6
         move plc+2,d7
         bsr setclaw    ;init claw object and put it on the web
-        bsr insertobject
+        bsr insertobject ; Add it to the activeobjects list.
         sub #1,plc+2
         bne zipp0
         bsr makedroid    ;re-make droid (if one is being used).
@@ -13236,34 +13275,51 @@ make160:
         move #1,14(a0)
         bra mit
 
+; *******************************************************************
+; makeit_rmw
+; *******************************************************************
 makeit_rmw:
-        bsr makeit
-        move #0,20(a0)
+        bsr makeit ; Make a default object first.
+        ; Set the index for the post-creation routine to point to
+        ;  make_rwm in postfixups.
+        move #0,20(a0) 
         rts
 
 ; *******************************************************************
 ; makeit_trans
-; Make a transparent GPU object from the d0-d5 registers.
+; Make a transparent object entry in the 'beasties' list.
 ; *******************************************************************
 makeit_trans:
-        bsr makeit
-        move #1,20(a0)
+        bsr makeit ; Make a default object first.
+        ; Set the index for the post-creation routine to point to
+        ;  make_trans in postfixups.
+        move #1,20(a0) ; Set the index for the post-creation routine.
         rts
 
 ; *******************************************************************
 ; makeit
-; Make a GPU object from the d0-d5 registers.
+; Make an object entry in the 'beasties' list.
+;
+; Data structure of items in 'beasties':
+; 0-3      X
+; 4-7      Y 
+; 8-9      Width? (Appears unused.)
+; 9-10     Height? (Appears unused.)
+; 12-13    Object Mode
+; 14-15    Object Type
+; 16-18    Pointer to screen data.
+; 20-22    Index to post-creation routine in 'postfixups'.
 ; *******************************************************************
 makeit:
-        move d5,14(a0)
+        move d5,14(a0)     ; Set the Object Type.
 mit:
-        move.l d0,(a0)
-        move.l d1,4(a0)
-        move d3,8(a0)
-        move d4,10(a0)
-        move.l d2,16(a0)
-        move #0,12(a0)    ; make an Object
-        move #-1,20(a0)    ; post creation mod: -1=none, so default
+        move.l d0,(a0)     ; Set the X position.
+        move.l d1,4(a0)    ; Set the Y position.
+        move d3,8(a0)      ; Set the width?
+        move d4,10(a0)     ; Set the height?
+        move.l d2,16(a0)   ; Set the pointer to screen data.
+        move #0,12(a0)     ; Set the Object Mode
+        move #-1,20(a0)    ; Set the post-creation routine to nothing.
         rts
 
 ; *******************************************************************
@@ -13397,9 +13453,9 @@ fr:     move INT1,d0
         movem.l d6-d7/a3-a6,-(a7) ; Stash data and address registers.
         move.l blist,a0     ; Stash blist in a0.
         move.l dlist,a1     ; Stash dlist in a1.
-        move.l #$30,d0      ; 0x30 units of 4 bytes each to be copied.
 
         ; Copy all bytes in blist to dlist.
+        move.l #$30,d0      ; 0x30 units of 4 bytes each to be copied.
 xlst:   move.l (a0)+,(a1)+  ; Copy 4 bytes from blist to dlist.
         dbra d0,xlst        ; Keep copying until we run out of bytes.
 
@@ -13426,7 +13482,7 @@ setdb:  ; Check if we can swap in the new screen prepared in 'mainloop'.
 
         ; Check if we have a new screen to display.
 no_new_screen:
-        move.l dlist,a0    ; Store the display list in a0.
+        move.l dlist,a0    ; Point a0 at the display list.
         move db_on,d7      ; Store the number of double-buffered screens in d7.
         bmi no_db          ; If we don't have any, skip to warp flash.
 
@@ -13565,8 +13621,8 @@ readrotary:
         swap d2 ; Swap position of the first 2 bytes with last 2 bytes.
         move d2,d0              ; get joypad in lo byte of d0
 
-        lea lstcon,a1
-        lea roconsens,a2
+        lea lstcon,a1 ; Point a1 at lstcon.
+        lea roconsens,a2 ; Point a2 at roconsens.
         bsr rroco
         add.l d0,rot_cum
 
@@ -13822,7 +13878,7 @@ mandfx:
         move palphase1,d0    ;put funky colours in the whole CLUT
         and #$ff,d0 ; Keep it between 0 and 255
         move palphase2,d5
-        and #$ff,d5
+        and #$ff,d5 ; Keep d5 between 0 and 255.
         lea CLUT,a1
         lea p_sines,a0 ; Load the positive sine table to a0.
         move #254,d7
@@ -13959,7 +14015,7 @@ npspri:
         jsr centext ; Display horizontally centred text.
         move (a7)+,d7    ;display what we are adjusting...
 
-        lea vols,a0
+        lea vols,a0 ; Point a0 at vols.
         move.b 0(a0,d7.w),d0  ;get the actual volume
 
         and #$ff,d0 ; Keep it between 0 and 255
@@ -14232,15 +14288,22 @@ still_r:
 ; Initialize the Object List. We make it 12 items long. The main object
 ; is the first one, which is a full screen of pixel data generated by the
 ; GPU.
+;
+; Data structure of items in 'beasties':
+; 0-3      X
+; 4-7      Y 
+; 12-13    Object Mode
+; 14-15    Object Type
+; 16-18    Pointer to screen data.
+; 20-22    Index to post-creation routine in 'postfixups'.
 ; *******************************************************************
 InitBeasties:
-        lea beasties,a0
-        move #12,d7
-        move d7,nbeasties
-ibeasts:
-        move #-1,12(a0)  ;inactive
-        lea 64(a0),a0      ;room for other shit
-        dbra d7,ibeasts
+        lea beasties,a0     ; Point a0 at the first entry in beasties.
+        move #12,d7         ; Move 12 to d7.
+        move d7,nbeasties   ; There will be 12 entries in beasties.
+ibeasts: move #-1,12(a0)    ; Initialize the mode of the entry to 'inactive'
+        lea 64(a0),a0       ; Each entry is 64 bytes long.
+        dbra d7,ibeasts     ; Go to the next entry.
         rts
 
 ; *******************************************************************
@@ -14250,68 +14313,84 @@ ibeasts:
 ; a fixed length of 12 objects in the list (fixed by InitBeasties above).
 ; The main object is the first one (see ObTypes), which is a full screen
 ; of pixel data populated by the GPU.
+;
+; Data structure of items in 'beasties':
+; 0-3      X
+; 4-7      Y 
+; 12-13    Object Mode
+; 14-15    Object Type
+; 16-18    Pointer to screen data.
+; 20-22    Index to post-creation routine in 'postfixups'.
 ; *******************************************************************
 RunBeasties:
-        move.l blist,a0    ;will use MakeScaledObject to build a list
-        move.l dlist,a4
+        move.l blist,a0          ; We will build our Object List in blist, so point a0 at it.
+        move.l dlist,a4          ; THis goes unused.
         tst warp_flash
         bne StopList
-        lea beasties,a2
-        move nbeasties,d7
 
-RBeasts:move d7,-(a7) ; Stash some values in the stack so we can restore them later.
-        move 12(a2),d0  ; get mode
-        bmi nxbeast
-        lea ModeVex,a3
-        asl #2,d0 ; Multiply it by 4.
-        move.l 0(a3,d0.w),a3
-        jsr (a3)    ;call action for that Mode
-        move (a2),d0
-        and #$fff,d0    ;limit to 12-bit
-        move 4(a2),d1
-        ; move frames,d3 ; Store frames in d3.
-        ; and #1,d3
-        bclr #0,d1
-        ; or d3,d1
+        lea beasties,a2          ; Point a2 at beasties.
+        move nbeasties,d7        ; We're going to loop in RBeasts 12 times.
+RBeasts:move d7,-(a7)            ; Stash the loop counter in the stack so we can restore it later.
+        move 12(a2),d0           ; get mode
+        bmi nxbeast              ; If object not in use, skip to next one.
+        lea ModeVex,a3           ; Point a3 at ModeVex
+        asl #2,d0                ; Multiply d0 (mode) it by 4.
+        move.l 0(a3,d0.w),a3     ; Use it as an index into ModeVex to get the mode routine
+        jsr (a3)                 ; Call the selecte routine, action for that Mode.
+
+        ; Pull out the X and Y info from the current entry in beasties.
+        move (a2),d0             ; Put X position in d0.
+        and #$fff,d0             ; limit to 12-bit
+        move 4(a2),d1            ; Put Y position in d1
+        bclr #0,d1               ; Clear the lower byte?
+        
+        ; This section appears unnecessary.
         move 8(a2),d6
         move 10(a2),d3
         lsl #8,d3
         or d6,d3
-        swap d3 ; Swap position of the first 2 bytes with last 2 bytes.
-        move 14(a2),d7    ;type
-        lea ObTypes,a3
-        asl #3,d7 ; Multiply it by 8.
-        move 0(a3,d7.w),d3  ;get width in phrases
-        move 2(a3,d7.w),d4  ;vertical height
-        move 4(a3,d7.w),d5  ;depth
-        move 6(a3,d7.w),d2  ;CLUT offset
-        move.l 16(a2),a1  ;data pointer
-        bsr MakeUnScaledObject
-        move 20(a2),d0    ;post-creation stuff?
-        bmi nxbeast
-        lea postfixups,a3
-        asl #2,d0 ; Multiply it by 4.
-        move.l 0(a3,d0.w),a3
-        jsr (a3)  ;do any fixup
-nxbeast:
-        move (a7)+,d7 ; Restore stashed values from the stack.
-        lea 64(a2),a2    ;do 'em all
-        dbra d7,RBeasts
-        bra StopList    ;put a stopobject on the end
+        swap d3                  ; Swap position of the first 2 bytes with last 2 bytes.
+        
+        ; Pull out the rest of the data from the current entry in beasties and use it to
+        ; make an Object List object for display.
+        move 14(a2),d7           ; Put the object type in d7.
+        lea ObTypes,a3           ; Point a3 at the ObTypes list.
+        asl #3,d7                ; Multiply d7 (object type) by 8.
+        move 0(a3,d7.w),d3       ; Get the width from the ObTypes entry in phrases
+        move 2(a3,d7.w),d4       ; Get the vertical height from ObTypes entry
+        move 4(a3,d7.w),d5       ; Get the depth from ObTypes entry
+        move 6(a3,d7.w),d2       ; Get the CLUT offset from the ObTypes entry.
+        move.l 16(a2),a1         ; Put the object's screen data pointer in a1.
+        bsr MakeUnScaledObject   ; Use it all to make an Object List object.
+        move 20(a2),d0           ; Put the index into postfixups in d0.
+        bmi nxbeast              ; If we don't have an index, move to the next entry.
+        lea postfixups,a3        ; Point a3 at postfixups.
+        asl #2,d0                ; Multiply our index by 4.
+        move.l 0(a3,d0.w),a3     ; Use it as an index into postfixups.
+        jsr (a3)                 ; Run the selected routine in postfixups.
+nxbeast:move (a7)+,d7            ; Restore the loop counter from the stack.
+        lea 64(a2),a2            ; Move a2 to point to the next entry in beasties.
+        dbra d7,RBeasts          ; Loop until we've done all 12 'beasties'.
+        
+        bra StopList             ; put a stopobject on the end
 
 postfixups:
         dc.l make_rmw,make_trans
 
-make_rmw:
-;
+; *******************************************************************
+; make_rmw
 ; set RMW on the sprite just defined
+; *******************************************************************
+make_rmw:
         lea -32(a0),a3    ;point to start of object
         bset.b #6,10(a3)  ;set the RMW flag
         rts
 
-make_trans:
-;
+; *******************************************************************
+; make_trans
 ; make this sprite transparent
+; *******************************************************************
+make_trans:
         lea -32(a0),a3
         bset.b #7,10(a3)
         rts
@@ -14377,6 +14456,7 @@ sl:     move.l #0,(a0)+
 
 ; *******************************************************************
 ; MakeScaledObject
+; This routine goes unused. We only ever use MakeUnScaledObject.
 ;
 ; Make an OL entry for an object. a0 --> current pos in OL being built
 ; (assumes a0 is already phrase aligned)
@@ -14395,79 +14475,78 @@ MakeScaledObject:
         ; Now the funky bit. Build a scaled bitmapped object.
         ; We are now on a quadphrase boundary too.
 
-        move.l a1,d6    ;get copy of data pointer
-        and.l #$fffffff8,d6  ;lose three LSB's
-        lsl.l #8,d6    ;move to correct bit position
-        move.l d6,(a0)+    ;put it in the list
-
+        move.l a1,d6          ; get copy of data pointer
+        and.l #$fffffff8,d6   ; lose three LSB's
+        lsl.l #8,d6           ; move to correct bit position
+        move.l d6,(a0)+       ; put it in the list
+        
         ; The link address is the same as for the preceding conditional
         ; object, and remember i saved it in a1, so...
-
+        
         lea 32(a0),a6
-        move.l a6,d6    ;get back link-pointer
-        lsl.l #5,d6    ;make it aligned OK (bott. 3 bits are 0)
-        swap d6      ;get top word of the address..
-        or d6,-2(a0)    ;and or it into place on the previous word.
-
+        move.l a6,d6          ; get back link-pointer
+        lsl.l #5,d6           ; make it aligned OK (bott. 3 bits are 0)
+        swap d6               ; get top word of the address..
+        or d6,-2(a0)          ; and or it into place on the previous word.
+        
         ; That's the first longword done, and the remaining byte of the
         ; link address is in d6 high already.
-
-        move.l #0,d7    ;make d7 empty
-        move d4,d7    ;get a copy of the height...
-        ror.l #2,d7    ;put 2 lowest bits in hi word...
-        swap d6      ;get back rest of link
-        or d7,d6    ;OR in top 8-bits of height..
-        move d6,(a0)+    ;top word now completed..
-        swap d7      ;get 2 lowest bits of height at top of d7..
-        move d1,d6    ;copy of Y pos..
-        lsl #3,d6    ;align...
-        or d7,d6    ;mask in those 2 bits of height..
-        bset #0,d6    ;set the type=1
-        move d6,(a0)+    ;..which completes the first phrase.
-
+        
+        move.l #0,d7          ; make d7 empty
+        move d4,d7            ; get a copy of the height...
+        ror.l #2,d7           ; put 2 lowest bits in hi word...
+        swap d6               ; get back rest of link
+        or d7,d6              ; OR in top 8-bits of height..
+        move d6,(a0)+         ; top word now completed..
+        swap d7               ; get 2 lowest bits of height at top of d7..
+        move d1,d6            ; copy of Y pos..
+        lsl #3,d6             ; align...
+        or d7,d6              ; mask in those 2 bits of height..
+        bset #0,d6            ; set the type=1
+        move d6,(a0)+         ; ..which completes the first phrase.
+        
         ; Now on to the next phrase.
-
-        clr (a0)+    ;assume Firstpix=0, RELEASE not asserted
-        move d2,d7    ;get INDEX
-        lsl #7,d7    ;align it
-        move.l #0,d6    ;empty d6
-        move d3,d6    ;get X size in phrases
-        ror.l #4,d6    ;shift low 4 bits into hi word
-        bset #15,d6    ;set transparency
-        or d7,d6    ;mask in Index
-        move d6,(a0)+    ;ignores Reflect, RMW
-
+        
+        clr (a0)+             ; assume Firstpix=0, RELEASE not asserted
+        move d2,d7            ; get INDEX
+        lsl #7,d7             ; align it
+        move.l #0,d6          ; empty d6
+        move d3,d6            ; get X size in phrases
+        ror.l #4,d6           ; shift low 4 bits into hi word
+        bset #15,d6           ; set transparency
+        or d7,d6              ; mask in Index
+        move d6,(a0)+         ; ignores Reflect, RMW
+        
         ; First long of phrase 2 is done...
-
-        move d3,d7    ;Assume dwidth=iwidth for simplicity
-        lsl #2,d7    ;align
-        swap d6      ;get top of d6, which has rest of iwidth
-        or d7,d6    ;mask in dwidth
-        move d6,(a0)+    ;put it in, assume pitch is 1
-        move d5,d6    ;get copy of depth
-        ror #4,d6    ;put it in top byte
-        or d0,d6    ;Hallelujah! X doesn't need shifting!
-        bset #15,d6    ;(PITCH=1)
-        move d6,(a0)+    ;Here endeth the Second Phrase.
-
+        
+        move d3,d7            ; Assume dwidth=iwidth for simplicity
+        lsl #2,d7             ; align
+        swap d6               ; get top of d6, which has rest of iwidth
+        or d7,d6              ; mask in dwidth
+        move d6,(a0)+         ; put it in, assume pitch is 1
+        move d5,d6            ; get copy of depth
+        ror #4,d6             ; put it in top byte
+        or d0,d6              ; Hallelujah! X doesn't need shifting!
+        bset #15,d6           ; (PITCH=1)
+        move d6,(a0)+         ; Here endeth the Second Phrase.
+        
         ; Now the third and final phrase.
-
-        move.l #0,(a0)+    ;Not used.....
+        
+        move.l #0,(a0)+       ; Not used.....
         move.l d3,d6
         clr.l d7
-        swap d6      ;get x- and y-scale
-        move d6,d7    ;copy scales
+        swap d6               ; get x- and y-scale
+        move d6,d7            ; copy scales
         lsr #8,d7
-        swap d7 ; Swap position of the first 2 bytes with last 2 bytes.
-        move d6,d7    ;recombine remainder with d7
-        move.l d7,(a0)+ ; Add it to our GPU RAM input buffer.
+        swap d7               ; Swap position of the first 2 bytes with last 2 bytes.
+        move d6,d7            ; recombine remainder with d7
+        move.l d7,(a0)+       ; Add it to our GPU RAM input buffer.
         lea 8(a0),a0
-
-        ; Outta here.
-        rts
+        rts                   ; Outta here.
 
 ; *******************************************************************
 ; MakeUnScaledObject
+; Make an Object List item in 'blist', pointed at by a0.
 ;
 ; Make an OL entry for an object. a0 --> current pos in OL being built
 ; (assumes a0 is already phrase aligned)
@@ -14483,71 +14562,70 @@ MakeScaledObject:
 ; *******************************************************************
 MakeUnScaledObject:
         move.l a0,d6
-        and #$1f,d6    ;check for aligned
+        and #$1f,d6           ; check for aligned
         beq muso
         move.l a0,d6
         and.l #$ffffe0,d6
         move.l d6,a0
-        lea 32(a0),a0    ;make it aligned
-
+        lea 32(a0),a0         ; make it aligned
+        
         ; Now the funky bit. Build an unscaled bitmapped object.
         ; We are now on a quadphrase boundary too.
-
-muso:   move.l a1,d6    ;get copy of data pointer
-        and.l #$fffffff8,d6  ;lose three LSB's
-        lsl.l #8,d6    ;move to correct bit position
-        move.l d6,(a0)+    ;put it in the list
+        
+muso:   move.l a1,d6          ; get copy of data pointer
+        and.l #$fffffff8,d6   ; lose three LSB's
+        lsl.l #8,d6           ; move to correct bit position
+        move.l d6,(a0)+       ; put it in the list
         lea 32(a4),a6
-        move.l a6,d6    ;get back link-pointer
-        lsl.l #5,d6    ;make it aligned OK (bott. 3 bits are 0)
-        swap d6      ;get top word of the address..
-        or d6,-2(a0)    ;and or it into place on the previous word.
-
+        move.l a6,d6          ; get back link-pointer
+        lsl.l #5,d6           ; make it aligned OK (bott. 3 bits are 0)
+        swap d6               ; get top word of the address..
+        or d6,-2(a0)          ; and or it into place on the previous word.
+        
         ; That's the first longword done, and the remaining byte of the
         ; link address is in d6 high already.
-
-        move.l #0,d7    ;make d7 empty
-        move d4,d7    ;get a copy of the height...
-        ror.l #2,d7    ;put 2 lowest bits in hi word...
-        swap d6      ;get back rest of link
+        
+        move.l #0,d7          ; make d7 empty
+        move d4,d7            ; get a copy of the height...
+        ror.l #2,d7           ; put 2 lowest bits in hi word...
+        swap d6               ; get back rest of link
         and #$ff00,d6
-        or d7,d6    ;OR in top 8-bits of height..
-        move d6,(a0)+    ;top word now completed..
-        swap d7      ;get 2 lowest bits of height at top of d7..
-        move d1,d6    ;copy of Y pos..
-        lsl #3,d6    ;align...
-        or d7,d6    ;mask in those 2 bits of height..
-        move d6,(a0)+    ;..which completes the first phrase.
-
+        or d7,d6              ; OR in top 8-bits of height..
+        move d6,(a0)+         ; top word now completed..
+        swap d7               ; get 2 lowest bits of height at top of d7..
+        move d1,d6            ; copy of Y pos..
+        lsl #3,d6             ; align...
+        or d7,d6              ; mask in those 2 bits of height..
+        move d6,(a0)+         ; ..which completes the first phrase.
+        
         ; Now on to the next phrase.
-
-        clr (a0)+    ;assume Firstpix=0, RELEASE not asserted
-        move d2,d7    ;get INDEX
-        lsl #7,d7    ;align it
-        move.l #0,d6    ;empty d6
-        move d3,d6    ;get X size in phrases
-        ror.l #4,d6    ;shift low 4 bits into hi word
-        bclr #15,d6    ;unset transparency
-        or d7,d6    ;mask in Index
-        move d6,(a0)+    ;ignores Reflect, RMW
-
+        
+        clr (a0)+             ; assume Firstpix=0, RELEASE not asserted
+        move d2,d7            ; get INDEX
+        lsl #7,d7             ; align it
+        move.l #0,d6          ; empty d6
+        move d3,d6            ; get X size in phrases
+        ror.l #4,d6           ; shift low 4 bits into hi word
+        bclr #15,d6           ; unset transparency
+        or d7,d6              ; mask in Index
+        move d6,(a0)+         ; ignores Reflect, RMW
+        
         ; First long of phrase 2 is done...
+        
+        move d3,d7            ; Assume dwidth=iwidth for simplicity
+        lsl #2,d7             ; align
+        swap d6               ; get top of d6, which has rest of iwidth
+        or d7,d6              ; mask in dwidth
+        move d6,(a0)+         ; put it in, assume pitch is 1
+        move d5,d6            ; get copy of depth
+        ror #4,d6             ; put it in top byte
+        or d0,d6              ; Hallelujah! X doesn't need shifting!
+        bset #15,d6           ; (PITCH=1)
+        move d6,(a0)+         ; Here endeth the Second Phrase.
+        lea 16(a0),a0         ; not economical but if all objects are 32 bytes it makes life easier
+        lea 32(a4),a4         ; where the list is really going to
+        rts                   ; Outta here.
 
-        move d3,d7    ;Assume dwidth=iwidth for simplicity
-        lsl #2,d7    ;align
-        swap d6      ;get top of d6, which has rest of iwidth
-        or d7,d6    ;mask in dwidth
-        move d6,(a0)+    ;put it in, assume pitch is 1
-        move d5,d6    ;get copy of depth
-        ror #4,d6    ;put it in top byte
-        or d0,d6    ;Hallelujah! X doesn't need shifting!
-        bset #15,d6    ;(PITCH=1)
-        move d6,(a0)+    ;Here endeth the Second Phrase.
-        lea 16(a0),a0    ;not economical but if all objects are 32 bytes it makes life easier
-        lea 32(a4),a4    ;where the list is really going to
-        ; Outta here.
-
-        rts
 
 
 ; *******************************************************************
@@ -14757,12 +14835,12 @@ MergeBlock:
 make_vo2d:
 
         move.l a0,a2
-        move.l d0,(a0)+ ; Add it to our GPU RAM input buffer.
-        move.l d1,(a0)+    ;x and y scale to header
+        move.l d0,(a0)+ ; Add X scale to our object.
+        move.l d1,(a0)+    ; Add Y scale to our object.
         lea 8(a0),a0    ;skip extent values
-        move.l d2,(a0)+ ; Add it to our GPU RAM input buffer.
-        move.l d3,(a0)+    ;put in x and y centre
-        move d4,(a0)    ;angle
+        move.l d2,(a0)+ ; Add X centre to our object.
+        move.l d3,(a0)+    ; Add Y centre to our object.
+        move d4,(a0)    ; Add angle to our object.
         clr d5
         clr d6      ;use to do extent
 
@@ -15028,14 +15106,14 @@ make_fw:
         move.l fw_dz,24(a0)
         move.l #$100,28(a0)
         move fw_dur,32(a0)
-        move #14,34(a0)
+        move #14,34(a0) ; Draw routine in draw_vex is 'draw_fw'.
         move #0,36(a0)
         move #1,38(a0)
         move fw_col,40(a0)
         clr.l 50(a0)
-        move #29,54(a0)
+        move #29,54(a0) ; Object update routine in run_vex is 'run_fw'. 
         sub #1,afree
-        jmp insertobject
+        jmp insertobject ; Add it to the activeobjects list.
 
 ; *******************************************************************
 ; draw_fw
@@ -15194,7 +15272,7 @@ r_obj:  cmpa.l #-1,a6
         clr d0
         cmp #webz+80,12(a6)       ;advance to edge of Web...
         bgt r_o1                  ;no official action, we already did it
-        cmp #11,54(a6)
+        cmp #11,54(a6) ; Object update routine in run_vex is 'run_pulsar'. 
         bne setxx
         move pucnt,d1
         and #$0f,d1
@@ -15206,12 +15284,12 @@ r_obj:  cmpa.l #-1,a6
 setxx:  neg 34(a6)                ;make it real now
 
 notcolap:
-        move 54(a6),d0
+        move 54(a6),d0 ; Put the object type in d0.
         bpl r_o1                  ;-ve treated as no action
         clr d0
 r_o1:   asl #2,d0 ; Multiply it by 4.
-        move.l 60(a6),-(a7)       ;save address of current Next in case this object is unlinked
-        move.l 0(a0,d0.w),a0
+        move.l 60(a6),-(a7)       ; Put address of next object in stack in case this object is unlinked
+        move.l 0(a0,d0.w),a0 ; Use d0 as an index into run_vex to get the motion routine.
         tst 52(a6)                ;'Enemy' flag
         beq zokk                  ;(don't count player bulls)
         bmi zokk                  ;(or claw VULNERABLE flags)
@@ -15230,7 +15308,7 @@ zokk:   movem.l d6-d7,-(a7) ; Stash some values in the stack so we can restore t
         move.l a6,diag+8
         tst locked                ;>>>>> A nasty hack.
         bne hack
-        jsr (a0)                  ;call motion vector
+        jsr (a0)                  ; Run the motion routine selected from run_vex.
 hack:   movem.l (a7)+,d6-d7       ;retrieve furthest-z
         move.l (a7)+,a6           ;Next
         move #4,diag
@@ -15296,7 +15374,7 @@ zoomon: move #0,sfx ; Select the 'Engine Noise 1' sound effect.
         move.l zoopitch,d0
         move.l d0,sfx_pitch
         move.b vols+1,d1
-        and #$ff,d1
+        and #$ff,d1 ; Keep d1 between 0 and 255.
         move d1,vvol1
         move d1,vvol2
         jsr fox ; Play selected sound effect.
@@ -15453,7 +15531,7 @@ gwb:    move.l vp_x,d3
         move.l vp_z,d5
 
 solweb: move #120,d0
-        add palfix2,d0
+        add palfix2,d0 ; Adjust for PAL screens if required.
         and.l #$ff,d0 ; Keep it between 0 and 255
         move.l d0,ycent
         tst l_solidweb
@@ -15528,7 +15606,7 @@ tlink:  move #-1,50(a6)      ; mark it bad
         move 32(a6),-(a7)   ;save player ownership tag
         move (a7)+,d1 ; Restore stashed values from the stack.
         move (a7)+,d0 ; Restore stashed values from the stack.
-        lea uls,a1
+        lea uls,a1 ; Point a1 at uls.
         asl #2,d0 ; Multiply it by 4.
         move.l -4(a1,d0.w),a1 ; Use d0 as an index in to 'uls'.
         jmp (a1) ; Jump to the entrypoint below selected by the index.
@@ -15619,7 +15697,7 @@ gp1smart:
 
         move.l #192,xcent
         move.l #120,d6
-        add palfix2,d6
+        add palfix2,d6 ; Adjust for PAL screens if required.
         move.l d6,ycent
 
         move.l #0,gpu_mode ; Select routine 'fline' in ox.gas.
@@ -15844,6 +15922,7 @@ draw_spike:
 ; *******************************************************************
 ; draw_vxc
 ; Draw, with a variable x-centre
+; Used by flippers mostly.
 ; Called during the draw_objects sequence as a member of the draw_vex list.
 ; *******************************************************************
 draw_vxc:
@@ -15991,7 +16070,7 @@ soldraw:
 draw2polyos:
         move.l #96+32,xcent
         move.l #120,d6
-        add palfix2,d6
+        add palfix2,d6 ; Adjust for PAL screens if required.
         move.l d6,ycent
         clr h2hor
         move.l apriority,a0
@@ -16029,7 +16108,7 @@ r_podraw:
         move.l #9,d4
         move.l #9,d5           ;default xy-centre
         neg d0
-        lea solids,a4
+        lea solids,a4 ; Point a4 at solids.
         lsl #2,d0 ; Multiply it by 4
         move.l 0(a4,d0.w),a0   ;polyobject draw routine address
         move.l 4(a6),d2 ; Get the object's X position.
@@ -16164,7 +16243,7 @@ draw_h2hclaw:
         move.l d0,20(a0)  ;phase 2
         move #0,d3
         lsl #4,d3 ; Multiply it by 32.
-        lea sphertypes,a1
+        lea sphertypes,a1 ; Point a1 at sphertypes.
         lea 0(a1,d3.w),a1
         move.l (a1)+,24(a0)  ;rings/sphere
         move.l (a1)+,28(a0)  ;pixels/ring
@@ -16190,7 +16269,7 @@ rezza:  movem.l d0-d5,-(a7) ; Stash some values in the stack so we can restore t
         move #3,d2
 xlxlxl: move d4,d7
         lea in_buf+16,a0
-        jsr pulser
+        jsr pulser ; Calculate a pulse colour.
 
 fcolour:and.l #$ff,d6 ; Keep it between 0 and 255
         move.l d6,(a0)+  ;colour
@@ -16219,7 +16298,7 @@ wittg:  and.l #$ff,d0 ; Keep it between 0 and 255
         add #8,d6
 snopp2:
         lsl #2,d6 ; Multiply it by 4.
-        lea sclaws,a1
+        lea sclaws,a1 ; Point a1 at sclaws.
         move.l 0(a1,d6.w),a1
         jmp zqz
 
@@ -16242,7 +16321,9 @@ snopp2:
 ; *******************************************************************
 draw_h2hball:
         tst 18(a6)  ;check for are we zapping someone
-        bmi onlyball
+        bmi onlyball ; If not, skip.
+
+        ; Draw the ball zapping.
         movem.l d0-d5,-(a7) ; Stash some values in the stack so we can restore them later.
         lea in_buf,a0      ;set up func/linedraw
         move.l d2,(a0)+ ; Add it to our GPU RAM input buffer.
@@ -16268,6 +16349,7 @@ drh2hb1:
         sub.l d6,d0
         neg.l d0
         add.l d6,d0
+
 nohorra:
         sub.l vp_z,d0 ; Subtract the player/camera viewpoint Z position.
         move.l d0,(a0)+  ;XYZ dest
@@ -16279,7 +16361,7 @@ nohorra:
         move frames,d0 ; Stash the frame count in d0.
         and.l #$ff,d0 ; Keep it between 0 and 255
         or #$01,d0
-        move.l d0,(a0)+    ;rnd seed
+        move.l d0,(a0)+    ; Use it as rnd seed in the input buffer.
         move.l #0,gpu_mode ; Select 'fline' in ox.gas.
         move.l #bovine,a0 ; Load the GPU module in ox.gas.
         jsr gpurun    ; Run the selected GPU module.
@@ -16292,7 +16374,7 @@ onlyball:
         move.l d2,(a0)+ ; Add it to our GPU RAM input buffer.
         move.l d3,(a0)+ ; Add it to our GPU RAM input buffer.
         move.l d1,(a0)+ ; Add it to our GPU RAM input buffer.
-        move.l _cube,a1
+        move.l _cube,a1; Set address of the vector object to draw: _cube.
         lea xvector,a2 ; Load the GPU shader in llama.gas.
         move 28(a6),d0
         and.l #$ff,d0 ; Keep it between 0 and 255
@@ -16481,7 +16563,7 @@ NL1:    move.l #-1,56(a0)   ;Gonna insert ourselves at the top
 ; *******************************************************************
 initobjects:
         move.l #-1,activeobjects
-        lea objects,a0
+        lea objects,a0 ; Point a0 at objects.
         move #63,d0
         move d0,ofree
         move.l a0,freeobjects
@@ -16502,7 +16584,7 @@ IniA:   move #-1,50(a0)
 ; *******************************************************************
 initprior:
         move.l #-1,apriority
-        lea priors,a0
+        lea priors,a0 ; Point a0 at priors.
         move #63,d0
         move.l a0,fpriority
         move.l #-1,a1
@@ -16516,7 +16598,7 @@ inipri:
         rts
 
 ; *******************************************************************
-; insertobject
+; insertobject ; Add it to the activeobjects list.
 ;
 ; move object to active list
 ; *******************************************************************
@@ -16525,8 +16607,8 @@ insertobject:
         move.l 56(a0),a1
         move.l 60(a0),a2
         sub #1,ofree
-        lea activeobjects,a3
-        lea freeobjects,a4
+        lea activeobjects,a3 ; Point a3 at activeobjects.
+        lea freeobjects,a4 ; Point a4 at freeobjects.
         bra MoveLink
 
 ; *******************************************************************
@@ -16538,8 +16620,8 @@ unlinkobject:
         move.l 56(a0),a1
         move.l 60(a0),a2
         add #1,ofree
-        lea freeobjects,a3
-        lea activeobjects,a4
+        lea freeobjects,a3 ; Point a3 at freeobjects.
+        lea activeobjects,a4 ; Point a4 at activeobjects.
         bra MoveLink
 
 
@@ -16618,13 +16700,14 @@ ulp4:   move.l #-1,4(a0)
         move.l a0,4(a1)
         rts
 
-
- move.l 4(a0),a1
- move.l 8(a0),a2
- lea fpriority,a3
- lea apriority,a4
- bra MovePrior
-
+; *******************************************************************
+; Unused Code
+; *******************************************************************
+        move.l 4(a0),a1
+        move.l 8(a0),a2
+        lea fpriority,a3 ; Point a3 at fpriority.
+        lea apriority,a4 ; Point a4 at apriority.
+        bra MovePrior
 
 ; *******************************************************************
 ; MovePrior
@@ -16664,7 +16747,7 @@ NP1:    move.l #-1,4(a0)  ;Gonna insert ourselves at the top
 ; return a ran# 0-255
 ; *******************************************************************
 rannum:
-        lea rantab,a3
+        lea rantab,a3 ; Point a3 at rantab.
         add #1,ranptr
         move ranptr,d0
         and #$ff,d0 ; Keep it between 0 and 255
@@ -16672,10 +16755,10 @@ rannum:
         rts
 
 ; *******************************************************************
-; Return a number between zero and d1, uses same stuff as rannum (plus d1 obviously)
+; Return a number in d0  between zero and d1, uses same stuff as rannum (plus d1 obviously)
 ; *******************************************************************
 rand:
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         mulu d1,d0
         lsr.l #8,d0
         rts
@@ -16807,17 +16890,17 @@ init_wave:
 ;
 ;  Bytes    Solid Objects                                    Vector Objects
 ;  -----    ---------------------------------------------------------------
-;  0-4      1 for Solid Object                               0 for Vector Object
+;  0-4      Index into draw routine in 'solids'.             Address of the prepared vector object.
 ;  4-8      X 
 ;  8-12     Y 
 ;  12-16    Z 
-;  16-20    Position on web.
+;  16-20    Position/lane on web.
 ;  20-24    Velocity 
 ;  24-28    Acceleration                                     XY orientation 
 ;  28-30    XZ Orientation                                   XZ orientation  
 ;  30-32    Y Rotation 
 ;  32-34    Z Rotation 
-;  34-36    Index into draw routine in \icode{draw\_vex}.
+;  34-36    Draw Type (Index into draw routine in draw_vex)
 ;  36-38    Start address of pixel data.                     Delta Z 
 ;  38-40    Y                                                Colour change value
 ;  40-42    Colour 
@@ -16827,15 +16910,74 @@ init_wave:
 ;  48-50    Fire Timer / Sphere Type 
 ;  50-52    Marked for deletion 
 ;  52-54    Whether an enemy or not. 
-;  54-56    Object Type 
+;  54-56    Object Type  (Index into update routine in run_vex).
 ;  56-60    Address of Previous Object 
 ;  60-64    Address of Next Object 
 ;
-; Object Types are:
-; 6 = Spike
-; 7 = Spiker
-; 11 = Pulsar
-; 25 = Power Up
+;  Object Type                   run_vex         Draw Type       draw_vex
+;  -----------------------       ----------------------------------------------
+;  0   Exploding Player          rrts            1
+;  1                             player_shot     1
+;  2   Flipper                   run_flipper     3
+;  3   Type of Explosion         run_zap         1                        
+;  4   A shot that kills         kill_shot       1                          
+;  5   Tanker                    run_tanker      1                           
+;  6   Spike                     run_spike       1                          
+;  7   Spiker                    run_spiker      1                           
+;  8   Enemy Bullet              run_ashot       1                          
+;  9   Fuseball                  run_fuseball    1                             
+;  10   Bonus Blowaway           blowaway        1                         
+;  11   Pulsar                   run_pulsar      1                           
+;  12   one up blowaway          oblow           1                      
+;  13   Going-Down Claw          go_downc        1                         
+;  14   Going-Down Flipper       go_downf        1                         
+;  15                            claw_con2       1                          
+;  16                            claw_con1       1                          
+;  17   AI Droid/Rez Claw?       rez_claw        1                         
+;  18                            czoom1          1                       
+;  19                            czoom2          1                       
+;  20   Explosion?               pzap            1                     
+;  21                            rundroid        1                         
+;  22   Pixel Explosion          run_pixex       1                          
+;  23   Pulsar Spark             run_pspark      1                           
+;  24   P Ring Explosion?        run_prex        1                         
+;  25   Power Up                 run_pup         1                        
+;  26   Splatter                 xshot           1                      
+;  27   Run Gate                 run_gate        1
+;  28   XR Pixel Explosion       xr_pixex        1
+;  29   Firework                 run_fw          1
+;  30   Rez Claw                 run_h2hclaw     1
+;  31   Mirror                   run_mirr        1
+;  32   Player bullet            run_h2hshot     1
+;  33   Head to Head Gen         run_h2hgen      1
+;  34   Head to Head Ball        run_h2hball     1
+;  35   Excellent Explosion      oblow2          1
+;  36   Mirror                   rumirr          1
+;  37   Reflected Shot           refsht          1
+;  38   Reflected shot           refsht2         1
+;  39   Type of AI Droid         run_adroid      1
+;  40   Loitering claw           loiter          1
+;
+; Draw Type  draw_vex
+; --------   --------
+;   0       rrts
+;   1       draw
+;   2       draw_z
+;   3       draw_vxc
+;   4       draw_spike
+;   5       draw_pixex
+;   6       draw_mpixex
+;   7       draw_oneup
+;   8       draw_pel
+;   9       changex
+;   10      draw_pring
+;   11      draw_prex
+;   12      dxshot
+;   13      drawsphere
+;   14      draw_fw
+;   15      dmpix
+;   16      dsclaw
+;   17      dsclaw2
 ; *******************************************************************
 inits:
         dc.l make_flipper,make_tanker,make_spiker,make_fuseball,make_pulsar,make_futanker,make_putanker  ;6
@@ -16943,17 +17085,17 @@ initstarfield:
         move #127,d7
         move.l #128,(a0)+  ;set # of stars
 isf:
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         move d0,d2
         sub #$80,d0
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         move.l d0,(a0)+    ;X rand +/-128
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         move d0,d3
         sub #$80,d0
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         move.l d0,(a0)+    ;Y rand +/-128
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         asl #1,d0 ; Multiply it by 2.
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         move.l d0,(a0)+    ;Z rand 0-1FF.FFFF
@@ -17139,7 +17281,7 @@ impixel:
 
         move d2,d0    ;Bit-# to X co-ord
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         lsl #8,d0    ;Randomise within this pixel
         asl.l #4,d0
         move.l d0,(a0)+    ;X set
@@ -17147,14 +17289,14 @@ impixel:
         move d0,d2
         move d3,d0
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         lsl #8,d0    ;Randomise within this pixel
         asl.l #4,d0
         move.l d0,(a0)+    ;Y set
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         move d0,d3
 
-        bsr rannum ; Put a random number between 0 and 255 in d0.
+        bsr rannum ; Put a random number between 0 and d1 in d0.
         asl #1,d0 ; Multiply it by 2.
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d0
@@ -17184,7 +17326,7 @@ zscore:
 
         lea scoreimj,a0    ;set score object #1 to all zeros
         move #17,d0
-        lea digits,a1
+        lea digits,a1 ; Point a1 at digits.
 zsco:
         move #7,d2
 zsco2:
@@ -17311,7 +17453,7 @@ doscore:
         tst h2h ; Are we playing a head-to-head game?
         bne rrts
         move.l score,a0
-        lea scores,a1
+        lea scores,a1 ; Point a1 at scores.
         asl #1,d0 ; Multiply it by 2.
         clr d1
         move.b 1(a1,d0.w),d1
@@ -17792,7 +17934,7 @@ eepromsave:
         jsr eewrite  ;$6510 is validation no.
 
         lea hscom1,a1
-        lea epromcopy,a2
+        lea epromcopy,a2 ; Point a2 at epromcopy.
         clr d2
         move #57,d1
 xxhs1:
@@ -17821,7 +17963,7 @@ eepromload:
         cmp #$6510,d0
         bne rrts    ;not valid - accept defaults
         lea hscom1,a1
-        lea epromcopy,a2
+        lea epromcopy,a2 ; Point a2 at epromcopy.
         move #62,d1
         jsr eeread    ;get checksum word
         move d0,d2
@@ -17900,7 +18042,7 @@ g_getline:
         move.l 4(a0),a1         ;get font base
         move 6(a1),d6
         add #2,d6               ;got text width
-        lea linebuff,a3
+        lea linebuff,a3 ; Point a3 at linebuff.
         move d0,d2              ;copy text origin
         move #350,d3
         sub d6,d3               ;maximum text position
@@ -17914,10 +18056,10 @@ g_gtlin:
         beq morend2             ;use for larger CR/LF gap
         cmp.b #'^',d5
         bne g_gt1
-        lea fonties,a1
+        lea fonties,a1 ; Point a1 at fonties.
         move.b (a2)+,d5
         sub.b #'0',d5
-        and #$ff,d5
+        and #$ff,d5 ; Keep d5 between 0 and 255.
         lsl #2,d5 ; Multiply it by 4.
         move.l 0(a1,d5.w),a1    ;get new font
         bra g_gtlin
@@ -17926,7 +18068,7 @@ g_gt1:
         bne g_gt2
         move.b (a2)+,d5
         sub.b #'0',d5
-        and #$ff,d5
+        and #$ff,d5 ; Keep d5 between 0 and 255.
         mulu #10,d5
         move d5,d0
         move.b (a2)+,d5
@@ -17972,7 +18114,7 @@ morend2:
 ; *******************************************************************
 xkeys:
 
-        lea keys,a0
+        lea keys,a0 ; Point a0 at keys.
         lea keym1,a1
         lea option8+8,a5
         move #-1,d5
@@ -18036,7 +18178,7 @@ stetoff:
 playtune:
         jsr STOP_MOD
         lsl #2,d0 ; Multiply it by 4
-        lea modbase,a0
+        lea modbase,a0 ; Point a0 at modbase.
         move.l 0(a0,d0.w),a0  ;get tune base
         jsr PT_MOD_INIT
         move.b vols,d0
@@ -18058,7 +18200,7 @@ fox:
         move d0,d1    ;copy 8x
         lsl #2,d0    ;d0 is 32x...
         add d1,d0    ;d0 is 40x, much faster than mulu
-        lea samtab,a0
+        lea samtab,a0 ; Point a0 at samtab.
         lea 20(a0,d0.w),a0  ;point to past FX name...
         move sfx_pri,d1
         move sfx_vol,d2
@@ -20967,22 +21109,27 @@ pixcols: dc.b 0,0,$f0,0,0,$0f,0,0,0,$80,0,$ff  ;11
          dc.b 0,0,0,0,0,$88,0,0,$55
 
 ; *******************************************************************
-; The 9 different objects in our display object list. The first one is the
+; The 9 different object types in our display object list. The first one is the
 ; main one and it is this one that the GPU and Blitter draws most
 ; stuff to.
+; Each entry is four words (16 bytes) long and is of the form:
+; - Width
+; - Height
+; - Depth
+; - Offset to Colour Lookup Table (CLUT).
 ; *******************************************************************
 ObTypes:
-        dc.w $60,279,4,0  ;384x280, 16bit
-        dc.w $28,99,4,0    ;160x100
-        dc.w $10,99,4,0    ;64x100, robot object
-        dc.w 32,18,4,0    ;score object, truecolour
-        dc.w 2,6,0,1    ;lives object, clutbase 2
-        dc.w $30,239,3,0  ;384x240, 8bit
-        dc.w $c,29,4,0    ;RMW object
-        dc.w $60,32,4,0    ;32-pixel high bit of cry screen
-        dc.w $60,48,4,0    ;48-pixel high bit of cry screen
+        dc.w $60,279,4,0   ; 384x280, 16bit
+        dc.w $28,99,4,0    ; 160x100
+        dc.w $10,99,4,0    ; 64x100, robot object
+        dc.w 32,18,4,0     ; score object, truecolour
+        dc.w 2,6,0,1       ; lives object, clutbase 2
+        dc.w $30,239,3,0   ; 384x240, 8bit
+        dc.w $c,29,4,0     ; RMW object
+        dc.w $60,32,4,0    ; 32-pixel high bit of cry screen
+        dc.w $60,48,4,0    ; 48-pixel high bit of cry screen
 
-        .include "digits.dat"  ;actually now only the ship gfx
+.include "digits.dat"  ;actually now only the ship gfx
 
 ; *******************************************************************
 ; A sine table
@@ -21475,8 +21622,23 @@ span:             dc.l $3fff
 spany:            dc.w 0
 zapdone:          dc.w 0
 ud_score:         dc.w 0
+
+; *******************************************************************
+; This data structure is used to construct the Object List (aka the
+; Display List) in 'blist' by RunBeasties. It is the items in blist
+; that actually get drawn to the screen. THere are 12 items in total.
+;
+; Data structure of items in 'beasties':
+; 0-3      X
+; 4-7      Y 
+; 12-13    Object Mode
+; 14-15    Object Type
+; 16-18    Pointer to screen data.
+; 20-22    Index to post-creation routine in 'postfixups'.
+; *******************************************************************
 nbeasties:        dc.w 12
 beasties:         dcb.l 286,0
+
 startbonus:       dc.w 0
 warp_count:       dc.l 2
 warp_add:         dc.l $10000
