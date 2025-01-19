@@ -29,10 +29,13 @@
 ;          The 'sine wave' web used in level 12 of Tempest 2000.
 ;                                                                                                                 
 ; This is a cleaned-up and commented version of the main source code
-; file for Tempest 2000.
-; - Fixed up indentation.
-; - Added comments and routine headers.
-; - All original variable and routine names are preserved.
+; file for Tempest 2000. No code has been changed so this source file
+; can be used to create a build of Tempest 2000 that is byte-for-byte
+; identical to the original release.
+; All original variable and routine names are preserved.
+; The changes include:
+;   - Fixed up indentation.
+;   - Added comments and routine headers.
 ;
 ; As a place to start reading, try 'dloop', which is the game's topmost
 ; control loop.
@@ -40,8 +43,16 @@
 ; A Short Primer on 68K Motorola Assembly
 ; ---------------------------------------
 ; 
-; Interesting Places to Look for the Impatient
+; Interesting Search Keywords for the Impatient
 ; -------------------------------------------
+; 'Frame:' - Responsible for updating the internal state of all the objects
+;           in the game, such as enemies and the player's claw and bullets.
+;           It is called every time the screen has finished painting, i.e.
+;           at a 'vertical sync' interrupt.
+; 'mainloop' - The game's main loop. It's primary task is performing all the
+;             GPU operations that prepare all the game's elements for drawing
+;             to the screen.
+;             
 ; *******************************************************************
         .include  'jaguar.inc'
         .extern  VideoIni
@@ -225,7 +236,7 @@ cram:   clr.l (a0)+
         sub.l #1,d0
         bpl cram                       ; zero out RAM
         
-        move #32,afree
+        move #32,afree ; There are 32 slots in total in the activeobjects list.
         move.b #9,intmask
         move #0,auto
         move #3,joby
@@ -755,8 +766,8 @@ dbonce:
         clr selected
         move #1,selectable
         jsr do_choose
-        tst selected
-        beq rreset ; Return to the title screen.
+        tst selected ; Are we playing Tempest Classic?
+        beq rreset ; If so, return to the title screen.
         lea defaults,a0    ; Point default hiscores to a0
         lea hscom1,a1      ; Point stored hiscores to a1
 
@@ -838,19 +849,20 @@ stropt: jsr DISABLE_FX        ; any SFX to off
         bmi setauto
         bra rrrts
         
+				; Start playing in 'Demo' mode.
 setauto:clr z                 ; Clear hard reset signal.
-        clr cwave
-        clr cweb
+        clr cwave ; Set current level to 0.
+        clr cweb ; Set current web to 0.
         move #15,t2k_max      ; Maximum level that can be selected for T2K
         move #15,t2k_high     ; Highest level achieved in Tempest 2000.
         move #15,trad_max     ; Maximum level that can be selected for classic Tempest.
         move #15,trad_high    ; always reset these after attract mode
-        move #1,auto
+        move #1,auto ; Enable demo mode.
         move #1,_auto
         move #3,lives
         move #3,lastlives
-        move #2,selected
-        bsr selsa
+        move #2,selected ;  Tempest 2000 is the selection for demo mode.
+        bsr selsa ; Enable the settings for Tempest 2000.
         jsr rannum            ; Put a random number between 0 and 255.
         and #$0f,d0           ; Reduce it one between 0 and 15.
         add #7,d0             ; Add 7 to the result.
@@ -984,9 +996,9 @@ alrzero:
         bsr setweb                         ; Set up the web
         bsr circa                          ; Update the level bonus and starfield.
         lea _web,a0
-        move.l #300+webz,d0
+        move.l #300+webz,d0 ; Take the normal top of web + 300, to use as our Z position.
         swap d0                            ; Swap position of the first 2 bytes with last 2 bytes.
-        move.l d0,12(a0)                   ; initial Z is further away than the usual
+        move.l d0,12(a0)                   ; initial Z of the web is further away than the usual
         move.l #draw_oo,mainloop_routine
         move.l #zoomto,routine
         move.l #gamefx,fx
@@ -1227,9 +1239,9 @@ zprev_1:bsr sweb
         move.l #$ffffffff,warp_flash
         bsr circa ; Update the level bonus and starfield.
         lea _web,a0
-        move.l #webz+44-200,d0
+        move.l #webz+44-200,d0 ; Set the Z position of the web further away.
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
-        move.l d0,12(a0)
+        move.l d0,12(a0) ; Store the new Z in the _web object.
         move #4,26(a0)
         move.l #zshow,routine
         rts
@@ -1256,9 +1268,9 @@ znext:
         move.l #$ffffffff,warp_flash
         bsr circa ; Update the level bonus and starfield.
         lea _web,a0
-        move.l #webz+44+200,d0
+        move.l #webz+44+200,d0 ; Set the position of the web as nearer than usual.
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
-        move.l d0,12(a0)
+        move.l d0,12(a0) ; Store the new Z in the _web object.
         move #-4,26(a0)
         move.l #zshow,routine
         rts
@@ -1353,11 +1365,12 @@ settrue:
         lea beasties,a0    ;set main screen to 16-bit
         move.l #screen2,d2
         move.l d2,gpu_screen
-strue:
-        move #TOP,d1
+strue:  move #TOP,d1
+
 ; *******************************************************************
 ; stru
 ; Set up an object entry in beasties starting at the top left of the screen.
+; Which entry is decided by the caller.
 ; *******************************************************************
 stru:
         move #SIDE,d0      ; Set the X position
@@ -1576,7 +1589,7 @@ sflip:
         clr d1
         lsr.l #1,d1
         add.l #$10000,d1
-        move frames,pucnt    ;simulate pucnt in game
+        move frames,pucnt    ;simulate pucnt in game by updating it with the frame count.
 
         move pongx,d2
         lsr #2,d2 ; Divide by 4.
@@ -1857,40 +1870,44 @@ draw_pup1:
 ; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_spulsar:
-        cmp #3,34(a6)  ;check for flipper-mode
+        cmp #3,34(a6)          ; check for flipper-mode
         bne upulsa
         move #9,d4
         sub 36(a6),d4
-        ext.l d4    ;get x-centre
+        ext.l d4               ; get x-centre
         move.l #9,d5
 upulsa:
-        move pucnt,d6
-        lea spulsars,a0 ; Point a0 at spulsars.
-        and #$0f,d6
-        lsl #2,d6 ; Multiply it by 4.
-        move.l 0(a0,d6.w),a1
-        bra drawsolidxy ; Draw it as a solid polygon.
+        move pucnt,d6          ; Put our pulsecount in d6.
+        lea spulsars,a0        ; Point a0 at spulsars.
+        and #$0f,d6            ; Keep the pulse count between 0 and 15.
+        lsl #2,d6              ; Multiply it by 4.
+        move.l 0(a0,d6.w),a1   ; Draw selected pulsar polygon in a1 as a solid polygon.
+        bra drawsolidxy        ; Draw selected polygon in a1 as a solid polygon.
 
 ; *******************************************************************
 ; draw_spulstank
+; Draws a pulsar, using one of the pulsar polygons in spulsars. The choice
+; is determined by our incrementing pulse count (pucnt).
+;
 ; A member of the solids list.
 ; A member of the 'shapes' list
 ; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_spulstank:
-        move pucnt,d2
-        move frames,d6 ; Store frames in d6.
-        add.b d6,d0
-        lea spulsars,a0 ; Point a0 at spulsars.
-        and #$0f,d2
-        lsl #2,d2 ; Multiply it by 4.
-        move.l 0(a0,d2.w),a1
-        movem.l d0-d1/a1,-(a7) ; Stash some values in the stack so we can restore them later.
-        bsr drawsolidxy ; Draw it as a solid polygon.
-        jsr gpuwait ; Wait for the GPU to finish.
-        movem.l (a7)+,d0-d1/a1 ; Restore stashed values from the stack.
-        add.b #$80,d0
-        bra drawsolidxy ; Draw it as a solid polygon.
+        move pucnt,d2            ; Put the pulse count in d2.
+        move frames,d6           ; Store frames in d6.
+        add.b d6,d0              ; Add it to d0, which we will use as the rotation angle in drawsolidxy.
+        lea spulsars,a0          ; Point a0 at spulsars.
+        and #$0f,d2              ; Keep the pulse count in d2 between 0 and 15.
+        lsl #2,d2                ; Multiply it by 4.
+        move.l 0(a0,d2.w),a1     ; Use the result to select a polygon from spulsars.
+        movem.l d0-d1/a1,-(a7)   ; Stash some values in the stack so we can restore them later.
+        bsr drawsolidxy          ; Draw selected polygon in a1 as a solid polygon.
+        jsr gpuwait              ; Wait for the GPU to finish.
+        movem.l (a7)+,d0-d1/a1   ; Restore stashed values from the stack.
+        add.b #$80,d0            ; Add $80 to the rotation angle.
+        bra drawsolidxy          ; Draw it as a solid polygon.
+				; Returns
 
 ; *******************************************************************
 ; draw_sfuseball
@@ -1933,29 +1950,29 @@ dsfb1:  move.l (a7)+,d0        ; Restore stashed values from the stack.
 ; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 draw_sfusetank:
-        lea fbcols,a6 ; Point a6 at fbcols.
-        move #4,d7
-        move frames,d6 ; Store frames in d6.
-        add.b d6,d0
-futank:
-        lea fbpiece2,a1
-        move.b 0(a6,d7.w),d6
-        move.b d6,5(a1)
-        move.b d6,21(a1)  ;colour leg of fuseball
-        movem.l d0-d1,-(A7) ; Stash some values in the stack so we can restore them later.
-        bsr drawsolidxy ; Draw it as a solid polygon.
-        jsr gpuwait ; Wait for the GPU to finish.
-        movem.l (a7)+,d0-d1 ; Restore stashed values from the stack.
-        movem.l d0-d1,-(a7) ; Stash some values in the stack so we can restore them later.
-        lea fbpiece1,a1
-        move.b 0(a6,d7.w),d6
-        move.b d6,5(a1)
-        move.b d6,21(a1)  ;colour leg of fuseball
-        bsr drawsolidxy ; Draw it as a solid polygon.
-        jsr gpuwait ; Wait for the GPU to finish.
-        movem.l (a7)+,d0-d1 ; Restore stashed values from the stack.
+        lea fbcols,a6          ; Point a6 at fbcols.
+        
+        move #4,d7             ; We'll loop 4 times in futank.
+        move frames,d6         ; Store frames in d6.
+        add.b d6,d0            ; Store it in d0.
+futank: lea fbpiece2,a1        ; Point a1 at the polygon data structure for 2nd leg of fuseball.
+        move.b 0(a6,d7.w),d6   ; Use it as an index into fbcols to get a colour value.
+        move.b d6,5(a1)        ; Use it to set the color of the fuseball leg data structure.
+        move.b d6,21(a1)       ; Use it to set the colour in the fuseball leg data structure.
+        movem.l d0-d1,-(A7)    ; Stash some values in the stack so we can restore them later.
+        bsr drawsolidxy        ; Draw it as a solid polygon.
+        jsr gpuwait            ; Wait for the GPU to finish.
+        movem.l (a7)+,d0-d1    ; Restore stashed values from the stack.
+        movem.l d0-d1,-(a7)    ; Stash some values in the stack so we can restore them later.
+        lea fbpiece1,a1        ; Point a1 at the polygon data structure for 1st leg of fuseball.
+        move.b 0(a6,d7.w),d6   ; Use it as an index into fbcols to get a colour value.
+        move.b d6,5(a1)        ; Use it to set the color of the fuseball leg data structure.
+        move.b d6,21(a1)       ; Use it to set the color of the fuseball leg data structure.
+        bsr drawsolidxy        ; Draw it as a solid polygon.
+        jsr gpuwait            ; Wait for the GPU to finish.
+        movem.l (a7)+,d0-d1    ; Restore stashed values from the stack.
         add.b #$33,d0
-        dbra d7,futank
+        dbra d7,futank         ; Loop until zero!
         rts
 
 ; *******************************************************************
@@ -2031,8 +2048,8 @@ pulser:
         add #$80,d5
         add #$80,d6
         and #$f0,d5
-        lsr #4,d6
-        and #$0f,d6
+        lsr #4,d6 ; Divide by 32.
+        and #$0f,d6 ; Keep it between 0 and 15.
         or d5,d6
         rts
 
@@ -2116,74 +2133,74 @@ ddthis: move.l #gofeed,demo_routine
 ; Implements the game over display effect.
 ; *******************************************************************
 gofeed:
-        move.l #(PITCH1|PIXEL16|WID384),d0 ; Set the GPU flags in d0.
-        move.l d0,source_flags ; Pass them to the GPU's source flags.
+        move.l #(PITCH1|PIXEL16|WID384),d0   ; Set the GPU flags in d0.
+        move.l d0,source_flags               ; Pass them to the GPU's source flags.
         move.l d0,dest_flags
-        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
+        lea in_buf,a0                        ; Point our GPU RAM input buffer at a0.
         add.l #$2000,pongz
         move pongz,d0
-        and.l #$0f,d0 ; Keep it between 0 and 15
+        and.l #$0f,d0                        ; Keep it between 0 and 15
         sub.l #$07,d0
-        move.l cscreen,(a0)    ;source screen is already-displayed screen
-        move.l #384,4(a0) ; Full screen width.
-        move.l #240,d1 ; Full screen height.
-        add palfix1,d1 ; Adjust for PAL
-        move.l d1,8(a0)    ; Store height in GPU input buffer.
-        move.l #$1f4,12(a0) ; Store X scale in GPU input buffer.
-        move.l #$1f4,16(a0)    ; Store Y scale in GPU input buffer.
-        move.l d0,20(a0)      ; Store initial angle in brads in GPU buffer.
-        move.l #$c00000,24(a0)    ;source x centre in 16:16
+        move.l cscreen,(a0)                  ; source screen is already-displayed screen
+        move.l #384,4(a0)                    ; Full screen width.
+        move.l #240,d1                       ; Full screen height.
+        add palfix1,d1                       ; Adjust for PAL
+        move.l d1,8(a0)                      ; Store height in GPU input buffer.
+        move.l #$1f4,12(a0)                  ; Store X scale in GPU input buffer.
+        move.l #$1f4,16(a0)                  ; Store Y scale in GPU input buffer.
+        move.l d0,20(a0)                     ; Store initial angle in brads in GPU buffer.
+        move.l #$c00000,24(a0)               ; source x centre in 16:16
         move.l #$780000,d0
-        add.l palfix3,d0 ; Adjust for PAL screens if required.
-        move.l d0,28(a0)    ;y centre the same
-        move.l #$0,32(a0)    ;offset of dest rectangle
-        move.l delta_i,36(a0)    ;change of i per increment
-        move.l #2,gpu_mode    ;op 2 of this module is Scale and Rotate
-        move.l #demons,a0 ; Load the GPU module in antelope.gas.
-        jsr gpurun      ; Run the selected GPU module.
-        jsr gpuwait ; Wait for the GPU to finish.
-
-        move.l #4,gpu_mode  ;Multiple images stretching towards you in Z
-        lea p_sines,a0 ; Load the positive sine table to a0.
+        add.l palfix3,d0                     ; Adjust for PAL screens if required.
+        move.l d0,28(a0)                     ; y centre the same
+        move.l #$0,32(a0)                    ; offset of dest rectangle
+        move.l delta_i,36(a0)                ; change of i per increment
+        move.l #2,gpu_mode                   ; op 2 of this module is Scale and Rotate
+        move.l #demons,a0                    ; Load the GPU module in antelope.gas.
+        jsr gpurun                           ; Run the selected GPU module.
+        jsr gpuwait                          ; Wait for the GPU to finish.
+        
+        move.l #4,gpu_mode                   ; Multiple images stretching towards you in Z
+        lea p_sines,a0                       ; Load the positive sine table to a0.
         move pongx,d0
         move pongy,d3
         add #15,pongx
         add #17,pongy
-        and #$ff,d0 ; Keep it between 0 and 255
-        and #$ff,d3 ; Keep d3 between 0 and 255.
+        and #$ff,d0                          ; Keep it between 0 and 255
+        and #$ff,d3                          ; Keep d3 between 0 and 255.
         move.b 0(a0,d0.w),d1
         move.b 0(a0,d3.w),d2
-        and.l #$ff,d1 ; Keep it between 0 and 255
-        and.l #$ff,d2 ; Keep it between 0 and 255
-        lsl.l #6,d2 ; Multiply it by 64.
-        lsl.l #6,d1 ; Multiply it by 64.
+        and.l #$ff,d1                        ; Keep it between 0 and 255
+        and.l #$ff,d2                        ; Keep it between 0 and 255
+        lsl.l #6,d2                          ; Multiply it by 64.
+        lsl.l #6,d1                          ; Multiply it by 64.
         add.l #$8000,d1
         add.l #$8000,d2
-
+        
         ; Game Over
-        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
-        move.l #pic2,(a0)+  ;srce screen for effect
-        move.l #$150094,(a0)+  ;srce start pixel address
-        move.l #$440091,(a0)+  ;srce size
-        move.l d1,(a0)+    ;x-scale
-        move.l d2,(a0)+    ;y-scale
-        move.l #0,(a0)+    ;shearx
-        move.l #0,(a0)+    ;sheary
-        move.l #1,(a0)+    ;Mode 1 = Centered
+        lea in_buf,a0                        ; Point our GPU RAM input buffer at a0.
+        move.l #pic2,(a0)+                   ; srce screen for effect
+        move.l #$150094,(a0)+                ; srce start pixel address
+        move.l #$440091,(a0)+                ; srce size
+        move.l d1,(a0)+                      ; x-scale
+        move.l d2,(a0)+                      ; y-scale
+        move.l #0,(a0)+                      ; shearx
+        move.l #0,(a0)+                      ; sheary
+        move.l #1,(a0)+                      ; Mode 1 = Centered
         move.l #0,d0
-        move.l d0,(a0)+ ; Add it to our GPU RAM input buffer.
-        move.l d0,(a0)+ ; Add it to our GPU RAM input buffer.
+        move.l d0,(a0)+                      ; Add it to our GPU RAM input buffer.
+        move.l d0,(a0)+                      ; Add it to our GPU RAM input buffer.
         move.l #$600000,d0
-        move.l d0,(a0)+  ;Dest x,y,z
-        lea parrot,a0 ; Load the GPU module in camel.gas.
-        jsr gpurun      ;do clear screen
-        jsr gpuwait ; Wait for the GPU to finish.
-
+        move.l d0,(a0)+                      ; Dest x,y,z
+        lea parrot,a0                        ; Load the GPU module in camel.gas.
+        jsr gpurun                           ; do clear screen
+        jsr gpuwait                          ; Wait for the GPU to finish.
+        
         tst timer
         bmi babb
         sub #1,timer
         bpl rrrts
-
+        
 babb:   move.l pad_now,d0
         and.l #allbutts,d0
         beq rrrts
@@ -2248,57 +2265,57 @@ clearfeed:
 ; *******************************************************************
 versionscreen:
         move.l #rrts,routine
-        jsr InitBeasties       ; Initialize the beasties object list.
-        lea beasties,a0        ; Point a0 at the start of the beasties object list.
-        move.l #screen2,d2     ; Set screen2 as..
-        move.l d2,gpu_screen   ; ..  the source data for the beasties object.
-        move #TOP-16,d1        ; Set the X position.
-        bsr stru               ; Create the entry in the beasties object list.
+        jsr InitBeasties                ; Initialize the beasties object list.
+        lea beasties,a0                 ; Point a0 at the start of the beasties object list.
+        move.l #screen2,d2              ; Set screen2 as..
+        move.l d2,gpu_screen            ; ..  the source data for the beasties object.
+        move #TOP-16,d1                 ; Set the X position.
+        bsr stru                        ; Create the entry in the beasties object list.
         
         ; Set screen 3 as our gpu screen.
-        move.l #screen3,gpu_screen   ; Set screen3 as gpu screen.
-        jsr clearscreen              ; Clear it.
-
+        move.l #screen3,gpu_screen      ; Set screen3 as gpu screen.
+        jsr clearscreen                 ; Clear it.
+        
         ; Paint the '2000' in Tempest 2000. This is sourced
         ; from the image map in beasty7.cry (pic5).
-        move #4,d0        ; X position in source picture pic5
-        move #84,d1       ; Y position in source picture (pic5).
-        move #197,d2      ; Width to copy
-        move #65,d3       ; Height to copy
-        move #92,d4       ; X pos on screen to copy to.
-        move #120-15,d5   ; Y pos on screen to copy to.
-        tst pal           ; Test are we on a PAL screen?
-        beq mypal         ; If not, nothing required.
-        add #10,d5        ; If we are, add an offset to Y destination.
-mypal:  move.l #pic5,a0   ; Load pic5(beasty7.cry) to the source memory block.
-        move.l #screen3,a1 ; Select screen3 as our destination block.
-        jsr CopyBlock     ; Copy the selected rectangle from pic5 to our gpu screen.
-
+        move #4,d0                      ; X position in source picture pic5
+        move #84,d1                     ; Y position in source picture (pic5).
+        move #197,d2                    ; Width to copy
+        move #65,d3                     ; Height to copy
+        move #92,d4                     ; X pos on screen to copy to.
+        move #120-15,d5                 ; Y pos on screen to copy to.
+        tst pal                         ; Test are we on a PAL screen?
+        beq mypal                       ; If not, nothing required.
+        add #10,d5                      ; If we are, add an offset to Y destination.
+mypal:  move.l #pic5,a0                 ; Load pic5(beasty7.cry) to the source memory block.
+        move.l #screen3,a1              ; Select screen3 as our destination block.
+        jsr CopyBlock                   ; Copy the selected rectangle from pic5 to our gpu screen.
+        
         ; Write "Copyright 1981" to screen.
-        lea afont,a1      ; Select afont image map for our font.
-        lea ataricop1,a0  ; Load "Copyright 1981" string to a0
-        move #190-8,d0    ; Set the Y Pos.
-        add palfix2,d0    ; Adjust for PAL.
-        jsr centext       ; Write the text in a0 to the screen.
-
+        lea afont,a1                    ; Select afont image map for our font.
+        lea ataricop1,a0                ; Load "Copyright 1981" string to a0
+        move #190-8,d0                  ; Set the Y Pos.
+        add palfix2,d0                  ; Adjust for PAL.
+        jsr centext                     ; Write the text in a0 to the screen.
+        
         ; Write "1994 Atari Corp" to screen.
-        lea afont,a1      ; Select afont image map for our font.
-        lea ataricop2,a0  ; Load "1994 Atari Corp" string to a0.
-        move #207-5,d0    ; Set the Y pos of the text.
-        add palfix2,d0    ; Adjust for PAL.
-        jsr centext       ; Write the text in a0 to the screen.
-
+        lea afont,a1                    ; Select afont image map for our font.
+        lea ataricop2,a0                ; Load "1994 Atari Corp" string to a0.
+        move #207-5,d0                  ; Set the Y pos of the text.
+        add palfix2,d0                  ; Adjust for PAL.
+        jsr centext                     ; Write the text in a0 to the screen.
+        
         ; Write "DEVELOPED BY llamasoft" to screen.
-        lea cfont,a1      ; Load the selected font map.
-        lea llamacop,a0   ; Write "DEVELOPED BY llamasoft" string to a0.
-        move #40-10,d0    ; Set the Y pos.
-        jsr centext       ; Write the text in a0 to the screen.
-
+        lea cfont,a1                    ; Load the selected font map.
+        lea llamacop,a0                 ; Write "DEVELOPED BY llamasoft" string to a0.
+        move #40-10,d0                  ; Set the Y pos.
+        jsr centext                     ; Write the text in a0 to the screen.
+        
         move #TOP-16,d1
         jsr settrue33
-
+        
         move.l #$f80000,delta_i
-
+        
         move.l #v_ersion,demo_routine
         clr.l pc_1
         clr.l pc_2
@@ -2311,8 +2328,8 @@ mypal:  move.l #pic5,a0   ; Load pic5(beasty7.cry) to the source memory block.
         clr.l d7
         move #250,attime
         bsr attr
-        bra fade ; Do a melto-vision transition.
-
+        bra fade                        ; Do a melto-vision transition.
+        
 ; *******************************************************************
 ; v_ersion
 ; *******************************************************************
@@ -2523,7 +2540,7 @@ rotset:
 
         bsr sconopt
 
-        move #-1,blanka
+        move #-1,blanka ; We are going to draw objects as solids.
         move #2,selectable
         clr selected
 
@@ -2583,6 +2600,8 @@ sintoff:
 
 ; *******************************************************************
 ; optionscreen
+; Cycle through the various option screens until everything is selected
+; and we can start a game.
 ; Select game type screen, e.g. classic, duel, etc.
 ; *******************************************************************
 optionscreen:
@@ -2593,82 +2612,104 @@ optionscreen:
         clr.l pongz
         clr.l pc_1
         clr.l pc_2
-
-dcc:    tst z          ; Has the player done a hard reset?
+        
+dcc:    tst z                             ; Has the player done a hard reset?
         bne rrrts
-        move.l #option1,the_option
-        move #2,selected
+        
+        ; First do the 'Game Type' selection screen.
+        move.l #option1,the_option        ; Enable 'Select Game Type' option screen.
+        move #2,selected                  ; Tempest 2000 selected by default.
         clr t2k
         clr webbase
         move #$0f,weband
-        move #3,selectable
-        bsr do_choose
-        tst z          ; Has the player done a hard reset?
-        bne fago
-        tst optpress
-        bne gameopt ; Display option screen until something selected.
-        cmp #3,selected      ;do we do second Options screen?
-        bne selse
-
-        clr selected      ;get setup for H2H mode
-        move #2,selectable
-        move.l #option6,the_option
-        bsr do_choose
-        tst z          ; Has the player done a hard reset?
-        bne fago
-        cmp #2,selected
-        beq dcc        ;#2, was Exit, back to main title
-
-        ; Head to head selected.
-        move selected,practise    ;0=full 2-player, 1=practise
-        move #1,h2h      ;select h2h mode
-        clr rounds
-        tst practise
-        bne fago
+        move #3,selectable                ; There are 4 possible options.
+				; Player can choose: Traditional, Tempest Plus, Tempest 2000, or Tempest Duel (Head to Head).
+        bsr do_choose                     ; Display the selection screen for Game Type.
+        
+        ; We've chosen a game, decide what to do next.
+        tst z                             ; Has the player done a hard reset?
+        bne fago                          ; If so, get out of here.
+        tst optpress                      ; Was the option button pressed?
+        bne gameopt                       ; If so, display options selection screen until something selected.
+        cmp #3,selected                   ; Was Head-to-Head selected?
+        bne selse                         ; If not, go ahead and set up the game and return.
+        
+        ; More options for Head-to-Head mode.
+        clr selected                      ; Default is first option.
+        move #2,selectable                ; There are three possible options.
+        move.l #option6,the_option        ; Enable the Head-to-Head mode options.
+        bsr do_choose                     ; Display the selection screen.
+        
+        tst z                             ; Has the player done a hard reset?
+        bne fago                          ; If so, get out of here.
+        cmp #2,selected                   ; Was 'Exit' selected?
+        beq dcc                           ; If so, loop back so that we can choose again.
+        
+        ; Did they select Play or Practice?
+        move selected,practise            ; Get what they selected: 0=full 2-player, 1=practise
+        move #1,h2h                       ; Enable head-to-head mode
+        clr rounds                        ; Clear the number of rounds in the match.
+        tst practise                      ; Did they select 'Practise'?
+        bne fago                          ; If yes, we can jump to fago and start the game.
         clr selected
-        move #2,selectable
-        move.l #option10,the_option
-        bsr do_choose
-        move selected,d0
-        lsl #1,d0 ; Multiply it by 2.
-        move d0,rounds
+        move #2,selectable                ; Three options
+        move.l #option10,the_option       ; Enable the 'how many rounds' option screen.
+        bsr do_choose                     ; Show the screen and get a selection.
+        
+        move selected,d0                  ; Get the selection (0=1 round,1=3 rounds,2=5 rounds).
+        lsl #1,d0                         ; Multiply it by 2.
+        move d0,rounds                    ; Store the selection in rounds
         clr p1wins
         clr p2wins
-
-fago:   bsr fade ; Do a melto-vision transition.
-        clr selected
+        
+fago:   bsr fade                          ; Do a melto-vision transition.
+        clr selected                      ; Clear selection.
         move #1,players
         move #$1c,bulland
         move #7,bullmax
         move #1,entities
-        bra xsel1      ;go start up with h2h asserted...
+        bra xsel1                         ; Configure the game we've selected. 
+        ; Returns
 
 ; *******************************************************************
+; gameopt
 ; Display the Game Options, Select Dude Menu.
+; This is the general options screen you get when you press the 
+; 'Option' button.
 ; *******************************************************************
 gameopt:
-        clr selected      ;this does game option menu
-        move #1,selectable
-        move.l #option2,the_option
-        bsr do_choose
-        tst z          ; Has the player done a hard reset?
-        bne fago
-        jsr eepromsave
-        move selected,d0
-        beq dispop ; Show the hardware interlace/vector selection screen.
-        cmp #1,d0
-        bne nxtsl
-        bsr firesel
-        tst z          ; Has the player done a hard reset?
-        bne fago
-        bra dcc
-nxtsl:
-        cmp #2,d0
-        bne dcc
-        bsr rotset
-        bra optionscreen ; Go back to the game type selection screen.
+        ; Display the 'Game Options' screen, e.g. 'Display Setup',
+        ; and 'Control Setup'.
+        clr selected                 ; Set 'Display Setup' as the initial selection.
+        move #1,selectable           ; Two Options are available, we don't enable the 'Controller Type'.
+        move.l #option2,the_option   ; Enable the General Options Screen
+        bsr do_choose                ; Display the General Options screen.
+        
+        tst z                        ; Has the player done a hard reset?
+        bne fago                     ; If so, start a game.
+        jsr eepromsave               ; Otherwise, save the selections from General Options.
+        move selected,d0             ; See which general option they selected.
+        beq dispop                   ; If option 0, show the hardware interlace/vector selection screen.
+        cmp #1,d0                    ; Did they select 'Controller Setup?
+        bne nxtsl                    ; If no, skip to nxtssl.
+        
+        ; Do Controller Setup.
+        bsr firesel                  ; Enter 'Controller Setup' option screen.
+        tst z                        ; Has the player done a hard reset?
+        bne fago                     ; If yes, go ahead and start game?
+        bra dcc                      ; Display all options until user has selected a game.
+        
+nxtsl:  cmp #2,d0                    ; Did they select 'Controller TYpe'?
+        bne dcc                      ; If not, display all options until user has selected a game.
+        
+        bsr rotset                   ; Display the rotary controller options screen.
+        bra optionscreen             ; Display all option screens until user has selected a game.
+        ; Returns
 
-        ; Hardware Interlace/Fat Vectors Option Display
+; *******************************************************************
+; dispop
+; Hardware Interlace/Fat Vectors Option Display
+; *******************************************************************
 dispop: bsr fade                          ; going to do option on top of a displayed Web
         bsr sopt3                         ; Set up the option messages in option3.
         move.l #option3,the_option        ; Store it in the_option.
@@ -2687,9 +2728,9 @@ dispop: bsr fade                          ; going to do option on top of a displ
         bsr circa                         ; init circular *field
         move.l #gamefx,fx                 ; (so *f moves)
         lea _web,a0
-        move.l #webz,d0
+        move.l #webz,d0 ; Put the Z value for the top position of the web in d0.
         swap d0                           ; Swap position of the first 2 bytes with last 2 bytes.
-        move.l d0,12(a0)                  ; initial Z is further away than the usual
+        move.l d0,12(a0)                  ; Store it in the _web object: initial Z is further away than the usual
         move #1,34(a0) ; Draw routine in draw_vex is 'draw'.
         move.l #vecoptdraw,demo_routine
 
@@ -2743,95 +2784,107 @@ dweeb2: move.l d0,option3+12   ; Store the result in option3.
 
 ; *******************************************************************
 ; selse
+; Configure the game according to the type selected.
 ; *******************************************************************
 selse:
-        move #1,players
+        move #1,players              ; Set as a 1 player game.
         move #$1c,bulland
-        move #7,bullmax
-        move #1,entities
-        cmp #2,selected
-        beq npling
-        tst selected
-        beq opling      ;no Droidy or 2pl in trad Tempest
-        move selected,-(a7) ; Stash some values in the stack so we can restore them later.
-        clr selected
-        move #2,selectable
-        move.l #option7,the_option
-        bsr do_choose
-
-        move selected,d0
-        beq stdstrt
-        cmp #2,d0
-        beq set22
-        move #1,players
-        move #$3c,bulland  ;for test droid mode
-        move #15,bullmax
-        move #2,entities
-        bra stdstrt
-set22:
-        move #2,players    ;start 2-player simul mode
-        move #2,entities
+        move #7,bullmax              ; 7 bullets max.
+        move #1,entities             ; 1 entity: a claw.
+        cmp #2,selected              ; Is Tempest 2000 selected?
+        beq npling                   ; If so, jump to npling and skip 2 player setup.
+        tst selected                 ; Is Classic Tempest selected?
+        beq opling                   ; If so, no Droidy or 2pl in trad Tempest so nothing further required.
+        
+        ; Tempest Plus has been selected. Player can now choose the type of game for Tempest Plus.
+        ; Display 'Select Options for this Game': 1 Player, AI Droid, 2 Player Team.
+        move selected,-(a7)          ; Stash selection in the stack so we can restore it later.
+        clr selected                 ; Set  1 Player as default.
+        move #2,selectable           ; Three options are available.
+        move.l #option7,the_option   ; Enable 'Select Options for this Game'
+        bsr do_choose                ; Display it and get a selection.
+        
+				; Process the player's selection for the type of Tempest Plus game.
+        move selected,d0             ; Store the selection in d0.
+        beq stdstrt                  ; 1 Player was selected, go start it up.
+        cmp #2,d0                    ; If not, was two player mode selected?
+        beq set22                    ; If so, set up two players in set22.
+        
+        ; Otherwise, it's a 1 player game with a Droid..
+        move #1,players              ; 1 Player
+        move #$3c,bulland            ; for test droid mode
+        move #15,bullmax             ; 15 bullets max
+        move #2,entities             ; 2 entities: claw and droid.
+        bra stdstrt                  ; Skip to rest of set up.
+        
+        ; Player has selected 2 player: set up two player game.
+set22:  move #2,players              ; start 2-player simul mode
+        move #2,entities             ; 2 entities: claw and claw.
         move #$3c,bulland
-        move #15,bullmax
+        move #15,bullmax             ; 15 bullets max.
         clr dying
-stdstrt:
-        move (a7)+,selected ; Restore stashed values from the stack.
-        bra opling
-
-npling:
-        move #-1,keyplay
-        tst akeys    ;get active keys
-        bmi opling
-        move selected,-(a7) ; Stash some values in the stack so we can restore them later.
-
+        
+stdstrt:move (a7)+,selected          ; Restore the game selection value from the stack.
+        bra opling                   ; Skip all the other set up.
+        
+        ; Set up for a Tempest Classic game.
+npling: move #-1,keyplay
+        tst akeys                    ; Does the player have any active keys?
+        bmi opling                   ; If not, skip the key selection routine.
+        
+        ; Let the player select their key.
+        move selected,-(a7)          ; Stash some values in the stack so we can restore them later.
+        
         move #1,selected
         move #1,selectable
         move.l #option9,the_option
         bsr do_choose
         tst selected
         bne nonkey
-
+        
         clr selected
         move akeys,selectable
         move.l #option8,the_option
         bsr do_choose
         move selected,keyplay
         move selected,d0
-        asl #2,d0 ; Multiply it by 4.
-        lea keys,a0 ; Point a0 at keys.
+        asl #2,d0                    ; Multiply it by 4.
+        lea keys,a0                  ; Point a0 at keys.
         move.b 3(a0,d0.w),d0
-        and #$ff,d0 ; Keep it between 0 and 255
+        and #$ff,d0                  ; Keep it between 0 and 255
         add #1,d0
         cmp #99,d0
         ble isoka
         move #99,d0
-isoka:
-        move d0,t2k_max
-nonkey:
-        move (a7)+,selected ; Restore stashed values from the stack.
+isoka:  move d0,t2k_max
+nonkey: move (a7)+,selected          ; Restore stashed values from the stack.
+        
+opling: bsr fade                     ; Do a melto-vision transition.
+        ; Fall through
 
-opling:
-        bsr fade ; Do a melto-vision transition.
 ; *******************************************************************
 ; selsa
 ; *******************************************************************
 selsa:
-        clr blanka
-        tst selected
-        bne xsel1
-        move #0,view
+        clr blanka ; We're going to draw objects as vectors.
+        tst selected ; Was Tempest Classic selected (i.e. 0)?
+        bne xsel1 ; If not, enable Tempest Classic or Tempest 2000.
+        move #0,view ; 
         rts
 
 ; *******************************************************************
 ; xsel1
+; Called when Tempest Plus or Tempest 2000 is selected.
 ; *******************************************************************
 xsel1:
-        move #-1,blanka
+        move #-1,blanka ; We're going to draw objects as solids.
         move #0,view
-        cmp #2,selected
-        bne rrrts
-        move #-1,t2k
-        move #1,solidweb
+        cmp #2,selected ; Was Tempest 2000 selected?
+        bne rrrts ; If not, return early.
+
+				; We selected Tempest 2000.
+        move #-1,t2k ; Enable Tempest 2000.
+        move #1,solidweb ; Enable the solid web for Tempest 2000.
         move #$10,webbase
         move #$1f,weband
         rts
@@ -2913,7 +2966,7 @@ jcononly:
         clr selected
         bra selend
 incsel:
-        add #1,selected
+        add #1,selected ; Add 1 to current selection
 selend:
         move.l #seldb,routine
         move #21,sfx ; Select the 'Excellent' sound effect.
@@ -3185,7 +3238,7 @@ _tunn:
         lea tunnels,a0 ; Point a0 at tunnels.
         move.l 0(a0,d1.w),pongx  ;set course no.
         and #$30,d0
-        lsr #4,d0
+        lsr #4,d0 ; Divide by 32.
         move d0,pongyv
         add #1,bolev2
 
@@ -3401,7 +3454,7 @@ xpgdat:
         clr d6
         move 4(a2),d1      ;get x and y colourspace vector
         lsr #8,d0
-        lsr #4,d1
+        lsr #4,d1 ; Divide by 32.
         and #$f0,d1
         or d0,d1      ;combine these vectors
         move.b d1,2(a1)      ;set pattern colour
@@ -3426,7 +3479,7 @@ dingy:
 
         move.b pgenphase,3(a1)
         move pongzv,d0
-        and #$0f,d0
+        and #$0f,d0 ; Keep it between 0 and 15.
         move #$8f,d1
         cmp #$0d,d0
         ble sttoat
@@ -3594,7 +3647,7 @@ restuff:
         and.l #$ff,d0 ; Keep it between 0 and 255
         move #$ff,d3
         sub d0,d3
-        move #webz-80,d1
+        move #webz-80,d1 ; Store the top of the web Z value in d1.
         swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d1
         lea sines,a1 ; Load the sine table to a1.
@@ -3648,7 +3701,7 @@ nmoo2:
         sub #1,d0
         move frames,d7 ; Store frames in d7.
 pobjs:
-        move.l d1,12(a0)
+        move.l d1,12(a0) ; Use the Z position we got from the top of web.
         move d0,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr get_tbb
         move (a7)+,d0 ; Restore stashed values from the stack.
@@ -4176,18 +4229,18 @@ slegg:  and #$ff,d2 ; Keep d2 between 0 and 255.
         move.l a5,cg_ptr  ;save pointer
         move.l freeobjects,a6  ;get pointer to a new Thang
         move.l #-11,(a6)  ; Set index into solid polygon draw routine in 'solids': draw_gate.
-        move.l d0,4(a6)
-        move.l d1,8(a6)    ;X and Y position
+        move.l d0,4(a6) ; Set X position in activobject entry.
+        move.l d1,8(a6)    ;Set Y position in activobject entry.
         move.l #$ff0000,12(a6)  ;z=255
-        move d2,42(a6)
+        move d2,42(a6) ; Set the scale factor in activeobject entry.
         move #1,34(a6) ; Draw routine in draw_vex is 'draw'.
-        clr 50(a6)
+        clr 50(a6) ; Ensure activeobject entry not marked for deletion.
         move #27,54(a6) ; Object update routine in run_vex is 'run_gate'.
         clr 20(a6)
         move.l a6,a0
         sub #1,tunc
         bpl isso
-        move #1,20(a6)
+        move #1,20(a6) ; Set the velocity in activeobject entry.
         move #2,tunc
 isso:   jmp insertobject  ;make it
 
@@ -4198,8 +4251,8 @@ isso:   jmp insertobject  ;make it
 run_gate:
         add #1,28(a6)
         move.l grndvel,d0
-        sub.l d0,12(a6)
-        cmp #2,12(a6)
+        sub.l d0,12(a6) ; Set Z position in activobject entry.
+        cmp #2,12(a6) ; Set Z position in activobject entry.
         bgt rrrts
         move vp_x,d0
         sub 4(a6),d0
@@ -4257,12 +4310,12 @@ nanna:
         move.l a6,-(a7) ; Stash some values in the stack so we can restore them later.
         move.l a6,a5
         move.l freeobjects,a6  ;make a score Thang
-        move.l 4(a5),4(a6)
+        move.l 4(a5),4(a6) ; Set X position in activobject entry.
         add d1,4(a6)    ;random displace score Thang to L or R
-        move.l 8(a5),8(a6)
-        move.l 12(a5),12(a6)
-        clr 50(a6)
-        add #$ff,12(a6)
+        move.l 8(a5),8(a6) ; Set Y position in activobject entry.
+        move.l 12(a5),12(a6) ; Set Z position in activobject entry.
+        clr 50(a6) ; Ensure activeobject entry not marked for deletion.
+        add #$ff,12(a6) ; Set Z position in activobject entry.
         move.l a6,a0
         jsr insertobject ; Add it to the activeobjects list.
         move.l (a7)+,a0 ; Restore stashed values from the stack.
@@ -4285,7 +4338,7 @@ mist:   clr _pauen ; Disable pausing.
         move #1,pongz
         move.l #$f80000,delta_i
 
-ennd:   move #1,50(a6)
+ennd:   move #1,50(a6) ; Mark the activeobject entry for deletion.
         clr 54(a6)
         rts
 
@@ -5392,9 +5445,9 @@ ctl:
         move #1,tblock
         bsr setweb
         lea _web,a0
-        move.l #webz,d0
+        move.l #webz,d0 ; Store the top of the web's Z position in d0.
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
-        move.l d0,12(a0)
+        move.l d0,12(a0) ; Use it as our Z position.
         move #1,34(a0) ; Draw routine in draw_vex is 'draw'.
         jsr hisettrue3
         move.l #swebby,demo_routine
@@ -6035,52 +6088,52 @@ prloo:
 ; opupring
 ; *******************************************************************
 opupring:
-        movem.l d0-d3,-(a7) ; Stash some values in the stack so we can restore them later.
+        movem.l d0-d3,-(a7)   ; Stash some values in the stack so we can restore them later.
         move.l #6,gpu_mode
-        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
-        move.l #20,(a0)+    ;# pixels per ring
-        move.l d2,(a0)+ ; Add it to our GPU RAM input buffer.
-        move.l d3,(a0)+ ; Add it to our GPU RAM input buffer.
-        move.l d1,(a0)+  ;XYZ position
-        move frames,d7 ; Store frames in d7.
-        bsr pulser ; Calculate a pulse colour.
-        and.l #$ff,d6 ; Keep it between 0 and 255
-        move.l d6,(a0)+  ;colour
+        lea in_buf,a0         ; Point our GPU RAM input buffer at a0.
+        move.l #20,(a0)+      ; # pixels per ring
+        move.l d2,(a0)+       ; Add it to our GPU RAM input buffer.
+        move.l d3,(a0)+       ; Add it to our GPU RAM input buffer.
+        move.l d1,(a0)+       ; XYZ position
+        move frames,d7        ; Store frames in d7.
+        bsr pulser            ; Calculate a pulse colour.
+        and.l #$ff,d6         ; Keep it between 0 and 255
+        move.l d6,(a0)+       ; colour
         move 48(a6),d0
-        swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
+        swap d0               ; Swap position of the first 2 bytes with last 2 bytes.
         clr d0
-        move.l d0,(a0)+  ;radius 16:16
-        move frames,d0 ; Stash the frame count in d0.
-        and.l #$ff,d0 ; Keep it between 0 and 255
-        move.l d0,(a0)+    ;phase
-        lea xparrot,a0 ; Load the GPU module in 'xcamel.gas'.
-        jsr gpurun      ;do clear screen
-        jsr gpuwait ; Wait for the GPU to finish.
-        movem.l (a7)+,d0-d3 ; Restore stashed values from the stack.
+        move.l d0,(a0)+       ; radius 16:16
+        move frames,d0        ; Stash the frame count in d0.
+        and.l #$ff,d0         ; Keep it between 0 and 255
+        move.l d0,(a0)+       ; phase
+        lea xparrot,a0        ; Load the GPU module in 'xcamel.gas'.
+        jsr gpurun            ; do clear screen
+        jsr gpuwait           ; Wait for the GPU to finish.
+        movem.l (a7)+,d0-d3   ; Restore stashed values from the stack.
         move #3,d4
         move 48(a6),d7
         move.l #7,gpu_mode
 prloo4:
-        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
-        move.l #24,(a0)+    ;# pixels per ring
-        move.l d2,(a0)+ ; Add it to our GPU RAM input buffer.
-        move.l d3,(a0)+ ; Add it to our GPU RAM input buffer.
-        move.l d1,(a0)+  ;XYZ position
-        move d7,-(a7) ; Stash some values in the stack so we can restore them later.
-        bsr pulser ; Calculate a pulse colour.
-        move (a7)+,d7 ; Restore stashed values from the stack.
-        and.l #$ff,d6 ; Keep it between 0 and 255
-        move.l d6,(a0)+  ;colour
+        lea in_buf,a0         ; Point our GPU RAM input buffer at a0.
+        move.l #24,(a0)+      ; # pixels per ring
+        move.l d2,(a0)+       ; Add it to our GPU RAM input buffer.
+        move.l d3,(a0)+       ; Add it to our GPU RAM input buffer.
+        move.l d1,(a0)+       ; XYZ position
+        move d7,-(a7)         ; Stash some values in the stack so we can restore them later.
+        bsr pulser            ; Calculate a pulse colour.
+        move (a7)+,d7         ; Restore stashed values from the stack.
+        and.l #$ff,d6         ; Keep it between 0 and 255
+        move.l d6,(a0)+       ; colour
         move #300,d0
         sub d7,d0
         asr d4,d0
-        swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
+        swap d0               ; Swap position of the first 2 bytes with last 2 bytes.
         clr d0
-        move.l d0,(a0)+  ;radius 16:16
-        move.l #0,(a0)+    ;phase
-        lea xparrot,a0 ; Load the GPU module in 'xcamel.gas'.
-        jsr gpurun      ;do clear screen
-        jsr gpuwait ; Wait for the GPU to finish.
+        move.l d0,(a0)+       ; radius 16:16
+        move.l #0,(a0)+       ; phase
+        lea xparrot,a0        ; Load the GPU module in 'xcamel.gas'.
+        jsr gpurun            ; do clear screen
+        jsr gpuwait           ; Wait for the GPU to finish.
         dbra d4,prloo4
         rts
 
@@ -6646,8 +6699,8 @@ ppolydemo2:
         add #$80,d0
         add #$80,d1
         and #$f0,d0
-        lsr #4,d1
-        and #$0f,d1
+        lsr #4,d1 ; Divide by 32.
+        and #$0f,d1 ; Keep it between 0 and 15.
         or d0,d1      ;d1 is pulse colour
         move d1,ppoly1+22
         move d1,ppoly2+22
@@ -6730,8 +6783,8 @@ polydemo2:
         add #$80,d0
         add #$80,d1
         and #$f0,d0
-        lsr #4,d1
-        and #$0f,d1
+        lsr #4,d1 ; Divide by 32.
+        and #$0f,d1 ; Keep it between 0 and 15.
         or d0,d1      ;d1 is pulse colour
         move d1,poly1+18
         move d1,poly2+18
@@ -7762,7 +7815,7 @@ h2hin:  bsr h2hclaws
         clr.l l_ud
         move.l #-1,l_sc      ;clear player scores and update flags
         move #-1,_won
-        move #8,afree
+        move #8,afree ; There are now 8 slots in total in the activeobjects list.
 
         bra go_in      ; Start the game and enter 'mainloop'.
 
@@ -7805,23 +7858,25 @@ go_in:  move.l #rotate_web,routine
 
 ; *******************************************************************
 ; setweb
+; Set up the activeobject entry for the current web: _web which is a pointer
+; to an entry in the 'webs' array we constructed in make_webs.
 ; *******************************************************************
 setweb:
-        lea _web,a0
-        lea 4(a0),a0    ;object #0 is the Web
-        clr.l (a0)+
-        clr.l (a0)+    ;initial X and Y position
-        move.l #256+webz,d0
-        swap d0      ;initial Z position
-        move.l d0,(a0)+ ; Add it to our GPU RAM input buffer.
-        lea 12(a0),a0    ;skip unused Z vel/Grav stuff
-        clr.l (a0)+
-        clr (a0)+    ;initial X,Y,Z rotation is zero
-        move #1,(a0)+    ;STD draw
-        lea 4(a0),a0    ;skip unused stuff
-        move webcol,(a0)+    ;blue, the proper colour for a Tempest web
-        move #-2,(a0)+    ;scaler Big 2
-
+        lea _web,a0           ; Point a0 at the current web object.
+        lea 4(a0),a0          ; Point at the X position in the web.
+        clr.l (a0)+           ; Clear it as zero.
+        clr.l (a0)+           ; Clear Y as zero.
+        move.l #256+webz,d0   ; Store the top of the web's Z positioni + 256 in d0.
+        swap d0               ; Swap the bytes.
+        move.l d0,(a0)+       ; Store it as Z position in the _web object.
+        lea 12(a0),a0         ; Point at the Z position in the web.
+        clr.l (a0)+           ; Clear the Roll/Pitch
+        clr (a0)+             ; Clear the Yaw
+        move #1,(a0)+         ; Set our draw routine as 'draw' in the web object.
+        lea 4(a0),a0          ; skip unused stuff
+        move webcol,(a0)+     ; Set as blue, the proper colour for a Tempest web
+        move #-2,(a0)+        ; Set our scale factor:  -2 is big, as you'd expect for a web.
+        
 ; *******************************************************************
 ; sweb
 ; Set up and display the web (enters here during level selection).
@@ -7830,7 +7885,7 @@ sweb:
         tst h2h ; Are we playing a head-to-head game?
         beq stdwebsel
         move cweb,d0
-        and #$0f,d0
+        and #$0f,d0 ; Keep it between 0 and 15.
         lea h2hwebs,a0
         move.b 0(a0,d0.w),d0
         and #$ff,d0 ; Keep it between 0 and 255
@@ -7856,7 +7911,7 @@ wbsel:
         move.l a1,lanes
         move.l 4(a0),web_otab
         move.l 8(a0),web_ptab
-        move 12(a0),web_max
+        move 12(a0),web_max ; Set as the number of lanes in the web.
         move.l 14(a0),web_firstseg
         move 18(a0),web_x
         move 20(a0),web_z
@@ -7869,30 +7924,34 @@ wbsel:
 
         tst tblock
         bne gnosis
+
+				; Select the tune for the level.
         move cwave,d0 ; Get current level
-        lsr #4,d0
-        and #$07,d0
+        lsr #4,d0 ; Divide by 32.
+        and #$07,d0 ; Keep the number between 1 and 7.
         lea webtunes,a0 ; Point a0 at webtunes.
-        move.b 0(a0,d0.w),d0
-        move d0,modnum    ;request tune 4 this level
+        move.b 0(a0,d0.w),d0 ; Use the number to select the tune.
+        move d0,modnum    ; Make it the current tune.
 
-gnosis:
-        move #15,d0
+				; Clear the bullet list.
+gnosis: move #15,d0
         lea bulls,a0 ; Point a0 at bulls.
-clbulls:
-        clr.l (a0)+
-        dbra d0,clbulls
+clbulls:clr.l (a0)+ ; Clear the current 4-byte long.
+        dbra d0,clbulls ; Keep clearing until all 16 elements are clear.
         clr bully
-        move #18,noclog
-        tst t2k ; Are we playing Tempest 2000?
-        beq clokay
-        move #21,noclog
 
+				; Set the number of allowed enemies.
+        move #18,noclog ; Set the number of allowed enemies.
+        tst t2k ; Are we playing Tempest 2000?
+        beq clokay ; If not, skip to clokay.
+        move #21,noclog ; If yes, set a higher value for allowed enemies.
+
+				; Reset freeobject and superzapper.
 clokay: move.l #$70007,shots
-        move #32,afree
+        move #32,afree; There are now 32 slots in total in the activeobjects list.
         move #1,szap_avail  ;Nuevo Superzapper!
-        clr szap_on
-        clr _sz
+        clr szap_on ; Signal superzapper off.
+        clr _sz ; Turn off superzap. 
         lea spikes,a0 ; Point a0 at spikes.
         move #19,d0
 clsps:
@@ -7908,13 +7967,13 @@ rsetw:  move cwave,d0   ; Get current wave
         bne dontwrap    ;t2k really does have 100 levels in the ltab...
         cmp #48,d0
         blt dontwrap
-        and #$0f,d0
+        and #$0f,d0 ; Keep it between 0 and 15.
         lea tradmax,a0 ; Point a0 at tradmax.
         asl #2,d0 ; Multiply it by 4.
         move.l 0(a0,d0.w),a0  ;get looped wave pointer
         move d1,d2
         sub #48,d2
-        and #$0f,d1
+        and #$0f,d1 ; Keep it between 0 and 15.
         add #48,d1    ;logical level no.
         swap d2 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d2
@@ -7931,7 +7990,7 @@ dontwrap:
 
 iw:     move.l d0,a0         ; Move the data structure to a0.
 iwo:    bsr init_wave        ; Use it to initialize the wave.
-        clr pucnt
+        clr pucnt ; Clear the pulsar counter.
 
         move d1,d3
         tst t2k ; Are we playing Tempest 2000?
@@ -7942,7 +8001,7 @@ setemm:
         bne billy
         move #127,d3
 billy:
-        lsr #4,d3
+        lsr #4,d3 ; Divide by 32.
         lea rospeeds,a0 ; Point a0 at rospeeds.
         move.b 0(a0,d3.w),d3
         and #$ff,d3 ; Keep d3 between 0 and 255.
@@ -8388,34 +8447,35 @@ makedroid:
         beq rrts    ;no Droid in 2p mode
         cmp #2,entities
         bne rrts    ;2 entities and not 2p, it's droidytime
+
 ; *******************************************************************
 ; mkdroid
 ; Make an AI Droid object.
 ; *******************************************************************
 mkdroid:
-        move.l freeobjects,a0
-        sub #1,ofree
-        move.l _cube,(a0); Set address of the vector object to draw: _cube.
-        move #webz-90,12(a0)
-        move web_firstseg,d0
-        add #2,d0
-        move d0,16(a0)          ; Set it as the position on the web.
-        clr 18(a0)              ; Set
-        clr.l 20(a0)            ; Set velocity to 0.
-        clr.l 24(a0)            ; Set acceleration to 0.
-        clr.l 28(a0)            ; Set pitcha nd roll to 0.
-        clr 32(a0)              ; Set pitch to 0.
-        move #0,34(a0)          ; Draw routine in draw_vex is 'rrts', i.e. draw nothing.
-        move #136,40(a0)        ; Set the colour.
-        move #-1,42(a0)         ; Set the scale factor.
-        clr 44(a0)              ; Set the mode to 'get target'
-        clr 52(a0)              ; Set so not an enemy.
-        move #21,46(a0)         ; Set size of pixel data.
-        move #17,54(a0)         ; Object update routine in run_vex is 'rez_claw'.
-        move.l a0,a6            ; Put the addres of our object in a6 so it can be added to activeobjects.
-        bsr toweb               ; Set X/Y/Z position so we attach the droid to the web
-        bsr set_rezclaw         ; Set it up to behave like a rezclaw.
-        bra insertobject        ; Add it to the activeobjects list.
+        move.l freeobjects,a0   ; Point a0 at the address to use for our new activeobject.
+        sub #1,ofree             ; Make one less slot available on the freeobjects list.
+        move.l _cube,(a0)        ; Set address of the vector object to draw: _cube.
+        move #webz-90,12(a0)     ; Set our Z position as near the top of the web.
+        move web_firstseg,d0     ; Get the first lane on the web.
+        add #2,d0                ; Add 2 to it.
+        move d0,16(a0)           ; Set it as the droid's initial position on the web.
+        clr 18(a0)               ; Set
+        clr.l 20(a0)             ; Set velocity to 0.
+        clr.l 24(a0)             ; Set acceleration to 0.
+        clr.l 28(a0)             ; Set pitcha nd roll to 0.
+        clr 32(a0)               ; Set pitch to 0.
+        move #0,34(a0)           ; Draw routine in draw_vex is 'rrts', i.e. draw nothing.
+        move #136,40(a0)         ; Set the colour.
+        move #-1,42(a0)          ; Set the scale factor.
+        clr 44(a0)               ; Set the mode to 'get target'
+        clr 52(a0)               ; Set so not an enemy.
+        move #21,46(a0)          ; Set size of pixel data.
+        move #17,54(a0)          ; Object update routine in run_vex is 'rez_claw'.
+        move.l a0,a6             ; Put the addres of our object in a6 so it can be added to activeobjects.
+        bsr toweb                ; Set X/Y/Z position so we attach the droid to the web
+        bsr set_rezclaw          ; Set it up to behave like a rezclaw.
+        bra insertobject         ; Add it to the activeobjects list.
 
 ; *******************************************************************
 ; rundroid
@@ -8423,51 +8483,59 @@ mkdroid:
 ; *******************************************************************
 rundroid:
         clr whichclaw
-        add #1,28(a6)      ;Universal stuff; flash and rotate the cube
-        add #2,30(a6)
-        add #3,32(a6)
-        move flashcol,40(a6)
-
-        cmp #2,entities      ;did we start with 2 entities (driod is permanent)?
+        ; Universal stuff
+        add #1,28(a6)              ; Increment pitch.
+        add #2,30(a6)              ; Increment roll.
+        add #3,32(a6)              ; Increment yaw.
+        move flashcol,40(a6)       ; Update the color.
+        
+				; Should we expire the droid?
+        cmp #2,entities            ; did we start with 2 entities (driod is permanent)?
         beq always_2
         cmp #-2,wave_tim
         bne always_2
-        move #1,50(a6)      ;FG Unlink Please
+        move #1,50(a6)             ; FG Unlink Please
         rts
-
+        
+        ; See if we can fire a bullet from the droid.
 always_2:
-        sub.b #1,droidel      ;Droid's firing rate
+        sub.b #1,droidel           ; Droid's firing rate
         bpl nodfire
         move.b droidel+1,droidel
-        tst locked
-        bne nodfire
+        tst locked                 ; Are we in the middle of deleting an object from activeobjects?
+        bne nodfire                ; If so, don't fire a bullet from the droid.
         tst shots+2
-        bmi nodfire
+        bmi nodfire                ; If so, don't fire a bullet from the droid.
         cmp #1,34(a6)
-        bne nodfire
+        bne nodfire                ; If so, don't fire a bullet from the droid.
+
+        ; We can fire a bullet from the droid.
         sub #1,shots+2
         move.l a6,a1
-        move #$80,d7      ;marker for bullets to distinguish pl. 1 and pl 2 shots
-        move.l _chevre,d5 ; Set address of the vector object to draw: _chevre.
-        bsr frab0      ;frab0 is fire w. arbitrary graphic
-nodfire:
-        tst 44(a6)
-        bne movedroid      ;mode non0 means droid is moving.
+        move #$80,d7               ; marker for bullets to distinguish pl. 1 and pl 2 shots
+        move.l _chevre,d5          ; Set address of the vector object to draw: _chevre.
+        bsr frab0                  ; frab0 is fire w. arbitrary graphic
 
-        move droid_data,d0    ;this is the closest enemy to the top of the Web
-        bsr lor        ;ask Left or Right to get there
-        bne droidright      ;init droid motion to the right.
-        bra droidleft      ;init droid motion to the left.
+				;  Is the droid moving already?
+nodfire:tst 44(a6)
+        bne movedroid              ; mode non0 means droid is moving.
 
+        ; Initiate movement of the droid. 
+        move droid_data,d0         ; this is the closest enemy to the top of the Web
+        bsr lor                    ; ask Left or Right to get there
+        bne droidright             ; init droid motion to the right.
+        bra droidleft              ; init droid motion to the left.
+        
+				; Move the droid.
 movedroid:
         move.l 20(a6),d0
-        add.l d0,4(a6)
-        move.l 24(a6),d0
-        add.l d0,8(a6)      ;Move droid along its vector.
-        sub #1,44(a6)      ;dec timer, will fall thru to zero and seek a new targ.
-        cmp #8,44(a6)      ;half way along the logical lane no. needs to change over
+        add.l d0,4(a6)             ; Set X position in activobject entry.
+        move.l 24(a6),d0           ; Move droid along its vector.
+        add.l d0,8(a6)             ; Set Y position in activobject entry
+        sub #1,44(a6)              ; dec timer, will fall thru to zero and seek a new targ.
+        cmp #8,44(a6)              ; half way along the logical lane no. needs to change over
         bne rrts
-        move 48(a6),16(a6)    ;do that very Thang
+        move 48(a6),16(a6)         ; do that very Thang
         rts
 
 ; *******************************************************************
@@ -8507,7 +8575,7 @@ droim:
         sub.l d7,d5      ;get vector towards destination
         asr.l #4,d4
         asr.l #4,d5      ;vector /16
-        move.l d4,20(a6)
+        move.l d4,20(a6) ; Set the velocity in activeobject entry.
         move.l d5,24(a6)    ;store the vector
         move d0,48(a6)      ;dest channel-#
         move #16,44(a6)      ;# steps
@@ -8535,7 +8603,7 @@ nntrv:
         ble lor1
 ;  bra zz
 _lor1:
-        move web_max,d2
+        move web_max,d2; Get number of lanes in web and put it in d2.
         asr #1,d2      ;half distance around web
         sub d0,d1
         bgt _lll
@@ -8569,7 +8637,7 @@ h2hclaws:
         move.l #0,(a0)
         clr.l 4(a0)
         clr.l 8(a0)
-        move #webz-80,d0
+        move #webz-80,d0; Store the top of the web's Z position in d0.
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d0
         move.l d0,12(a0)
@@ -8585,12 +8653,12 @@ h2hclaws:
         clr.l 50(a6)
         move #17,54(a6) ; Object update routine in run_vex is 'rez_claw'. 
         jsr insertobject ; Add it to the activeobjects list.
-        move.l freeobjects,a0
+        move.l freeobjects,a0 ; Point a0 at the address to use for our new activeobject.
         move.l a0,a6 ; Move our newly created object into the activeobjects list.
         move.l #0,(a0)
         clr.l 4(a0)
         clr.l 8(a0)
-        move #webz+80,d0
+        move #webz+80,d0; Store the top of the web's Z position in d0.
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d0
         move.l d0,12(a0)
@@ -8608,15 +8676,15 @@ h2hclaws:
         clr.l 50(a6)
         move #17,54(a6) ; Object update routine in run_vex is 'rez_claw'. 
         jsr insertobject ; Add it to the activeobjects list.
-
-        move #webz-76,d0    ;make the players' mirrors.  Always at (C-2) object.
+			  ;make the players' mirrors.  Always at (C-2) object.
+        move #webz-76,d0  ; Store the top of the web's Z position in d0. 
         bsr makemirr
-        move #webz+76,d0
+        move #webz+76,d0; Store the top of the web's Z position in d0.
 
 makemirr:
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d0
-        move.l freeobjects,a0
+        move.l freeobjects,a0 ; Point a0 at the address to use for our new activeobject.
         move.l #-13,(a0)  ; Set index into draw routine in 'solids': draw_mirr.
         clr.l 4(a0)       ; Clear X position
         clr.l 8(a0)       ; Clear Y position
@@ -8638,9 +8706,9 @@ setclaw:
         move.l claws,(a6)    ;claw header
         clr.l 4(a6)
         clr.l 8(a6)    ;initial X and Y position
-        move.l #webz-80,d0
+        move.l #webz-80,d0; Store just above the top of the web's Z position in d0.
         swap d0      ;initial Z position
-        move.l d0,12(a6)
+        move.l d0,12(a6) ; Set it as our Z position in activobject entry.
         move.l web_firstseg,16(a6)    ;web position
         clr.l 20(a6)    ;clear CLAWV
         move.l #$400,24(a6)  ;clear CLAWA
@@ -8863,10 +8931,12 @@ mclaws: move d7,-(a7)         ; Stash some values in the stack so we can restore
 
 ; *******************************************************************
 ; make_webs
+; Take the data structures that define our webs in web1, web2 etc. and
+; turn them into web 'objects' that we store in 'webs'.
 ; *******************************************************************
 make_webs:
-        lea raw_webs,a6
-        lea webs,a5 ; Point a5 at webs.
+        lea raw_webs,a6 ; Point a6 at our list of web data structures, e.g. web1, web2 etc.
+        lea webs,a5 ; Point a5 at webs, which we will use to store the constructed webs.
 mk_webs:
         movem.l a5-a6/d7,-(a7) ; Stash some values in the stack so we can restore them later.
         move.l (a6),a1
@@ -8884,7 +8954,7 @@ mk_webs:
         move.l a0,(a5)
         move.l web_otab,4(a5)
         move.l web_ptab,8(a5)
-        move web_max,12(a5)
+        move web_max,12(a5) ; Store the number of lanes int he web.
         move.l web_firstseg,14(a5)
         move web_x,18(a5)
         move web_z,20(a5)
@@ -8910,7 +8980,7 @@ fire:
         beq rrts      ;no-one smarted
         tst szap_avail
         bmi rrts      ;someone smarted, but it wasn't available
-        tst szap_on
+        tst szap_on ; Is superzapper on?
         bne rrts      ;someone smarted, but it's already happening
         clr p2smarted
         and.l d0,d2      ;did player 2 smart?
@@ -8922,7 +8992,7 @@ snglsmart:
         beq rrts
         tst szap_avail
         bmi rrts      ;You already had it!
-        tst szap_on
+        tst szap_on ; Is superzapper on?
         bne rrts      ;You are already Superzapping!
 gsmart:
         sub #1,szap_avail
@@ -8932,7 +9002,7 @@ gsmart:
         move.l #$8000,d1
         bsr setmsg
 nmsg:
-        move #1,szap_on      ;Start the sizzle...
+        move #1,szap_on      ;Start the sizzle... start the Superzapper.
         move #7,sfx ; Select the 'Crackle' sound effect.
         move #10,sfx_pri ; Set the sound's priority compared to others.
         jsr fox ; Play selected sound effect.
@@ -8942,41 +9012,44 @@ nmsg:
 ; *******************************************************************
 ; h2hfrab
 ; Fire a bullet in head to head mode.
+; If there's room for another bullet, we'll create it and add it to the
+; activeobjects list.
 ; *******************************************************************
 h2hfrab:
-
-        move.l d0,-(a7) ; Stash some values in the stack so we can restore them later.
-        move #1,sfx ; Select the 'Player SHot Normal 2' sound effect.
-        move #1,sfx_pri ; Set the sound's priority compared to others.
-        jsr fox ; Play selected sound effect.
-        move.l freeobjects,a0    ;address of new shot
-        lea bulls,a3 ; Point a3 at bulls.
-hgoaty:
-        move bully,d0
+        move.l d0,-(a7)         ; Stash some values in the stack so we can restore them later.
+        move #1,sfx             ; Select the 'Player SHot Normal 2' sound effect.
+        move #1,sfx_pri         ; Set the sound's priority compared to others.
+        jsr fox                 ; Play selected sound effect.
+        
+        ; Look for a free slot for a new bullet.
+        move.l freeobjects,a0   ; address of new shot
+        lea bulls,a3            ; Point a3 at bullets list.
+hgoaty: move bully,d0           ; Get current index into bullets list.
         move bulland,d1
         and d1,d0
-        lea 0(a3,d0.w),a2    ;point to this bulls slot
-        move.l (A2),d0
-        beq hfreeslot
-        add #4,bully
-        bra hgoaty      ;find 1
+        lea 0(a3,d0.w),a2       ; point to this bulls slot
+        move.l (a2),d0
+        beq hfreeslot           ; If it's a free slot, add a bullet.
+        add #4,bully            ; Otherwise move to next slot.
+        bra hgoaty              ; Loop to test whether new slot is free.
+        
 hfreeslot:
-        add #4,bully
-        move.l a0,(a2)          ;store address of this bull
-        move.l a2,24(a0)        ;store slot addr. in bull
-        move.l #-14,(a0)        ;header of shot data
-        move.l 4(a1),4(a0)
-        move.l 8(A1),8(a0)
-        move.l 12(a1),12(a0)    ;XYZ same as claw
-        move.l 16(a1),16(a0)    ;Web position from claw
+        add #4,bully            ; Point to the next slot in 'bulls' for later.
+        move.l a0,(a2)          ; store address of this bull
+        move.l a2,24(a0)        ; store slot addr. in bull
+        move.l #-14,(a0)        ; header of shot data
+        move.l 4(a1),4(a0)      ; Set X position to player's position.
+        move.l 8(A1),8(a0)      ; Set Y position to player's position.
+        move.l 12(a1),12(a0)    ; Set Z position to player's position.
+        move.l 16(a1),16(a0)    ; Web position from claw
         clr.l 28(a0)
-        clr 32(a0)      ;Zero roll, pitch and yaw
-        move #1,34(a0)      ; Draw routine in draw_vex is 'draw'.
-        move.l (a7)+,36(a0)    ;get saved velocity
-        move #0,32(a0)      ;bullet ID (player ownership) changed from 44() to 32()
-        move #1,52(a0)    ;not alien and Type
-        move #32,54(a0) ; Object update routine in run_vex is 'run_h2hshot'. 
-        bra insertobject ; Add it to the activeobjects list.
+        clr 32(a0)              ; Zero roll, pitch and yaw
+        move #1,34(a0)          ; Draw routine in draw_vex is 'draw'.
+        move.l (a7)+,36(a0)     ; get saved velocity
+        move #0,32(a0)          ; bullet ID (player ownership) changed from 44() to 32()
+        move #1,52(a0)          ; not alien and Type
+        move #32,54(a0)         ; Object update routine in run_vex is 'run_h2hshot'.
+        bra insertobject        ; Add it to the activeobjects list.
 
 
 ; *******************************************************************
@@ -8988,7 +9061,7 @@ run_h2hshot:
 moomoomoo:
         move.l 36(a6),d0
         bmi upweb
-        add.l d0,12(a6)
+        add.l d0,12(a6) ; Set Z position in activobject entry.
         move 12(a6),d0    ;this bull's Z
         move 16(a6),d1
         move.l _claw,a4
@@ -9010,15 +9083,15 @@ reflshot:
         jsr fox ; Play selected sound effect.
         bra moomoomoo
 np2sh:
-        cmp #webz+81,12(a6)
-        bmi rrts
+        cmp #webz+81,12(a6) ; Set top of the web as Z position in activobject entry.
+        bmi rrts ; If not, return now.
 kllit:
         move.l 24(a6),a1
         clr.l (a1)
-        move #3,50(a6)
+        move #3,50(a6) ; Mark it for deletion.
         rts
 upweb:
-        add.l d0,12(a6)
+        add.l d0,12(a6) ; Set Z position in activobject entry.
         move.l _claw,a4
         move.l 56(a4),a4  ;p2's Claw
         move.l 56(a4),a4  ;p1's Shield
@@ -9036,8 +9109,8 @@ upweb:
         jsr fox ; Play selected sound effect.
         bra moomoomoo
 np1sh:
-        cmp #webz-81,12(a6)
-        bmi kllit
+        cmp #webz-81,12(a6) ; Has it reached the top of the web?
+        bmi kllit ; If so, get rid of it.
         rts
 
 biu2:
@@ -9050,6 +9123,10 @@ biu1:
 biu:
         move.l 60(a4),a4
         move.l 60(a4),a4  ;point at the Claw we hit
+; *******************************************************************
+; h2hckill
+; Kill a claw in head-tohead mode.
+; *******************************************************************
 h2hckill:
         tst _won
         bpl rrts
@@ -9095,44 +9172,47 @@ p2_prac:
 ; fire a bullet
 ; *******************************************************************
 frab:
-        move.l _shot,d5; Set address of the vector object to draw: _shot.
-
-frab0:
-        move.l freeobjects,a0   ;address of new shot
-        lea bulls,a3 ; Point a3 at bulls.
-goaty:
-        move bully,d0
+        move.l _shot,d5         ; Set address of the vector object to draw: _shot.
+        
+        ; Find a free slot in the 'bulls' array for a new bullet.
+frab0:  move.l freeobjects,a0   ; address of new shot
+        lea bulls,a3            ; Point a3 at bullets array..
+goaty:  move bully,d0           ; Put the current index in the array into d0.
         move bulland,d1
         and d1,d0
-        lea 0(a3,d0.w),a2       ;point to this bulls slot
-        move.l (A2),d0
-        beq freeslot
-        add #4,bully
-        bra goaty               ;find 1
+        lea 0(a3,d0.w),a2       ; Use our index to get the current slot.
+        move.l (a2),d0          ; Store it in d0 so we can check it.
+        beq freeslot            ; If it's zero, it's free - so go ahead and add a bullet.
+        add #4,bully            ; Otherwise advance to the next slot in 'bulls'.
+        bra goaty               ; And loop to check if it's free.
+        
 freeslot:
-        add #4,bully
-        move.l a0,(a2)          ;store address of this bull
-        move.l a2,24(a0)        ;store slot addr. in bull
-        move.l d5,(a0)          ;header of shot data
-        move.l 4(a1),4(a0)
-        move.l 8(A1),8(a0)
-        move.l 12(a1),12(a0)    ;XYZ same as claw
-        move.l 16(a1),16(a0)    ;Web position from claw
+        add #4,bully            ; Advance the index to the next slot in 'bulls' for next time.
+        move.l a0,(a2)          ; store address of this bull
+        move.l a2,24(a0)        ; store slot addr. in bull
+        move.l d5,(a0)          ; header of shot data
+        move.l 4(a1),4(a0)      ; Set X to the player's position.
+        move.l 8(A1),8(a0)      ; Set Y to the player's position.
+        move.l 12(a1),12(a0)    ; Set Z to the player's position
+        move.l 16(a1),16(a0)    ; Web position from claw
         clr.l 28(a0)
-        clr 32(a0)              ;Zero roll, pitch and yaw
-        move #1,34(a0)           ; Draw routine in draw_vex is 'draw'.
-        move #$88,40(a0)        ;Colour
-        move #1,42(a0)          ;Fine rez
-        move d7,32(a0)          ;bullet ID (player ownership) changed from 44() to 32()
-        move.l #1,52(a0)        ;not alien and Type
-        tst blanka
-        bne oaafire
-        move #1,sfx ; Select 'Player Shot Normal 2' sound effect.
-        jsr fox ; Play selected sound effect.
-        bra insertobject ; Add it to the activeobjects list.
-
-oaafire:
-        move.l #$b6000a,d0
+        clr 32(a0)              ; Zero roll, pitch and yaw
+        move #1,34(a0)          ; Draw routine in draw_vex is 'draw'.
+        move #$88,40(a0)        ; Colour
+        move #1,42(a0)          ; Fine rez
+        move d7,32(a0)          ; bullet ID (player ownership) changed from 44() to 32()
+        move.l #1,52(a0)        ; not alien and Type
+        tst blanka              ; Are we drawing solids or vectors?
+        bne oaafire             ; If we're drawing solids, go to oaafire.
+        
+        ; Add a vector based bullet.
+        move #1,sfx             ; Select 'Player Shot Normal 2' sound effect.
+        jsr fox                 ; Play selected sound effect.
+        bra insertobject        ; Add it to the activeobjects list.
+        ; Returns.
+        
+        ; Construct a solid polygon bullet instead of a vector based one.
+oaafire:move.l #$b6000a,d0
         move.l #$070007,d1
         tst 32(a0)
         beq konk
@@ -9141,52 +9221,56 @@ oaafire:
 konk:
         move.l #$10000,d2
         move.l #$10000,d3
-        move.l #-9,(a0); Set index into solid polygon draw routine in 'solids': draw_pixex.
-        move #5,34(a0)     ; Draw routine in draw_vex is 'draw_pixex'.
-        move.l d3,42(a0)  ;initial pixel expansion
+        move.l #-9,(a0)         ; Set index into solid polygon draw routine in 'solids': draw_pixex.
+        move #5,34(a0)          ; Draw routine in draw_vex is 'draw_pixex'.
+        move.l d3,42(a0)        ; initial pixel expansion
         move.l d0,36(a0)
         move.l d1,46(a0)
         move.l d2,20(a0)
-        tst laser_type
-        bne oaafire2
-        move #5,sfx ; Select 'Player Shot Normal' sound effect.
-        move #1,sfx_pri ; Set the sound's priority compared to others.
-        jsr fox ; Play selected sound effect.
-        jmp insertobject ; Add it to the activeobjects list.
+        tst laser_type          ; Is it a normal bullet or a laser?
+        bne oaafire2            ; If laser, skip to oaafire2.
+        
+        ; It's a normal bullet, so add it.
+        move #5,sfx             ; Select 'Player Shot Normal' sound effect.
+        move #1,sfx_pri         ; Set the sound's priority compared to others.
+        jsr fox                 ; Play selected sound effect.
+        jmp insertobject        ; Add it to the activeobjects list.
+        
+        ; It's a Power Up shot, so use the appropriate draw routine and sound effect.
 oaafire2:
-        move #10,34(a0) ; Draw routine in draw_vex is 'draw_pring'.
-        move #$0b,sfx ; Select 'Power Up Shot' sound effect.
-        move #1,sfx_pri ; Set the sound's priority compared to others.
-        jsr fox ; Play selected sound effect.
-        bra insertobject    ;Do it!
+        move #10,34(a0)         ; Draw routine in draw_vex is 'draw_pring'.
+        move #$0b,sfx           ; Select 'Power Up Shot' sound effect.
+        move #1,sfx_pri         ; Set the sound's priority compared to others.
+        jsr fox                 ; Play selected sound effect.
+        bra insertobject        ; Do it!
 
 ; *******************************************************************
 ; make_h2hball
 ; *******************************************************************
 make_h2hball:
-        move.l freeobjects,a0
-        move web_max,d1
-        jsr rand ; Put a random number between 0 and d1 in d0.
-        move #webz,d1
-        swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
+        move.l freeobjects,a0   ; Point a0 at the address to use for our new activeobject.
+        move web_max,d1         ; Get number of lanes in web and put it in d1.
+        jsr rand                ; Put a random number between 0 and d1 in d0.
+        move #webz,d1           ; Store the top of the web's Z position in d1.
+        swap d1                 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d1
-        move.l d1,12(a0)
+        move.l d1,12(a0)        ; Set it as the object's Z position.
         move d0,16(a0)
-        move #-1,18(a0)      ;Timer for player zappage
+        move #-1,18(a0)         ; Timer for player zappage
         clr.l 30(a0)
         clr 20(a0)
-        move #1,34(a0) ; Draw routine in draw_vex is 'draw'.
+        move #1,34(a0)          ; Draw routine in draw_vex is 'draw'.
         move.l #-18,(a0)
         clr.l 50(a0)
-        bsr rannum ; Put a random number between 0 and d1 in d0.
+        bsr rannum              ; Put a random number between 0 and d1 in d0.
         sub #$80,d0
-        move d0,22(a0)      ;Direction to move, + or -
-        move #$0404,24(a0)    ;Speed of motion
+        move d0,22(a0)          ; Direction to move, + or -
+        move #$0404,24(a0)      ; Speed of motion
         clr 48(a0)
-        move #34,54(a0) ; Object update routine in run_vex is 'run_h2hball'.  ; Object Update routine is 'run_h2hball'.
-        move.l a0,a6 ; Move our newly created object into the activeobjects list.
-        jsr toweb ; Set X and Y to attach it to the web.
-        jmp insertobject ; Add it to the activeobjects list.
+        move #34,54(a0)         ; Object update routine in run_vex is 'run_h2hball'.
+        move.l a0,a6            ; Move our newly created object into the activeobjects list.
+        jsr toweb               ; Set X and Y to attach it to the web.
+        jmp insertobject        ; Add it to the activeobjects list.
 
 ; *******************************************************************
 ; run_h2hball
@@ -9218,19 +9302,19 @@ hballmove:
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d0
         asr.l #2,d0 ; Divide by 4.
-        add.l d0,12(a6)
-        cmp #webz+80,12(a6)
-        bpl got_someone
-        cmp #webz-80,12(a6)
-        bpl rrts
+        add.l d0,12(a6) ; Set Z position in activobject entry.
+        cmp #webz+80,12(a6) ; Has it reached the top of the web?
+        bpl got_someone ; If so, we might have got someone, go to got_someone.
+        cmp #webz-80,12(a6) ; Has it not reached the top of the web?
+        bpl rrts ; If so, return.
 got_someone:
         move #30,18(a6)
-        cmp #webz,12(a6)
-        bgt zp2
+        cmp #webz,12(a6) ; Have we reached the top of the web?
+        bgt zp2 ; IF so, 
         move.l _claw,a4
 xeq:
         neg 48(a6)
-        bra h2hckill
+        bra h2hckill ; Kill the claw!
 zp2:
         move.l _claw,a4
         move.l 56(a4),a4
@@ -9239,7 +9323,6 @@ zp2:
 
 h2hballmodes:
         dc.l gstartmove,gmove,breset
-
 
 ; *******************************************************************
 ; breset
@@ -9252,10 +9335,10 @@ breset:
 ; make_h2hgen
 ; *******************************************************************
 make_h2hgen:
-        move.l freeobjects,a0
+        move.l freeobjects,a0 ; Point a0 at the address to use for our new activeobject.
         move.l #-15,(a0)
         move d0,d2
-        move #webz,d0
+        move #webz,d0; Store the top of the web's Z position in d0.
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d0
         move.l d0,12(a0)    ;start Z-pos
@@ -9270,7 +9353,7 @@ make_h2hgen:
         clr.l 50(a0)
         move #33,54(a0) ; Object update routine in run_vex is 'run_h2hgen'. 
         move.l a0,a6 ; Move our newly created object into the activeobjects list.
-        bsr toweb
+        bsr toweb ; Set X and Y of object to attach it to the web on selected lane.
         bra insertobject ; Add it to the activeobjects list.
 
 ; *******************************************************************
@@ -9292,14 +9375,14 @@ run_h2hgen:
         bne rrts
         tst h2h_sign
         bmi hupweb
-        cmp #webz+50,12(a6)
-        bpl rrts      ;already close enough
-        add #1,12(a6)
+        cmp #webz+50,12(a6) ; Has it reached the top of the web?
+        bpl rrts      ; If already close enough, return
+        add #1,12(a6) ; Add 1 to Z position in activobject entry.
         rts
 hupweb:
-        cmp #webz-50,12(a6)
-        bmi rrts
-        sub #1,12(a6)
+        cmp #webz-50,12(a6) ; Has it reached the top of the web? 
+        bmi rrts ; If not, return
+        sub #1,12(a6) ; Subtract 1 from Z position in activobject entry.
         rts
 
 h2hgenmode:
@@ -9354,9 +9437,9 @@ gmove:
         bpl rrts      ;motion delay
         move.b 25(a6),24(a6)    ;reset it
         move.l 36(a6),d0
-        add.l d0,4(a6)
-        move.l 40(a6),d0
-        add.l d0,8(a6)      ;move 1/16 of the way to target
+        add.l d0,4(a6) ; Set X position in activobject entry.
+        move.l 40(a6),d0  ;move 1/16 of the way to target
+        add.l d0,8(a6)    ;Set Y position in activobject entry.
         cmp #8,44(a6)
         bne gmove1      ;check for halfway acress
         move 46(a6),16(a6)    ;set dest channel=our channel
@@ -9373,20 +9456,20 @@ ggen:
         clr 20(a6)
         tst _won
         bpl rrts
-        cmp #1,afree
-        ble rrts
-        sub #2,afree
+        cmp #1,afree ; Is there just one slot available in the activeobjects list?
+        ble rrts ; If so, that's not enough, so return.
+        sub #2,afree ; Reserve the 2 slots we're going to us.
         move.l a6,a5    ;mummy's address save
         move.l freeobjects,a6
         bsr newflipper      ;new flipper in this lane
-        jsr toweb
+        jsr toweb ; Set X and Y of object to attach it to the web on selected lane.
         bsr flip_set_right
         move.l #$00010001,44(a6)
         move #3,48(a6)
         move #-1,38(a6)      ;tells it to stop Flipping after one flip
         move.l freeobjects,a6
         bsr newflipper
-        jsr toweb
+        jsr toweb ; Set X and Y of object to attach it to the web on selected lane.
         move.l #$0001ffff,d0
         tst practise
         beq arse
@@ -9448,24 +9531,25 @@ afid:
         cmp #-2,wave_tim
         beq rrts
         tst ashots
-        bmi rrts
-        cmp #webz-20,12(a6)
+        bmi rrts ; If not, return now.
+        cmp #webz-20,12(a6) ;  Has it reached the top of the web yet?
         ble rrts      ;Cannot fire really close to the top of the Web
-        move.l freeobjects,a0
+        move.l freeobjects,a0 ; Point a0 at the address to use for our new activeobject.
         sub #1,ashots
-        sub #1,afree
+        sub #1,afree ; Reserve the slot in activeobjects we're going to us.
         move.l _shot,d0; Set address of the vector object to draw: _shot.
         clr 20(a0)
-        tst blanka
-        beq vfyre
-        move.l #-3,d0
-        bra vfyre
+        tst blanka ; Are we drawing solids or vectors?
+        beq vfyre ; If vectors, go to vfyre.. otherwise set it up as a solid:
+        move.l #-3,d0 ; Set 's_shot' as the draw routine to use.
+        bra vfyre ; Jump to object creation.
         
-        ; Make an enemy bullet object and add it to the activeobjects list.
-slongfur:
-        move.l #-7,d0
+				; Looks like this branch is never reached.
+        move.l #-7,d0          ; Set 'ringbull as the draw routine to use.
         move #1,20(a0)         ; Set the velocity to 1.
-vfyre:  move.l d0,(a0)         ; Put selected value of d0 in the header.
+
+        ; Make an enemy bullet object and add it to the activeobjects list.
+vfyre:  move.l d0,(a0)         ; Put selected value for our draw routine in the header.
         move.l 4(a6),4(a0)     ; Set the X position as the enemy's current position.
         move.l 8(a6),8(a0)     ; Set the Y position as the enemy's current position.
         move.l 12(a6),12(a0)   ; Set the Y position as the enemy's current position.
@@ -9493,7 +9577,7 @@ run_ashot:
         sub.l d0,12(a6)      ;move up the z-axis
         bsr xzcollie
         bne kill_ashot
-        move #webz-80,d0
+        move #webz-80,d0; Store the top of the web's Z position in d0.
         tst 20(a6)
         beq chove
         move #10,d0
@@ -9593,7 +9677,7 @@ kime:   move #0,54(a6) ; Clear the motion routine.
 changex:
         bsr webinfo
 
-        tst blanka
+        tst blanka ; Are we drawing solids or vectors?
         beq vectorzap      ;Enhanced mode uses pixel explosion graphics
 
         tst bolt_lock
@@ -9682,7 +9766,7 @@ xpixex:
         move.l d3,42(a6)  ;initial pixel expansion
         move.l d0,36(a6)
         move.l d1,46(a6)
-        move.l d2,20(a6)
+        move.l d2,20(a6) ; Set the velocity in activeobject entry.
         rts
 
 ; *******************************************************************
@@ -9785,15 +9869,15 @@ juju:   clr.l d0                ; Set the X position for the message.
         move #$0b,44(a6)
         bra badd                ; Increment our power-up index.
         
-notonl: sub.l #$18000,12(a6)
-        cmp #webz-80,12(a6)
+notonl: sub.l #$18000,12(a6) ; Set Z position in activobject entry.
+        cmp #webz-80,12(a6) ;  Has it reaced the top of the web?
         blt dpring
         rts
         
 xtoend: add #5,44(a6)
         cmp #255,44(a6)
         blt rrts
-        move #1,50(a6)
+        move #1,50(a6) ; Mark the activeobject entry for deletion.
         rts
 
 ; *******************************************************************
@@ -9811,7 +9895,7 @@ suprise:
         jsr rannum ; Put a random number between 0 and d1 in d0.
         cmp #$08,d0
         bgt bonnk
-        move #1,szap_on
+        move #1,szap_on ; Start the superzapper.
         move #1,inf_zap    ;Infinite zapper yeah!
 
 ; *******************************************************************
@@ -9918,7 +10002,7 @@ knibble:
         move #21,sfx ; Select 'Excellent' sound effect.
         move #90,sfx_pri ; Set the sound's priority compared to others.
         jsr fox ; Play selected sound effect.
-        move #1,szap_on
+        move #1,szap_on ; Start the superzapper.
         tst szap_avail
         bpl rrts
         clr szap_avail
@@ -9931,10 +10015,10 @@ knibble:
 xr_pixex:
         sub.l #$8000,24(a6)
         bmi run_pixex
-        cmp #webz+80,12(a6)
-        bge run_pixex
-        move.l 24(a6),d0
-        add.l d0,12(a6)
+        cmp #webz+80,12(a6) ; Has it reached the top of the web?
+        bge run_pixex ; If not keep updating it.
+        move.l 24(a6),d0 ; Otherwise get our acceleration factor..
+        add.l d0,12(a6) ; .. and add it to our Z position in activobject entry.
         rts
 
 ; *******************************************************************
@@ -9944,8 +10028,8 @@ xr_pixex:
 run_pixex:
         move.l 20(a6),d0
         lsl.l #1,d0 ; Multiply it by 2.
-        add.l d0,42(a6)
-        cmp #64,42(a6)
+        add.l d0,42(a6) ; Set the scale factor in activeobject entry.
+        cmp #64,42(a6) ; Set the scale factor in activeobject entry.
         blt rrts
         clr 54(a6)
         move #1,50(a6)    ;unlink
@@ -9987,7 +10071,7 @@ vectorzap:
 run_zap:
         sub #1,42(a6)      ;expand it
         add #10,28(a6)      ;spin it too, why not
-        cmp #-2,42(a6)
+        cmp #-2,42(a6) ; Set the scale factor in activeobject entry.
         bge rrts
 
 ; *******************************************************************
@@ -10001,18 +10085,18 @@ kikik:
 ; make_adroid
 ; *******************************************************************
 make_adroid:
-        tst afree
-        bmi rrts
-        sub #1,afree
+        tst afree ; Are there any free slots for a new activeobject?
+        bmi rrts ; If not, return now.
+        sub #1,afree; Reserve the slot in activeobjects we're going to us.
 
-        move.l freeobjects,a0
-        move web_max,d1 ; Store web_max in d1.
+        move.l freeobjects,a0 ; Point a0 at the address to use for our new activeobject.
+        move web_max,d1 ; Get number of lanes in web and put it in d0.
         jsr rand ; Put a random number between 0 and d1 in d0.
-        move #webz+80,d1 ; Put the web Z position in d1.
+        move #webz+80,d1 ; Put the top of the web position in d1.
         swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d1 ; Clear the lowest byte in d1.
-        move.l d1,12(a0) ; Set d1 as the Y position.
-        move d0,16(a0) ; Set the position on web.
+        move.l d1,12(a0) ; Set d1 as the Z position.
+        move d0,16(a0) ; Set the position/lane on web.
         move #$2020,18(a0)    ;duration of zappage
         clr.l 30(a0) ; Set rotation to 0.
         move #3,20(a0)      ;mode=go up web
@@ -10078,15 +10162,15 @@ uppweb:
         bsr dxle    ;spatter any shots
         move.l flip_zspeed,d0
         lsl.l #5,d0
-        add.l d0,12(a6)
-        cmp #webz+80,12(a6)
+        add.l d0,12(a6) ; Set Z position in activobject entry.
+        cmp #webz+80,12(a6) ; Have we reached the top of the web yet?
         bpl blowmeaway
         rts
 arab:
          move.l flip_zspeed,d0
         lsl.l #1,d0 ; Multiply it by 2.
-        sub.l d0,12(a6)
-        cmp #webz-95,12(a6)
+        sub.l d0,12(a6) ; Set Z position in activobject entry.
+        cmp #webz-95,12(a6) ;  Have we reached the top of the web yet?
         bpl rrts
         clr 20(a6)
         rts
@@ -10096,7 +10180,7 @@ arab:
 ; *******************************************************************
 make_beast:
         bsr maflip
-        bmi rrts
+        bmi rrts ; If not, return now.
         move #5,44(a6)    ;Sflipper 5
         move #2,46(a6)    ;current Level
         move #-1,26(a6)    ;No delay
@@ -10109,7 +10193,7 @@ make_beast:
 ; *******************************************************************
 make_sflip3:
         bsr maflip
-        bmi rrts
+        bmi rrts ; If not, return now.
         move #3,44(a6)    ;Sflipper 3
         move #-1,26(a6)    ;No delay
         move.l #-22,(a6)
@@ -10120,7 +10204,7 @@ make_sflip3:
 
 make_sflip2:
         bsr maflip
-        bmi rrts
+        bmi rrts ; If not, return now.
         move #2,44(a6)    ;Sflipper 2
         move #-1,26(a6)    ;No delay
         move.l #-21,(a6)
@@ -10134,42 +10218,41 @@ make_sflip2:
 ; *******************************************************************
 make_flipper:
 
-        tst t2k ; Are we playing Tempest 2000?
+        tst t2k                  ; Are we playing Tempest 2000?
         beq maflip
-
-        bsr rannum ; Put a random number between 0 and d1 in d0.
+        
+        bsr rannum               ; Put a random number between 0 and d1 in d0.
         cmp sflip_prob3,d0
         bmi make_sflip2
-
+        
 maflip:
-        tst afree
-        bmi rrts
-        sub #1,afree
-        move.l freeobjects,a0
-        move.l _flipper,d0; Set address of the vector object to draw: _flipper.
-        tst blanka      ;check for solid flag
-        beq nsf
-        move.l #-1,d0      ;solid #1 is the flipper
-nsf:
-        move.l d0,(a0); Set address of the vector object to draw: _flipper.
-        move #webz+80,12(a0)
+        tst afree                ; Are there any free slots for a new activeobject?
+        bmi rrts                 ; If not, return now.
+        sub #1,afree             ; Reserve the slot in activeobjects we're going to us.
+        move.l freeobjects,a0    ; Point a0 at the address to use for our new activeobject.
+        move.l _flipper,d0       ; Set address of the vector object to draw: _flipper.
+        tst blanka               ; Are we drawing solids or vectors?
+        beq nsf                  ; If vectors we've alread selecetd _flipper, so skip to nsf.
+        move.l #-1,d0            ; We're drawing solids, so set index to 'cdraw_sflipper' instead.
+nsf:    move.l d0,(a0)           ; Set the draw routine we selected above, i.e. solid or vector.
+        move #webz+80,12(a0)     ; Store the top of the web's Z position as the zlipper's Z position.
         clr 14(a0)
-        move web_max,d1
-        bsr rand ; Put a random number between 0 and d1 in d0.
-
-        move d0,16(a0)    ;initial webpos of this flipper
-        clr.l 30(a0)      ;clear Y and Z rotate
-        move #3,34(a0)  ; Draw routine in draw_vex is 'draw_vxc'.
-        clr.l 36(a0)      ;x centre to default
-        move flipcol,40(a0)    ;Flippers are RED
-        move flip_pause,26(a0)    ;Set the delay between flips
-        move #1,42(a0)      ;Fine rez
-        move #2,54(a0) ; Object Update routine is 'run_flipper'.  ; Object Update routine is 'run_flipper'. ; Object Update routine is 'run_flipper'.       ;Type
-        move #0,24(a0)      ;Flipper mode 0 (Ride up rail)
-        clr 44(a0)
-        move #1,52(a0)      ;IS vulnerable to the Superzapper
-        move.l a0,a6 ; Move our newly created object into the activeobjects list.
-        bsr toweb      ;Attach the flipper to the web
+        move web_max,d1          ; Get number of lanes in web and put it in d1.
+        bsr rand                 ; Put a random number between 0 and d1 in d0.
+        
+        move d0,16(a0)           ; initial webpos of this flipper
+        clr.l 30(a0)             ; clear Y and Z rotate
+        move #3,34(a0)           ; Draw routine in draw_vex is 'draw_vxc'.
+        clr.l 36(a0)             ; x centre to default
+        move flipcol,40(a0)      ; Flippers are RED
+        move flip_pause,26(a0)   ; Set the delay between flips
+        move #1,42(a0)           ; Fine rez
+        move #2,54(a0)           ; Object Update routine is 'run_flipper'.
+        move #0,24(a0)           ; Flipper mode 0 (Ride up rail)
+        clr 44(a0)  ; Optional behaviour on rail, default mode is 'stdrail'.
+        move #1,52(a0)           ; IS vulnerable to the Superzapper
+        move.l a0,a6             ; Move our newly created object into the activeobjects list.
+        bsr toweb                ; Attach the flipper to the web
 
 ; *******************************************************************
 ; ipix 
@@ -10182,42 +10265,46 @@ ipix:
         clr d0
         rts
 
-
-
 flipmodes:
         dc.l rail,flipto,stopped
 
 ; *******************************************************************
 ; run_flipper
 ; Called during the run_objects sequence as a member of the run_vex list.
-; *******************************************************************
-run_flipper:
 ;
 ; move the Flipper enemy
-
-        tst _sz
-        beq flipok
-        bmi flipok
-;  move #-1,_sz
-        bsr zappit
-        bra fkillme
+; *******************************************************************
+run_flipper:
+        tst _sz ; Is supersapper running?
+        beq flipok ; If not, skip.
+        bmi flipok ; If not, skip.,
+        bsr zappit ; If it is, zap the flipper.
+        bra fkillme ; And kill it.
 flipok:
         lea flipmodes,a0 ; Point a0 at flipmodes.
         move 24(a6),d0      ;get flipper's Mode
         asl #2,d0 ; Multiply it by 4.
-        move.l 0(a0,d0.w),a0
+        move.l 0(a0,d0.w),a0 ; Uset it as an index into flipmodes
         jmp (a0)      ;go do stuff for this Mode
 
+; *******************************************************************
+; rail
+; One of the modes for flippers in 'flipmodes'.
+; Selects a subroutine from railopts and runs it.
+; *******************************************************************
 rail:
-        move 44(a6),d0      ;get Sflipper mode
+        move 44(a6),d0      ;get Sflipper mode as an index
         lsl #2,d0 ; Multiply it by 4
         lea railopts,a0 ; Point a0 at railopts.
-        move.l 0(a0,d0.w),a0
-        jmp (a0)
+        move.l 0(a0,d0.w),a0 ; Use index into railopts to get the rail routine.
+        jmp (a0) ; Run the rail routine.
 
 railopts:
         dc.l stdrail,h2hrail,stdrail,stdrail,stdrail,beastrail
 
+; *******************************************************************
+; beastrail
+; *******************************************************************
 beastrail:
         bsr mcollie
         beq ssar
@@ -10235,22 +10322,25 @@ beastrail:
         clr.l (a1)    ;...clear its bull table
         rts
 
-
-
+; *******************************************************************
+; h2hrail
+; *******************************************************************
 h2hrail:
         bsr collie
         bne fkillme
         move.l flip_zspeed,d0
         tst 46(a6)
         bpl srail
-        add.l d0,12(a6)
-        cmp #webz+80,12(a6)
+        add.l d0,12(a6) ; Set Z position in activobject entry.
+        cmp #webz+80,12(a6) ; Have we reached the top of the web yet?
         blt rrts
-        move #webz+80,12(a6)
+        move #webz+80,12(a6) ;  Set the top of the web as its new Z position.
         bra sra
+				; Returns
 
-
-
+; *******************************************************************
+; stdrail
+; *******************************************************************
 stdrail:
         bsr collie      ;Coll det
         bne fkillme      ;I'm dead!
@@ -10259,9 +10349,9 @@ ssar:
         move.l flip_zspeed,d0
 srail:
         sub.l d0,12(a6)      ;move Flipper vertically
-        cmp #webz-80,12(a6)
+        cmp #webz-80,12(a6)  ; Have we reached the top of the web yet?
         bgt rrts
-        move #webz-80,12(a6)
+        move #webz-80,12(a6) ; Set top of web as Z position in activobject entry.
 sra:
         clr 14(a6)
 flipimm:
@@ -10269,12 +10359,16 @@ flipimm:
         bsr flip_set
         rts
 
+; *******************************************************************
+; flipto
+; One of the modes for flippers in 'flipmodes'.
+; *******************************************************************
 flipto:
         cmp #3,44(a6)
         bne flipto1
         move.l flip_zspeed,d0
-        sub.l d0,12(a6)
-        cmp #webz-80,12(a6)
+        sub.l d0,12(a6) ; Set Z position in activobject entry.
+        cmp #webz-80,12(a6) ; Have we reached the top of the web yet?
         bgt fspesh0
         move #4,44(a6)
         bra flipto1
@@ -10298,10 +10392,8 @@ flito:
         move #0,36(a6)      ;default centre
         move #28,sfx ; Select 'tink' sound effect.
         move #2,sfx_pri ; Set the sound's priority compared to others.
-;  move.l #40,sfx_pitch
         jsr fox ; Play selected sound effect.
         bra toweb      ;put us on the Web
-
 
 flipcollie:
         ext d0
@@ -10347,7 +10439,7 @@ checlane:
         move 16(a6),d0
 h2hclan:
         move.l _claw,a0    ;get claw 1
-        cmp #webz,12(a6)
+        cmp #webz,12(a6) ; Have we reached the top of the web yet?
         blt h2hcol1
         move.l 56(a0),a0  ;get claw 2
 h2hcol1:
@@ -10404,30 +10496,40 @@ osnee:
         move #1,d0
         rts
 oclan2:
-         cmp #webz-80,12(a0)  ;check if on top (may be jumping!)
+        cmp #webz-80,12(a0)  ;check if on top (may be jumping!)
         blt clnxt
         clr d2
         rts
 
 ; *******************************************************************
 ; fkillme
+; Kill a flipper
 ; *******************************************************************
 fkillme:
         clr d0
 fkm:
         bsr doscore
         bra killme      ;kill and score points for a flipper
+				; Returns
 
+; *******************************************************************
+; stopped
+; One of the modes for flippers in 'flipmodes'.
+; *******************************************************************
 stopped:
         move 44(a6),d0
         lsl #2,d0 ; Multiply it by 4
         lea sstopmodes,a0 ; Point a0 at sstopmodes.
         move.l 0(a0,d0.w),a0
         jmp (a0)
+
 sstopmodes:
         dc.l stdstop,sustop1,sustop1,sustop1,sustop1,stdstop
 
 
+; *******************************************************************
+; sustop1
+; *******************************************************************
 sustop1:
         tst 48(a6)
         beq stdstop
@@ -10445,6 +10547,9 @@ gclock:
         bne rrts
         jmp flip_set_left
 
+; *******************************************************************
+; stdstop
+; *******************************************************************
 stdstop:
         bsr collie      ;Coll det
         bne fkillme
@@ -10471,7 +10576,7 @@ notgt:
         bra flip_set      ;.. and try to Flip again
 
 gotu:
-         cmp #-2,wave_tim    ;-2 means the zoom has started and player is safe
+        cmp #-2,wave_tim    ;-2 means the zoom has started and player is safe
         beq rrts      ;so can't get you
         move #25,sfx      ; Select 'scream' sound effect.
         move #101,sfx_pri ; Set the sound's priority compared to others.
@@ -10482,7 +10587,6 @@ gotu:
         move handl,handl2
         cmp #2,players
         bne singl_snatch    ;do single player get caught
-;  add #1,dying
         tst lives
         beq singl_snatch
         move #13,54(a0) ; Object update routine in run_vex is 'go_downc'.       ;claw to godown mode
@@ -10498,7 +10602,6 @@ singl_snatch:
         move.l a6,tmtyl
         move.l #take_me_to_your_leader,routine
         move #1,screaming
-;  bra zapson
         rts
 
 ; *******************************************************************
@@ -10511,7 +10614,7 @@ flip_set:
         tst h2h ; Are we playing a head-to-head game?
         beq ufpset
         move.l _claw,a0
-        cmp #webz,12(a6)
+        cmp #webz,12(a6) ; Have we reached the top of the web yet?
         blt luff
         move.l 56(a0),a0
         bra luff
@@ -10574,7 +10677,7 @@ _fset:
         blt fsr
         bra zz
 seekwrap:
-        move web_max,d2
+        move web_max,d2; Get number of lanes in web and put it in d2.
         asr #1,d2      ;half distance around web
         sub d0,d1
         move d1,d4
@@ -10634,7 +10737,7 @@ zz:
 
 fset1:
         bsr webinfo
-        move web_max,d6
+        move web_max,d6; Get number of lanes in web and put it in d6.
         sub #1,d6
         move d6,16(a6)      ;Wrap anticlockwize
         bra fset
@@ -10662,7 +10765,7 @@ xflip:
         swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d1        ;Set position to left lane side
         move.l d0,4(a6)      ;fixed point is now the lane side
-        move.l d1,8(a6)
+        move.l d1,8(a6) ; Set Y position in activobject entry.
         rts
 
 ; *******************************************************************
@@ -10672,7 +10775,7 @@ xflip:
 ; *******************************************************************
 flip_set_right:
 
-        move web_max,d0
+        move web_max,d0; Get number of lanes in web and put it in d0.
         sub #1,d0
         cmp 16(a6),d0      ;are we in the end lane?
         bne fset2
@@ -10710,7 +10813,7 @@ xflip2:
         swap d3 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d3      ;Set position to left lane side
         move.l d2,4(a6)      ;fixed point is now the lane side
-        move.l d3,8(a6)
+        move.l d3,8(a6) ; Set Y position in activobject entry.
         rts
 
 rNrts:
@@ -10727,55 +10830,59 @@ rNrts:
 ; *******************************************************************
 make_putanker:
 m_ptank:
-        move #2,d3      ;tanker-type
-        tst blanka
-        beq upvt
-        move.l #-8,d2; Set index into solid polygon draw routine in 'solids': draw_spulstank.
+        move #2,d3            ; Set the tanker-type
+        tst blanka            ; Are we drawing solids or vectors?
+        beq upvt              ; If vectors, go to upvt below to set the correct routine..
+        move.l #-8,d2         ; Set index into solid polygon draw routine in 'solids': draw_spulstank.
+        bra maketank          ; Make the tanker
+        ; Returns
+upvt:   move.l _pulstank,d2   ; Set address of the vector object to draw: _pulstank.
         bra maketank
-upvt:
-        move.l _pulstank,d2; Set address of the vector object to draw: _pulstank.
-        bra maketank
-
+        
 ; *******************************************************************
 ; make_futanker
-;
+; 
 ; Make a FUSEBALL-TANKER
 ; *******************************************************************
 make_futanker:
-
-        move #1,d3      ;tanker-type
-        tst blanka
-        beq vft
-        move.l #-6,d2
-        bra maketank
+        
+        move #1,d3            ; Set the tanker-type
+        tst blanka            ; Are we drawing solids or vectors?
+        beq vft               ; If vectors, go to vft below to set the correct routine..
+        move.l #-6,d2         ; Set index into solid polygon draw routine in 'solids': draw_sfusetank.
+        bra maketank          ; Make the tanker
 vft:
-        move.l _fusetank,d2; Set address of the vector object to draw: _fusetank.
-        bra maketank
-
+        move.l _fusetank,d2   ; Set address of the vector object to draw: _fusetank.
+        bra maketank          ; Make the tanker.
+        
 ; *******************************************************************
 ; make_tanker
-;
+; 
 ; Make an enemy of type FLIPPER TANKER
 ; *******************************************************************
 make_tanker:
-        tst blanka
-        beq mtv
-        move.l #-2,d2           ; Set index into solid polygon draw routine in 'solids': draw_sfliptank.
-        clr d3
-        bra maketank
+        tst blanka            ; Are we drawing solids or vectors?
+        beq mtv               ; If vectors, go to mvt below to set the correct routine..
+        move.l #-2,d2         ; Set index into solid polygon draw routine in 'solids': draw_sfliptank.
+        clr d3                ; Set tanker type to 0.
+        bra maketank          ; Make the tanker.
         
-mtv:    move.l _fliptank,d2     ; Set index into solid polygon draw routine in 'solids': _fliptank.
+mtv:    move.l _fliptank,d2   ; Set index into solid polygon draw routine in 'solids': _fliptank.
         clr d3
+				; Fall through to make the tanker.
         
+; *******************************************************************
+; maketank
+; *******************************************************************
 maketank:
-        cmp #2,afree
-        blt rNrts               ; Tankers carry pairs of Objects
-        sub #3,afree
-        move.l freeobjects,a0
+        cmp #2,afree            ; Are there just 2 free slots left in activobjects?
+        blt rNrts               ; If so, not enough: tankers carry pairs of Objects. So return now.
+        sub #3,afree            ; Reserve the 3 slots in activeobjects we're going to us.
+        move.l freeobjects,a0   ; Point a0 at the address to use for our new activeobject.
         move.l d2,(a0)          ; Set index to polygon draw routine we selected above.
         move #webz+80,12(a0)    ; Set the Z position to match the web.
         clr 14(a0)
-        move web_max,d1
+        move web_max,d1         ; Get number of lanes in web and put it in d1.
         sub #2,d1
         bsr rand                ; Put a random number between 0 and d1 in d0.
         add #1,d0               ; its much easier if we can't appear in an end lane
@@ -10784,7 +10891,7 @@ maketank:
         move #1,34(a0)          ; Draw routine in draw_vex is 'draw'.
         move #128,40(a0)        ; Tankers are PURPLE
         move #1,42(a0)          ; std rez
-        move d3,44(a0)          ; Type of split
+        move d3,44(a0)          ; Type of tanker, set by caller..
         move #1,52(a0)          ; IS vulnerable to the Superzapper
         move #5,54(a0)          ; Object Update routine in run_vex is 'run_tanker'.
         move.l a0,a6            ; Move our newly created object into the activeobjects list.
@@ -10799,10 +10906,10 @@ run_tanker:
         bsr collie      ;Coll det
         bne opentanker    ;I'm dead! Go spawn 2 meanies.
         move.l tank_zspeed,d0
-        sub.l d0,12(a6)      ;move Flipper vertically
-        cmp #webz-80,12(a6)
-        bgt rrts
-        move #webz-80,12(a6)
+        sub.l d0,12(a6)     ;Set Z position in activobject entry.  Move Flipper vertically.
+        cmp #webz-80,12(a6) ; Have we reached the end of the web on the Z axis?
+        bgt rrts ; No, return.
+        move #webz-80,12(a6) ; Yes, so fix it to the end of the web in Z.
         clr 14(a6)
 
 opentanker:
@@ -10871,15 +10978,14 @@ suprf1:
         rts
 
 newflipper:
-        move.l 4(a5),4(a6)
-        move.l 8(A5),8(a6)
-        move.l 12(A5),12(a6)    ;copy XYZ pos
+        move.l 4(a5),4(a6) ; Set X position in activobject entry.
+        move.l 8(A5),8(a6) ; Set Y position in activobject entry.
+        move.l 12(A5),12(a6) ;Set Z position in activobject entry.
         move.l _flipper,d0; Set address of the vector object to draw: _flipper.
-        tst blanka
-        beq nfvv
-        move.l #-1,d0
-nfvv:
-        move.l d0,(a6)    ; Set address of the vector object to draw: _flipper.
+        tst blanka ; Are we drawing solids or vectors?
+        beq nfvv ; If vectors, skip to nfvv.
+        move.l #-1,d0 ; If solids, set draw routine to cdraw_sflipper.
+nfvv:   move.l d0,(a6)    ; Set address of the vector object to draw, selected above.
         move.l 16(a5),16(a6)    ;pos
         move 28(a5),28(a6)    ;<
         clr.l 30(a6)
@@ -10888,7 +10994,7 @@ nfvv:
         move flipcol,40(a6)
         clr 24(a6)
         move flip_pause,26(a6)    ;Set the delay between flips
-        move #1,42(a6)
+        move #1,42(a6) ; Set the scale factor in activeobject entry.
         clr 44(a6)
         move #1,52(a6)
         move #2,54(a6) ; Object Update routine is 'run_flipper'. 
@@ -10913,12 +11019,11 @@ openfuseballs:
 
 newfuseball:
         move.l _fuse1,d0; Set address of the vector object to draw: _fuse1.
-        tst blanka
-        beq nufu
-        move.l #-4,d0
-nufu:
-        move.l d0,(a6)
-        move.l 12(a5),12(a6)
+        tst blanka ; Are we drawing solids or vectors?
+        beq nufu ; If vectors, skip nufu.
+        move.l #-4,d0 ; If solids, set draw routine to draw_sfuseball.
+nufu:   move.l d0,(a6) ; Set address of the draw routine, selected above.
+        move.l 12(a5),12(a6) ; Set Z position in activobject entry.
         move 16(a5),16(a6)    ;initial webpos of this Fuseball
         clr.l 30(a6)      ;clear Y and Z rotate
         clr 18(a6)
@@ -10936,7 +11041,7 @@ nufu:
         swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d1        ;Set position to left lane side
         move.l d0,4(a6)      ;fixed point is now the lane side
-        move.l d1,8(a6)
+        move.l d1,8(a6) ; Set Y position in activobject entry.
         move.l a6,a0
         bra insertobject ; Add it to the activeobjects list.
 
@@ -10949,11 +11054,10 @@ openpulsars:
         bsr newflipper          ;new flipper in this lane
         bsr flip_set_right
         move.l _pus+12,d0; Set address of the vector object to draw: _pus.
-        tst blanka
-        beq vop
-        move.l #-5,d0
-vop:
-        move.l d0,(a6)          ;header is a Pulsar
+        tst blanka ; Are we drawing solids or vectors?
+        beq vop ; If vectors, skip to vop.
+        move.l #-5,d0 ; If solids, set draw routine to draw_spulsar.
+vop:    move.l d0,(a6)          ; Set draw routine we selected above.
         move #-1,26(a6)         ;No delay
         move #$ff,40(a6)        ;and Pulsars are yellow
         move #-2,38(a6)         ;tells it to stop Flipping after one flip and change into a Pulsar
@@ -10979,7 +11083,7 @@ flipping_heck:
         clr.l 36(a6)
         clr 24(a6)
         move flip_pause,26(a6)    ;Set the delay between flips
-        move #1,42(a6)
+        move #1,42(a6) ; Set the scale factor in activeobject entry.
         clr 44(a6)      ;Clear the Superflipper flag!!!!!!!!!!!!!!!!!!!!
         move #1,52(a6)
         move #2,54(a6) ; Object Update routine is 'run_flipper'. 
@@ -10995,38 +11099,38 @@ zrts:
 ; make a spike, in lane d0; uses a0/a1; ASSUMES SPIKE TABLE ADDRESS IN A1!
 ; *******************************************************************
 make_spike:
-        tst afree
-        bmi rrts
-        sub #1,afree
-        move.l freeobjects,a0
-        move.l _spike,(a0); Set index into solid polygon draw routine in 'solids': _spike.
-        move #webz+80,12(a0) ; Set z position per web.
-        clr 14(a0) ; Clear lower byte of z position.
-        move d0,16(a0)    ;initial lane/webpos of this tanker
-        asl #2,d0 ; Multiply it by 4.
-        move.l a0,(a1)    ;address to spike table
-        clr.l 30(a0)      ;clear Y and Z rotate
-        move #4,34(a0)     ; Draw routine in draw_vex is 'draw_spike'.
-        move #30,36(a0)    ;length of spike (max 120)
-        move #143,40(a0)    ;Spikes are GREEN
-        move #-1,42(a0)      ;Standard rez x2 (so it can be longer than +128!)
-        move.l a1,44(a0)    ;position in spike table
-        move #0,52(a0)      ;does not count as an enemy in the wave-end check.
-        move #6,54(a0) ; Object update routine in run_vex is 'run_spike'.       ;Type=RUN_SPIKE
-        clr 20(a0) ; Set velocity to zero.
-        tst t2k ; Are we playing Tempest 2000?
+        tst afree               ; Are there any free slots for a new activeobject?
+        bmi rrts ; If not, return without doing anything.
+        sub #1,afree            ; Reserve the 1 slot in activeobjects we're going to us.
+        move.l freeobjects,a0   ; Point a0 at the address to use for our new activeobject.
+        move.l _spike,(a0)      ; Set index into solid polygon draw routine in 'solids': _spike.
+        move #webz+80,12(a0)    ; Set z position per web.
+        clr 14(a0)              ; Clear lower byte of z position.
+        move d0,16(a0)          ; initial lane/webpos of this tanker
+        asl #2,d0               ; Multiply it by 4.
+        move.l a0,(a1)          ; address to spike table
+        clr.l 30(a0)            ; clear Y and Z rotate
+        move #4,34(a0)          ; Draw routine in draw_vex is 'draw_spike'.
+        move #30,36(a0)         ; length of spike (max 120)
+        move #143,40(a0)        ; Spikes are GREEN
+        move #-1,42(a0)         ; Standard rez x2 (so it can be longer than +128!)
+        move.l a1,44(a0)        ; position in spike table
+        move #0,52(a0)          ; does not count as an enemy in the wave-end check.
+        move #6,54(a0)          ; Object update routine in run_vex is 'run_spike'.
+        clr 20(a0)              ; Set velocity to zero.
+        tst t2k                 ; Are we playing Tempest 2000?
         beq uspike
-        jsr rannum ; Put a random number between 0 and d1 in d0.
+        jsr rannum              ; Put a random number between 0 and d1 in d0.
         cmp sflip_prob2,d0
         bpl uspike
-        move #1,20(a0)      ;set Super Spike
+        move #1,20(a0)          ; set Super Spike
 uspike:
-        move.l a6,-(a7)      ;coz it will be called from an active Spiker
-        move.l a0,a6 ; Move our newly created object into the activeobjects list.
-        bsr toweb      ;Attach the Tanker to the web
-        move.l (a7)+,a6 ; Restore stashed values from the stack.
+        move.l a6,-(a7)         ; coz it will be called from an active Spiker
+        move.l a0,a6            ; Move our newly created object into the activeobjects list.
+        bsr toweb               ; Attach the Tanker to the web
+        move.l (a7)+,a6         ; Restore stashed values from the stack.
         sub #1,noclog
-        bra insertobject ; Add it to the activeobjects list.
+        bra insertobject        ; Add it to the activeobjects list.
 
 ; *******************************************************************
 ; run_spike
@@ -11036,7 +11140,7 @@ run_spike:
         move 12(a6),d0
         move d0,-(a7)    ;save our z pos
         sub 36(a6),d0
-        move d0,12(a6)      ;our 'position' is the height of our Spike
+        move d0,12(a6)    ;Set Z position in activobject entry. Our 'position' is the height of our Spike
 
         tst 20(a6)
         beq nospf
@@ -11047,17 +11151,15 @@ nospf:
         bne rspik1
         cmp.l #zoom1,routine
         bne rspik2
-;  move.l _claw,a0
-;  move 16(a0),d0
-;  cmp 16(a6),d0      ;in Claw lane?
-        bsr checlane_only
+				; Check if we've hit the player's claw.
+        bsr checlane_only ; Check if in claw's lane.
         bne rspik1      ;naaw
-        move 12(a0),d0      ;Claw Z pos
+        move 12(a0),d0      ; Get claw's current Z pos
         cmp #webz+80,d0
         bge rspik1
         cmp 12(a6),d0
         blt rspik1
-        move (a7)+,12(a6) ; Restore stashed values from the stack.
+        move (a7)+,12(a6) ; Restore stashed values from the stack to the Z position in activeobject entry..
         jsr zzoomoff      ;cancel warping sound/yes yes yes
         bsr setsnatch  ;deer deer, you got spiked
 zapson:
@@ -11081,10 +11183,10 @@ rspik1:
         bsr colok      ;so do a detecol (not allowing SuperZap)
         bne decspike
 rspik2:
-        move (a7)+,12(a6) ; Restore stashed values from the stack.
+        move (a7)+,12(a6) ; Restore stashed values from the stack to the z position in activeobject entry..
         rts
 decspike:
-        move (a7)+,12(a6) ; Restore stashed values from the stack.
+        move (a7)+,12(a6) ; Restore stashed values from the stack to the z position in activeobject entry..
         move #$0d,sfx ; Select 'tink for spike' sound effect.
         move #2,sfx_pri ; Set the sound's priority compared to others.
         move 36(a6),d0
@@ -11109,29 +11211,30 @@ decspike:
 ; make a spiker, in a random Lane
 ; *******************************************************************
 make_spiker:
-        tst afree
-        bmi rrts
-        tst max_spikers
-        bmi zrts                ;zero return wont hang the wave sequencer
-        sub #1,afree
-        sub #1,max_spikers
-        move.l freeobjects,a0
-        move.l _spiker,(a0); Set address of the vector object to draw: _spiker.
-        move #webz+80,12(a0)
+        tst afree               ; Are there any free slots for a new activeobject?
+        bmi rrts                ; If not, return now.
+        tst max_spikers         ; Do we already have enough spikers?
+        bmi zrts                ; If yes, zero return wont hang the wave sequencer
+        sub #1,afree            ; Mark one less free slot for activeobjects.
+        sub #1,max_spikers      ; And one less available spikers.
+        ; Make an activeobject entry for the spiker.
+        move.l freeobjects,a0   ; Get a free slot for our activeobject entry.
+        move.l _spiker,(a0)     ; Set address of the vector object to draw: _spiker.
+        move #webz+80,12(a0)    ; Set the end of the web as Z position in the activeobject entry.
         clr 14(a0)
-        move web_max,d1
-        bsr rand ; Put a random number between 0 and d1 in d0.
-        move d0,16(a0)          ;initial webpos of this spiker
-        clr.l 30(a0)            ;clear Y and Z rotate
+        move web_max,d1         ; Get the number of lanes in the web.
+        bsr rand                ; Put a random number between 0 and d1 in d0.
+        move d0,16(a0)          ; Set random initial webpos/lane of this spiker
+        clr.l 30(a0)            ; clear Y and Z rotate (i.e. pitch and yaw).
         move #1,34(a0)          ; Draw routine in draw_vex is 'draw'.
-        move #143,40(a0)        ;Spikers are GREEN
-        move #1,42(a0)          ;Fine rez
-        move #1,52(a0)          ;does count as an enemy in the wave-end check.
-        move #7,54(a0) ; Object update routine in run_vex is 'run_spiker'.           ;Type=RUN_SPIKER
-        clr 44(a0)              ;Spiker mode = Go to new spike
-        move.l a0,a6 ; Move our newly created object into the activeobjects list.
-        bsr toweb               ;Attach the Spiker to the web
-        bra insertobject ; Add it to the activeobjects list.
+        move #143,40(a0)        ; Spikers are GREEN, set color in activeobject entry.
+        move #1,42(a0)          ; Set scale: fine rez
+        move #1,52(a0)          ; Set as an enemy in activeobject: does count as an enemy in the wave-end check.
+        move #7,54(a0)          ; Object update routine in run_vex is 'run_spiker'.
+        clr 44(a0)              ; Set Spiker mode = Go to new spike
+        move.l a0,a6            ; Move our newly created object into the activeobjects list.
+        bsr toweb               ; Attach the Spiker to the web
+        bra insertobject        ; Add it to the activeobjects list.
 
 spiker_vex:
         dc.l newspike,climbspike,descendspike
@@ -11141,7 +11244,7 @@ spiker_vex:
 ; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_spiker:
-        add #4,28(a6)    ;He spins
+        add #4,28(a6)    ;He spins: increment the 'Roll' in the activeobject entry.
         bsr collie
         bne sfkillme      ;You can kill him
         lea spiker_vex,a0
@@ -11181,7 +11284,7 @@ is_spike:
 nxtspik:
         lea 4(a0),a0               ;next spiketable entry
         add #1,d0
-        cmp web_max,d0
+        cmp web_max,d0 ; Are we at the last lane in the web? 
         blt nuspik
         bne nuspik                 ;loop for all possible spikes on this web.
         tst d1                     ;were there any lanes without spikes?
@@ -11223,8 +11326,8 @@ nuspik1:
 climbspike:
         bsr alienfire
         move.l spiker_zspeed,d0
-        sub.l d0,12(a6)           ;move up
-        cmp #webz-70,12(a6)
+        sub.l d0,12(a6)          ;Set Z position in activobject entry: move up
+        cmp #webz-70,12(a6) ; Have we reached the end of the web in Z?
         blt sdesc
         move.l 24(a6),a0          ;address of 'our' spike
         move 36(a0),d2            ;current spike height
@@ -11251,10 +11354,10 @@ sdesc:
 descendspike:
         bsr alienfire
         move.l spiker_zspeed,d0
-        add.l d0,12(a6)
-        cmp #webz+80,12(a6)
+        add.l d0,12(a6) ; Set Z position in activobject entry.
+        cmp #webz+80,12(a6) ; Set Z position in activobject entry.
         blt rrts    ;climb down
-        move #webz+80,12(a6)
+        move #webz+80,12(a6) ; Set Z position in activobject entry.
         clr 14(a6)
         clr 44(a6)    ;mode back to seek new spike
         rts
@@ -11266,12 +11369,12 @@ descendspike:
 ; *******************************************************************
 make_mirr:
 
-        tst afree
-        bmi rrts
-        sub #1,afree
-        move.l freeobjects,a0
+        tst afree ; Are there any free slots for a new activeobject?
+        bmi rrts ; If not, return now.
+        sub #1,afree ; Mark one less available slot for activobjects.
+        move.l freeobjects,a0 ; Point a0 at the address to use for our new activeobject.
         move.l #-13,(a0)  ;draw_mirr
-        move web_max,d1
+        move web_max,d1; Get number of lanes in web and put it in d1.
         jsr rand ; Put a random number between 0 and d1 in d0.
         move d0,16(a0)
         move #webz+80,12(a0)
@@ -11282,7 +11385,7 @@ make_mirr:
         move #36,54(a0) ; Object update routine in run_vex is 'rumirr'. 
         move #4,24(a0)
         move.l a0,a6 ; Move our newly created object into the activeobjects list.
-        jsr toweb
+        jsr toweb ; Set X and Y of object to attach it to the web on selected lane.
         jmp ipix ; Add it to the activeobjects list and make it very far away (pixel size).
 
 ; *******************************************************************
@@ -11303,16 +11406,8 @@ gomirr:
         move.l 20(a6),d0
         lsl.l #4,d0
         add.l d0,12(a6)    ;moves mirror up the Web when shot
-        cmp #webz+80,12(a6)
+        cmp #webz+80,12(a6) ; Set Z position in activobject entry.
         bgt blowmeaway
-
-;  tst afree
-;  bmi rrts
-;  sub #1,afree
-;  sub #1,ashots
-;  move.l freeobjects,a0
-;  move.l #-3,d0
-;  jmp vfyre    ;fire a shot back at the player
 
         move #$13,sfx ; Select 'Pulsar Pulse' sound effect.
         move #3,sfx_pri ; Set the sound's priority compared to others.
@@ -11346,7 +11441,7 @@ reshh:
         sub.l d0,12(a6)    ;move towards player!
         jsr checlane
         beq shouch    ;kill player by shot if we got him
-        cmp #1,12(a6)
+        cmp #1,12(a6) ; Set Z position in activobject entry.
         bpl rrts
         move #3,50(a6)    ;give player back his shot
         rts
@@ -11357,40 +11452,39 @@ reshh:
 ; make a Fuseball, in a random Lane
 ; *******************************************************************
 make_fuseball:
-        tst afree
-        bmi rrts
-        sub #1,afree
-        move.l freeobjects,a0
-        move.l _fuse1,d0; Set address of the vector object to draw: _fuse1.
-        tst blanka
-        beq mfusb
-        move.l #-4,d0
-mfusb:
-        move.l d0,(a0)
-        move #webz+80,12(a0)
+        tst afree                     ; Are there any free slots for a new activeobject?
+        bmi rrts                      ; If not, return now.
+        sub #1,afree                  ; Mark one less available slot for activobjects.
+        move.l freeobjects,a0         ; Point a0 at the address to use for our new activeobject.
+        move.l _fuse1,d0              ; Set address of the vector object to draw: _fuse1.
+        tst blanka ; Are we drawing solids or vectors?
+        beq mfusb ; If vectors, skip to mfusb.
+        move.l #-4,d0                 ; Set draw routine to be 'draw_sfuseball'.
+mfusb:  move.l d0,(a0)                ; Store selected draw routine in activeobject entry.
+        move #webz+80,12(a0)          ; Set Z position in activeobject entry as end of the web.
         clr 14(a0)
-        move web_max,d1
-        bsr rand ; Put a random number between 0 and d1 in d0.
+        move web_max,d1               ; Put the web's number of lanes in d1.
+        bsr rand                      ; Put a random number between 0 and d1 in d0.
         clr 18(a0)
-        move d0,16(a0)    ;initial webpos of this Fuseball
-        clr.l 30(a0)      ;clear Y and Z rotate
-        move #1,34(a0)    ; Draw routine in draw_vex is 'draw'.
-        move #15,40(a0)      ;first Fuseball leg is CYAN
-        move #1,42(a0)      ;Fine rez
-        move #1,52(a0)      ;does count as an enemy in the wave-end check.
-        move #9,54(a0) ; Object update routine in run_vex is 'run_fuseball'.       ;Type=RUN_FUSEBALL
-        clr 44(a0)      ;Fuseball mode = Climb the rail
+        move d0,16(a0)                ; initial webpos of this Fuseball
+        clr.l 30(a0)                  ; clear Y and Z rotate
+        move #1,34(a0)                ; Draw routine in draw_vex is 'draw'.
+        move #15,40(a0)               ; first Fuseball leg is CYAN
+        move #1,42(a0)                ; Fine rez
+        move #1,52(a0)                ; does count as an enemy in the wave-end check.
+        move #9,54(a0)                ; Object update routine in run_vex is 'run_fuseball'.
+        clr 44(a0)                    ; Fuseball mode = Climb the rail
         move fuse_risetime,46(a0)
         move fuse_crossdelay,48(a0)
-        move.l a0,a6 ; Move our newly created object into the activeobjects list.
-        bsr webinfo      ;get info. on lane endpoints
-        swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
+        move.l a0,a6                  ; Move our newly created object into the activeobjects list.
+        bsr webinfo                   ; get info. on lane endpoints
+        swap d0                       ; Swap position of the first 2 bytes with last 2 bytes.
         clr d0
-        swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
-        clr d1        ;Set position to left lane side
-        move.l d0,4(a6)      ;fixed point is now the lane side
-        move.l d1,8(a6)
-        bra ipix ; Add it to the activeobjects list and make it very far away (pixel size).
+        swap d1                       ; Swap position of the first 2 bytes with last 2 bytes.
+        clr d1                        ; Set position to left lane side
+        move.l d0,4(a6)               ; fixed point is now the lane side
+        move.l d1,8(a6)               ; Set Y position in activobject entry.
+        bra ipix                      ; Add it to the activeobjects list and make it very far away (pixel size).
 
 fuse_vex:
         dc.l climbrail,crossrail,blowaway
@@ -11400,37 +11494,37 @@ fuse_vex:
 ; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
 run_fuseball:
-        tst _sz
-        beq rfb
-        bsr collie    ;so they will always smart bomb
-        bne blowmeaway
-rfb:
-        add #2,28(a6)    ;make 'em spin
-        move.l _fuse1,d1; Set address of the vector object to draw: _fuse1.
-        bsr rannum ; Put a random number between 0 and d1 in d0.
+        tst _sz                ; Is superzapper running?
+        beq rfb                ; If not, don't blow up the fuseball.
+        bsr collie             ; If it, check if we can destroy the fuseball.so they will always smart bomb
+        bne blowmeaway         ; If superzapper has hit it, destroy it.
+        
+rfb:    add #2,28(a6)          ; make 'em spin
+        move.l _fuse1,d1       ; Set address of the vector object to draw: _fuse1.
+        bsr rannum             ; Put a random number between 0 and d1 in d0.
         and #1,d0
         bne r_fuse1
-        move.l _fuse2,d1; Set address of the vector object to draw: _fuse2.
+        move.l _fuse2,d1       ; Set address of the vector object to draw: _fuse2.
 r_fuse1:
-        tst blanka
-        beq r_fuse2
-        move.l #-4,d1
+        tst blanka             ; Are we drawing solids or vectors?
+        beq r_fuse2            ; If vectors, skip to r_fuse2.
+        move.l #-4,d1          ; If solids, use draw_sfuseball as draw routine.
 r_fuse2:
-        move.l d1,(a6)      ;animate the Fuseball
-        lea fuse_vex,a0
-        move 44(a6),d0
-        asl #2,d0 ; Multiply it by 4.
-        move.l 0(a0,d0.w),a0
-        jmp (a0)
+        move.l d1,(a6)         ; Store the selected draw routine in our activeobject.
+        lea fuse_vex,a0        ; Point a0 at the fuse_vex array.
+        move 44(a6),d0         ; Get the selected mode from the activeobject.
+        asl #2,d0              ; Multiply it by 4.
+        move.l 0(a0,d0.w),a0   ; Use it as an index into fuse_vex.
+        jmp (a0)               ; Run the selected routine from fuse_vex.
 
 ; *******************************************************************
 ; climbrail
 ; *******************************************************************
 climbrail:
-        cmp #webz-80,12(a6)
+        cmp #webz-80,12(a6) ;  Have we reached the end of the web in Z?
         blt crail1      ;check for top of Web
         move.l fuse_zspeed,d0
-        sub.l d0,12(a6)
+        sub.l d0,12(a6) ; Set Z position in activobject entry.
 crail1:
         sub.b #1,46(a6)
         bpl rrts
@@ -11449,7 +11543,7 @@ crail1:
         bgt set_fuseleft
         ble set_fuseright
 seekfwrap:
-        move web_max,d2
+        move web_max,d2; Get number of lanes in web and put it in d2.
         asr #1,d2      ;half distance around web
         sub d0,d1
         bgt flll
@@ -11476,7 +11570,7 @@ set_fuseleft:
         rts
 
 fuset1:
-        move web_max,d6
+        move web_max,d6; Get number of lanes in web and put it in d6.
         sub #1,d6
         move d6,16(a6)      ;Wrap anticlockwize
         bra fuset
@@ -11492,7 +11586,7 @@ fuset:
         clr d1
         asr.l #4,d0
         asr.l #4,d1      ;/16, is motion vector now
-        move.l d0,20(a6)
+        move.l d0,20(a6) ; Set the velocity in activeobject entry.
         move.l d1,24(a6)    ;store motion vector
         move #15,36(a6)      ;step counter
         clr 38(a6)
@@ -11512,7 +11606,7 @@ set_fuseright:
         clr d3
         asr.l #4,d2
         asr.l #4,d3      ;/16, is motion vector now
-        move.l d2,20(a6)
+        move.l d2,20(a6) ; Set the velocity in activeobject entry.
         move.l d3,24(a6)    ;store motion vector
         move #15,36(a6)      ;step counter
         move #1,44(a6)      ;set mode to cross rail
@@ -11532,33 +11626,33 @@ crossrail:
         bsr collie
         bne blowmeaway
 nokll:
-        cmp #webz-80,12(a6)    ;if we are at top we can kill player
-        bgt nopkll
-        cmp #-2,wave_tim
-        beq nopkll      ;(not if we are already zooming)
-        bsr checlane
-        beq frouch
+        cmp #webz-80,12(a6)    ; Have we reached the top of the web?
+        bgt nopkll ; If we have not, we can't kill the player: go to nopkll.
+        cmp #-2,wave_tim ; Are we already zooming?
+        beq nopkll      ; If not, we can't kill the player: go to nopkll.
+        bsr checlane ; Are we in the same lane as they player?
+        beq frouch ; If we are: we can kill the player!
 
-nopkll:
-        sub.b #1,48(a6)
+nopkll: sub.b #1,48(a6)
         bpl rrts
         move.b 49(a6),48(a6)    ;step delay reset
         move.l 20(a6),d0
-        add.l d0,4(a6)
+        add.l d0,4(a6) ; Set X position in activobject entry.
         move.l 24(a6),d0
-        add.l d0,8(a6)
+        add.l d0,8(a6) ; Set Y position in activobject entry.
         sub #1,36(a6)      ;step count
         bpl rrts
         clr 44(a6)      ;set to rail ride again
         tst 38(a6)
         beq crail0
-        move web_max,d0      ;change lane #
+        move web_max,d0      ; Get number of lanes in web and put it in d0.
         sub #1,d0
         cmp 16(a6),d0    ;are we in lane zero?
         bne furset0
         tst connect
         bne furset1      ;special if web is connected
         rts
+
 furset1:
         clr 16(a6)      ;Wrap anticlockwize
         bra crail0
@@ -11567,11 +11661,11 @@ furset0:
 crail0:
         bsr webinfo      ;get info. on lane endpoints
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
-        clr d0
+        clr d0     ;fixed point is now the lane side
         swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d1        ;Set position to left lane side
-        move.l d0,4(a6)      ;fixed point is now the lane side
-        move.l d1,8(a6)
+        move.l d0,4(a6) ;Set X position in activobject entry.
+        move.l d1,8(a6) ; Set Y position in activobject entry.
         tst 38(a6)
         rts
 
@@ -11583,31 +11677,30 @@ crail0:
 ; *******************************************************************
 make_pulsar:
 
-        tst afree
-        bmi rrts
+        tst afree               ; Are there any free slots for a new activeobject?
+        bmi rrts                ; If not, return now.
 m_puls:
-        sub #1,afree
-        move.l freeobjects,a0
-        move.l _pus,d0; Set address of the vector object to draw: _pus.
-        tst blanka
-        beq vop2
-        move.l #-5,d0
-vop2:
-        move.l d0,(a0)
-        move #webz+80,12(a0)
+        sub #1,afree            ; Mark one less available slot for activobjects.
+        move.l freeobjects,a0   ; Point a0 at the address to use for our new activeobject.
+        move.l _pus,d0          ; Set address of the vector object to draw: _pus.
+        tst blanka              ; Are we drawing solids or vectors?
+        beq vop2                ; If vectors, skip to vop2.
+        move.l #-5,d0           ; If solids, use draw_spulsar as our draw routine.
+vop2:   move.l d0,(a0)          ; Store selected draw routine in the activeobject entry.
+        move #webz+80,12(a0)    ; Store the top of the web as the object's Z position.
         clr 14(a0)
-        move web_max,d1
-        bsr rand ; Put a random number between 0 and d1 in d0.
-        move d0,16(a0)    ;initial webpos of this Fuseball
-        clr.l 30(a0)      ;clear Y and Z rotate
-        move #1,34(a0)  ; Draw routine in draw_vex is 'draw'.
-        move #$ff,40(a0)    ;Pulsars are YELLOW
-        move #1,42(a0)      ;Fine rez
-        move #1,52(a0)      ;does count as an enemy in the wave-end check.
-        move #11,54(a0) ; Object update routine in run_vex is 'run_pulsar'.       ;Type=RUN_PULSAR
-        move.l a0,a6 ; Move our newly created object into the activeobjects list.
-        bsr toweb
-        bra ipix ; Add it to the activeobjects list and make it very far away (pixel size).
+        move web_max,d1         ; Get number of lanes in web and put it in d1.
+        bsr rand                ; Put a random number between 0 and d1 in d0.
+        move d0,16(a0)          ; initial webpos of this Fuseball
+        clr.l 30(a0)            ; clear Y and Z rotate
+        move #1,34(a0)          ; Draw routine in draw_vex is 'draw'.
+        move #$ff,40(a0)        ; Pulsars are YELLOW
+        move #1,42(a0)          ; Fine rez
+        move #1,52(a0)          ; does count as an enemy in the wave-end check.
+        move #11,54(a0)         ; Object update routine in run_vex is 'run_pulsar'.
+        move.l a0,a6            ; Move our newly created object into the activeobjects list.
+        bsr toweb               ; Set X and Y of object to attach it to the web on selected lane.
+        bra ipix                ; Add it to the activeobjects list and make it very far away (pixel size).
 
 ; *******************************************************************
 ; topulsar
@@ -11626,22 +11719,23 @@ topulsar:
 ; *******************************************************************
 run_pulsar:
         lea _pus,a0; Set address of the vector object to draw: _pus.
-        tst blanka
-        bne vop3
-        move pucnt,d0
-        and #$0f,d0      ;get pu frame ctr
-        lea pucycl,a1 ; Point a1 at pucycl.
-        move.b 0(a1,d0.w),d0
+        tst blanka ; Are we drawing solids or vectors?
+        bne vop3 ; If vectors, skip to vop3.
+				; If solids, the pucycl array contains the index of the routine in 'solids'
+				; that we're going to use. The one we select will depend on pucnt (pulse count).
+        move pucnt,d0 ; Put pucnt in d0.
+        and #$0f,d0      ; Clamp it to a value between 0 and 15.
+        lea pucycl,a1 ; Point a1 at pucycl arrray.
+        move.b 0(a1,d0.w),d0 ; Use the counter as an index to select an entry in pucycl.
         asl #2,d0 ; Multiply it by 4.
-        move.l 0(a0,d0.w),(a6)    ;set header-frame
-vop3:
-        move.l pulsar_zspeed,d0
-        sub.l d0,12(a6)
+        move.l 0(a0,d0.w),(a6)    ; Set the selected index as our draw routine in 'solids'.
+vop3:   move.l pulsar_zspeed,d0
+        sub.l d0,12(a6) ; Set Z position in activobject entry.
         move 16(a6),d0
         move webcol,d1
         asl #2,d0 ; Multiply it by 4.
         move frames,d7 ; Store frames in d7.
-        and #$0f,d7
+        and #$0f,d7 ; Keep it between 0 and 15.
         lsl #4,d7 ; Multiply it by 32.
         move.l lanes,a1
         move.l 0(a1,d0.w),a2    ;address of lane's vertex list cluster
@@ -11653,14 +11747,14 @@ vop3:
         beq rrts
         bsr collie
         bne pkm
-        cmp #webz-80,12(a6)
+        cmp #webz-80,12(a6) ; Set Z position in activobject entry.
         blt lanetop    ;transform into a Flipper or a pair of Psparks
         move frames,d7 ; Store frames in d7.
-        and #$0f,d7
+        and #$0f,d7 ; Keep it between 0 and 15.
         lsl #4,d7 ; Multiply it by 32.
         move.b d7,4(a2)    ;make end bar flash
-        move pucnt,d0
-        and #$0f,d0
+        move pucnt,d0 ; Store the pulse count in d0.
+        and #$0f,d0 ; Keep it between 0 and 15.
         cmp #7,d0    ;check for Deadly
         bne rrts
         tst zapdone    ;do we need to start a zap sound?
@@ -11686,6 +11780,10 @@ zd0:
         beq frouch    ;Kill player if we are in his Lane
         rts
 
+; *******************************************************************
+; frouch
+; Kill the player!
+; *******************************************************************
 frouch:
         move.l a0,-(a7) ; Stash some values in the stack so we can restore them later.
         lea gmes3,a0
@@ -11695,8 +11793,7 @@ frouch:
         move.l (a7)+,a0 ; Restore stashed values from the stack.
         bra ouch
 
-pkm:
-        move #3,d0
+pkm:    move #3,d0
         bra fkm
 
 
@@ -11737,40 +11834,41 @@ run_pspark:
         sub.b #1,44(a6)
         bpl rrts    ;count down to motion-delay
         move.b 45(a6),44(a6)  ;reset propagation delay
-        move web_max,d0
+        move web_max,d0; Get number of lanes in web and put it in d0.
         sub #1,d0
         tst 46(a6)    ;check motion sign
         bmi propleft
 propright:
         add #1,16(a6)  ;propagate to right
         cmp 16(a6),d0
-        bpl toweb
+        bpl toweb ; Set X and Y of object to attach it to the web on selected lane.
         tst connect
         bne wwrap
         neg 46(a6)
         bra propleft
 wwrap:
         clr 16(a6)
-        bra toweb
+        bra toweb ; Set X and Y of object to attach it to the web on selected lane.
 propleft:
         sub #1,16(a6)
-        bpl toweb
+        bpl toweb ; Set X and Y of object to attach it to the web on selected lane.
         tst connect
         bne wwrap2
         neg 46(a6)
         bra propright
 wwrap2:
         move d0,16(a6)
-        bra toweb
+        bra toweb ; Set X and Y of object to attach it to the web on selected lane.
 
 ; *******************************************************************
 ; blowmeaway
 ; *******************************************************************
 blowmeaway:
-        tst blanka
-        beq vecbons
-xbonx:
-        move #3,d1
+        tst blanka ; Are we drawing solids or vectors?
+        beq vecbons ; If vectors, go to vecbons.
+
+        ; Otherwise, we're drawing solids.
+xbonx:  move #3,d1
         bsr rand ; Put a random number between 0 and d1 in d0.
 xbon:
         move d0,-(a7) ; Stash some values in the stack so we can restore them later.
@@ -11800,9 +11898,9 @@ ntfx:   move (a7)+,d0 ; Restore stashed values from the stack.
 ; *******************************************************************
 any_pixex:
         tst ofree
-        bmi rrts
+        bmi rrts ; If not, return now.
         move.l a6,-(a7) ; Stash some values in the stack so we can restore them later.
-        move.l freeobjects,a0
+        move.l freeobjects,a0 ; Point a0 at the address to use for our new activeobject.
         move.l a2,16(a0)
         move.l d0,36(a0)
         move.l d1,40(a0)
@@ -11827,6 +11925,7 @@ any_pixex:
 
 ; *******************************************************************
 ; vecbons
+; Draw a vector based bonus animation.
 ; *******************************************************************
 vecbons:
         move.l vp_xtarg,d0
@@ -11835,7 +11934,7 @@ vecbons:
         sub.l 8(a6),d1      ;motion vector to the viewpoint
         asr.l #5,d0
         asr.l #5,d1      ;/128
-        move.l d0,20(a6)
+        move.l d0,20(a6) ; Set the velocity in activeobject entry.
         move.l d1,24(a6)    ;save it
         move #3,d1
         bsr rand ; Put a random number between 0 and d1 in d0.
@@ -11855,7 +11954,6 @@ vecbons:
         move #10,54(a6) ; Object update routine in run_vex is 'blowaway'.       ;blowaway
         clr 52(a6)      ;not an enemy
         move #150,46(a6)    ;duration
-;  bsr webinfo
         move #8,sfx ; 'Select 'Cleared Level' sound effect
         move #3,sfx_pri ; Set the sound's priority compared to others.
         jsr fox ; Play selected sound effect.
@@ -11903,9 +12001,9 @@ do_oneup:
         clr 52(a0)             ; Set it not be an enemy
         move #150,46(a0)       ; Set the duration
 
-        tst blanka             ;
-        beq veconeup           ; Insert it as object type oblow.
-        move #7,34(a0)          ; Draw routine in draw_vex is 'draw_oneup'.
+        tst blanka  ; Are we drawing solids or vectors?
+        beq veconeup           ; If vectors, insert it with vector object type oblow.
+        move #7,34(a0)          ; If solid, insert its draw routine in draw_vex as 'draw_oneup'.
 
 veconeup:
         bsr insertobject       ; Insert the object.
@@ -11928,11 +12026,11 @@ blowaway:
 ; oblow2
 ; Called during the run_objects sequence as a member of the run_vex list.
 ; *******************************************************************
-oblow2: sub #1,12(a6)
+oblow2: sub #1,12(a6) ; Set Z position in activobject entry.
         move.l 20(a6),d0
-        add.l d0,4(a6)
+        add.l d0,4(a6) ; Set X position in activobject entry.
         move.l 24(a6),d0
-        add.l d0,8(a6)
+        add.l d0,8(a6) ; Set Y position in activobject entry.
 
         sub #1,46(a6)
         bpl rrts
@@ -11993,8 +12091,8 @@ go_downf:
 ; go_down
 ; *******************************************************************
 go_down:
-        add #2,12(a6)
-        cmp #webz+80,12(a6)
+        add #2,12(a6) ; Set Z position in activobject entry.
+        cmp #webz+80,12(a6) ; Set Z position in activobject entry.
         rts
 
 ; *******************************************************************
@@ -12040,8 +12138,8 @@ pzap:
 
         add #12,28(a6)
         sub #$80,36(a6)
-        sub.l #$4000,12(a6)
-        cmp #webz-100,12(a6)
+        sub.l #$4000,12(a6) ; Set Z position in activobject entry.
+        cmp #webz-100,12(a6) ; Set Z position in activobject entry.
         blt llost    ;rez new ship (or not); uses code from go_down
         rts
 
@@ -12068,7 +12166,7 @@ npss:   move.l _zap,(a0) ; Set address of the vector object to draw: _zap.
 ; xzcollie
 ; *******************************************************************
 xzcollie:
-        tst _sz    ;special szap detect - not sz if this is second time (for bulls)
+        tst _sz    ;special szap detect - not sz if this is second time (for bullets)
         beq colok
         bmi colok
         tst szap_avail
@@ -12088,14 +12186,19 @@ mcollie:
 ; Collision detect the current object with all currently active bulls. Return with non-0 for a hit, and kill the bull.
 ; *******************************************************************
 collie:
+        tst _sz ; Is superzapper running?
+        beq colok ; If not, check if bullet hits it.
+        bmi colok ; If not, check if bullet hits it.
+				; Fall through to superzap it.
 
-        tst _sz
-        beq colok
-        bmi colok
+; *******************************************************************
+; zappit
+; Kill a thing with the superzapper.
+; *******************************************************************
 zappit:
-        tst inf_zap
-        bne zizzit
-        move #-1,_sz
+        tst inf_zap ; Do we have infinit zap enabled?
+        bne zizzit ; If so, don't 'use up' the zap.
+        move #-1,_sz ; Signal superzapper used up now.
 zizzit:
         move.l 4(a6),boltx
         move.l 8(a6),bolty
@@ -12104,6 +12207,11 @@ zizzit:
         move #4,wave_speed
         move #1,d0    ;Hit (SZ)
         rts
+
+; *******************************************************************
+; colok
+; Check if we've hit something with a bullet.
+; *******************************************************************
 colok:
         clr d6
 colok1:
@@ -12135,12 +12243,11 @@ bite:
         bne h2h_special
         cmp #10,34(a4)    ; Draw routine in draw_vex is 'draw_pring'. Is particle beam, does not stop
         bge xle3      ;Use XLE only to make ring bullets spark off end of Spikes
-        tst blanka
-        beq jstop    ;in old Tempest mode, bulls just stop
+        tst blanka ; Are we drawing solids or vectors?
+        beq jstop    ; If vectors, then we're in old Tempest mode, bulls just stop, so skip to jstop.
         cmp #6,54(a6) ; Object update routine in run_vex is 'run_spike'. 
         beq xle      ;bullets off Spikes spatter
-jstop:
-        move.l a4,a0
+jstop:  move.l a4,a0
 kbull:
         move.l 24(a0),a1  ;Clear coll table entry
         clr.l (a1)
@@ -12173,26 +12280,27 @@ xle3:
         tst 20(a6)
         beq xle2    ;not Super
         bra dxle    ;go kill-and-spatter, that was Super
+				; Returns
 
 ; *******************************************************************
-; toweb
+; toweb 
 ;
 ; Fix an object in the Web according to its web position in 16(a6).
 ; This calculates the appropriate X and Y position for the object
 ; and stores it in the object's data.
 ; *******************************************************************
 toweb:
-        bsr webinfo ; Get the X and Y position for this lane.
-        swap d4 ; Swap position of the first 2 bytes with last 2 bytes.
+        bsr webinfo              ; Get the X and Y position for this lane.
+        swap d4                  ; Swap position of the first 2 bytes with last 2 bytes.
         clr d4
-        swap d5 ; Swap position of the first 2 bytes with last 2 bytes.
-        clr d5        ;midpoint to 16:16
-        move.l d4,4(a6) ; Set X position
-        move.l d5,8(a6)  ; Set Y position
+        swap d5                  ; Swap position of the first 2 bytes with last 2 bytes.
+        clr d5                   ; midpoint to 16:16
+        move.l d4,4(a6)          ; Set X position in activeobject entry.
+        move.l d5,8(a6)          ; Set Y position in activeobject entry.
         move 16(a6),d6
-        lsl #1,d6 ; Multiply it by 2.
-        move.l web_otab,a1 ; Put the web orientation table in a1.
-        move 0(a1,d6.w),28(a6)    ; Use d6 to get the right orientation value from the web orientation table.
+        lsl #1,d6                ; Multiply it by 2.
+        move.l web_otab,a1       ; Put the web orientation table in a1.
+        move 0(a1,d6.w),28(a6)   ; Use d6 to get the right orientation value from the web orientation table.
         rts
 
 
@@ -12205,7 +12313,7 @@ l_webinfo:
         bpl webinf      ;-1 is positive, OK
         tst connect
         beq websame      ;not connected, return current lane
-        add web_max,d0      ;wrap it
+        add web_max,d0      ; Add number of lanes in web to d0: i.e. wrap it.
         bra webinf
 
 ; *******************************************************************
@@ -12214,7 +12322,7 @@ l_webinfo:
 r_webinfo:
         move 16(a6),d0
         add #1,d0
-        move web_max,d1
+        move web_max,d1; Get number of lanes in web and put it in d1.
         cmp d0,d1
         bgt webinf      ;check for on web
         tst connect
@@ -12313,7 +12421,7 @@ rez_claw:
 gwave:
         move.l a6,-(a7) ; Stash some values in the stack so we can restore them later.
         move cweb,d0
-        and #$0f,d0
+        and #$0f,d0 ; Keep it between 0 and 15.
         lea h2hlevs,a0
         lsl #2,d0 ; Multiply it by 4
         move 2(a0,d0.w),d1
@@ -12350,16 +12458,14 @@ srezclaw:
 
         clr.l cjump    ;use as jump indicator/velocity
 ncjmp:
-        tst blanka
-        beq vclaw
+        tst blanka ; Are we drawing solids or vectors?
+        beq vclaw ; If vector, skip to vclaw.
         cmp #21,46(a6)
         beq vclaw    ;standard vector rez if a droid
-        move #16,34(a6)     ; Draw routine in draw_vex is 'dsclaw'. This is draw solid claw.
+        move #16,34(a6)     ; We're a solid. Draw routine in draw_vex is 'dsclaw'. This is draw solid claw.
         bra rclaw
-vclaw:
-        move #1,34(a6)     ; Draw routine in draw_vex is 'draw'.
-rclaw:
-        move 46(a6),54(a6)  ;set clawcon as intrinsic routine
+vclaw:  move #1,34(a6)     ; Draw routine in draw_vex is 'draw'.
+rclaw:  move 46(a6),54(a6)  ;set clawcon in run_vex as intrinsic routine
         move #-1,52(a6)    ;set mode to Vuln
 go_con:
         move 46(a6),d0    ;skip on to clawcon (can move and fire during rezz)
@@ -12425,7 +12531,7 @@ h2hrun:
         bsr vp_set2
         clr.l vp_xtarg
         tst _won
-        bmi rrts
+        bmi rrts ; If not, return now.
         sub #1,_won
         bne rrts
         clr _pauen ; Disable pausing.
@@ -12499,7 +12605,7 @@ nomirr1:
         and #7,d1
         bne rrts
         tst shots
-        bmi rrts
+        bmi rrts ; If not, return now.
         sub #1,shots
         move.l a6,a1
         bra h2hfrab
@@ -12566,7 +12672,7 @@ cc2:
         beq cce      ;T2K not on.
         move.l cjump,d0    ;check for jump running...
         beq chek4jump
-        add.l d0,12(a6)
+        add.l d0,12(a6) ; Set Z position in activobject entry.
         move.l 12(a6),d1 ; Get the object's Z position.
         move #webz-80,d2
         swap d2 ; Swap position of the first 2 bytes with last 2 bytes.
@@ -12578,9 +12684,9 @@ cc2:
         add.l #$c11,cjump
         tst.l d0
         bmi cce
-        cmp #webz-80,12(a6)
+        cmp #webz-80,12(a6) ; Set Z position in activobject entry.
         blt cce
-        move #webz-80,12(a6)
+        move #webz-80,12(a6) ; Set Z position in activobject entry.
         clr 14(a6)
         clr.l cjump
         and.l #$fffc0000,vp_z
@@ -12645,7 +12751,7 @@ pad_pressed:
         bne notc1
         btst #3,d7
         beq joyconn
-        move.l rot_cum,20(a6)
+        move.l rot_cum,20(a6) ; Set the velocity in activeobject entry.
         clr.l rot_cum
         clr.l 24(a6)
         bra domove      ;Use absolute speed value if we are on the rotary controller
@@ -12655,7 +12761,7 @@ notc1:
         bne joyconn      ;must be the droid or a demo
         btst #4,d7
         beq joyconn
-        move.l rot_cum+4,20(a6)
+        move.l rot_cum+4,20(a6) ; Set the velocity in activeobject entry.
         clr.l rot_cum+4
         clr.l 24(a6)
         tst conswap
@@ -12688,10 +12794,11 @@ c_rgt:
         cmp.l d3,d1
         bgt domove
 a_ok:
-         move.l d1,20(a6)
+         move.l d1,20(a6) ; Set the velocity in activeobject entry.
 
 ; *******************************************************************
-; Actually move the claw along the web.
+; domove
+; Actually move the claw between lanes on the web.
 ; *******************************************************************
 domove:
         move.l lanes,a1
@@ -12708,12 +12815,12 @@ domove:
         swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
         tst connect
         beq spdone
-        move web_max,d1
+        move web_max,d1; Get number of lanes in web and put it in d1.
         sub #1,d1
         bra spok
 ulchk:
         swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
-        cmp web_max,d1
+        cmp web_max,d1 ; Have we reached the last lane in the web?
         blt spok
         tst connect
         beq spdone
@@ -12768,8 +12875,8 @@ spdone:
         clr d0
         swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d1
-        move.l d0,4(a6)
-        move.l d1,8(a6)      ;place claw on th web
+        move.l d0,4(a6) ; Set X position in activobject entry.
+        move.l d1,8(a6)  ;Set Y position in activobject entry (place claw on th web).
         cmp #17,34(a6) ; Draw routine in draw_vex is 'dsclaw2'.
         bne nutargg
         rts
@@ -13017,9 +13124,9 @@ czoom1:
         bsr zoomup
         lea _web,a0
         move.l 20(a0),d0
-        add.l d0,12(a6)
+        add.l d0,12(a6) ; Set Z position in activobject entry.
         move.l 12(a6),claud    ;claw distance
-        cmp #webz+80,claud
+        cmp #webz+80,claud ; Have we reached the top of the web?
         blt go_con      ;allow control while still on-web
         jsr clzapa
         move #19,d0
@@ -13044,13 +13151,13 @@ czoom2:
 zinit:
         lea _web,a0
         move.l 20(a0),d0
-        add.l d0,12(a6)
+        add.l d0,12(a6) ; Set Z position in activobject entry.
         add #4,28(a6)
         sub #$40,36(a6)
         bsr zoomup
         move.l claud,d0
         add.l d0,12(a6)      ;move into zplane
-        cmp #2000,12(a6)
+        cmp #2000,12(a6) ; Set Z position in activobject entry.
         blt rrts
 zoo2off:
 
@@ -13218,7 +13325,7 @@ zoom1:  bsr rightit
         add.l d4,20(a0)
         cmp #260,vp_z      ;by web Z=40 it will be off of the screen
         bgt z1stop
-        cmp #webz+80,claud
+        cmp #webz+80,claud ; Have we reached the top of the web?
         blt nofire
         rts
 z1stop: move.l #zoom2,routine    ;get ready to zoom off claw
@@ -13463,7 +13570,7 @@ IServ:
 ; This routine is responsible for updating the state of all objects in the
 ; game. It is called at every vertical sync interrupt (also known as a vertical
 ; blank).  The counterpart to this routine is 'mainloop'.  While mainloop is
-; responsible for processing the activeobjects, this routine is where the bulk
+; responsible for processing and drawing the activeobjects to screen, this routine is where the bulk
 ; of the objects get updated (run_objects) and created/inserted into the
 ; activeobjects list. The main place this happens is in the moveclaw routine,
 ; which despite its name is responsible for managing the waves of enemies too.
@@ -13749,8 +13856,8 @@ gamefx:
         add #$80,d0
         add #$80,d1
         and #$f0,d0
-        lsr #4,d1
-        and #$0f,d1
+        lsr #4,d1 ; Divide by 32.
+        and #$0f,d1 ; Keep it between 0 and 15.
         or d0,d1
         move d1,flashcol
         lsl #8,d1
@@ -13769,7 +13876,7 @@ inccc:
 
 donowt:
         tst holiday
-        bmi rrts
+        bmi rrts ; If not, return now.
         sub #1,holiday
         bmi swebcol
         move frames,d0 ; Stash the frame count in d0.
@@ -13932,8 +14039,8 @@ mclut:
         sub.b d3,d0
         add.b #1,d0
         and #$f0,d2
-        lsr #4,d1
-        and #$0f,d1
+        lsr #4,d1 ; Divide by 32.
+        and #$0f,d1 ; Keep it between 0 and 15.
         or d2,d1
         lsl #8,d1
         or #$ff,d1
@@ -14025,7 +14132,7 @@ paustuff:
 
 npspri:
         tst vadj
-        bmi rrts
+        bmi rrts ; If not, return now.
 
         move #64,d0    ;To do pause+volume displays: clear a block of screen..
         move #100,d1
@@ -15048,7 +15155,7 @@ extrude:move.l vadd,a0
         clr.l d1
         clr d5                      ;to catch highest X point
         move (a1)+,d6               ;First byte from raw_web: # channels to a web
-        move d6,web_max
+        move d6,web_max ; Set as the number of lanes in the web.
         move (a1)+,web_firstseg     ;Second byte: player's starting position on web?
         move.l a1,web_ptab          ;Third byte: start of x/y pairs, the position table
         move.l a3,(a5)+             ;first vertex to lanes list
@@ -15100,7 +15207,7 @@ lastpoint:
         move 4(a1),connect
         tst connect
         beq nconn1                  ;connect to vertex 1 if required
-        add #1,web_max
+        add #1,web_max ; Increment the number of lanes in the web.
         move #1,(a3)+
         move #0,(a3)+
         move d3,(a3)+
@@ -15130,9 +15237,9 @@ nconn1: move.l #0,(a3)+
 ; Make a firework object
 ; *******************************************************************
 make_fw:
-        tst afree
-        bmi rrts
-        move.l freeobjects,a0
+        tst afree ; Are there any free slots for a new activeobject?
+        bmi rrts ; If not, return now.
+        move.l freeobjects,a0 ; Point a0 at the address to use for our new activeobject.
         move.l fw_x,4(a0)
         move.l fw_y,8(a0)
         move.l fw_z,12(a0)
@@ -15147,7 +15254,7 @@ make_fw:
         move fw_col,40(a0)
         clr.l 50(a0)
         move #29,54(a0) ; Object update routine in run_vex is 'run_fw'. 
-        sub #1,afree
+        sub #1,afree ; Mark one less available slot for activobjects.
         jmp insertobject ; Add it to the activeobjects list.
 
 ; *******************************************************************
@@ -15215,11 +15322,11 @@ fw_ex:  lea in_buf,a0         ; Point our GPU RAM input buffer at a0.
 run_fw: tst 32(a6)
         bmi xpired
         move.l 16(a6),d0
-        add.l d0,4(a6)
+        add.l d0,4(a6) ; Set X position in activobject entry.
         move.l 20(a6),d0
-        add.l d0,8(a6)
+        add.l d0,8(a6) ; Set Y position in activobject entry.
         move.l 24(a6),d0
-        add.l d0,12(a6)
+        add.l d0,12(a6) ; Set Z position in activobject entry.
         move.l 28(a6),d0
         add.l d0,20(a6)    ;gravity
         sub #1,32(a6) ; Decrement the firework duration.
@@ -15229,7 +15336,7 @@ xpired:
         add d0,36(a6)
         cmp #63,36(a6)
         blt rrts
-        move #1,50(a6)
+        move #1,50(a6) ; Mark the activeobject entry for deletion.
         rts
 
 ; *******************************************************************
@@ -15270,8 +15377,8 @@ run_objects:
         sub.b #1,pudel            ;do Pulsar pulses
         bpl zzonk
         move.b pudel+1,pudel
-        add #1,pucnt
-        and #$0f,pucnt
+        add #1,pucnt ; Increment our pulsar counter.
+        and #$0f,pucnt ; Keep it between 0 and 15.
         beq clzd
 zzonk:  cmp #7,pucnt
         bne zonk
@@ -15285,13 +15392,14 @@ zonk:   move #2,diag
         move #0,d7                ;use to check for wave_end
         move.l #500,d6            ;use to find the nearest enemy, for the Droid's brain
         move.l activeobjects,a6
-        clr _sz
-        tst szap_on
-        beq r_obj                 ;check for superzap requested
+        clr _sz ; Stop superzapper running.
+        tst szap_on ; Is supersapper on?
+        beq r_obj                 ; If not, process our activeobjects.
+
         move frames,d0 ; Stash the frame count in d0.
-        and #3,d0
-        bne r_obj
-        move #1,_sz               ;Kill something please...
+        and #3,d0 ; Can we enable superzapper?
+        bne r_obj ; If not, skip to rest of objects.
+        move #1,_sz               ;Kill something please... make superzapper active.
 
         ; Iterate through the activobjects list and run the appropriate routine
         ; in 'run_vex' for each object.
@@ -15309,11 +15417,11 @@ r_obj:  cmpa.l #-1,a6
         bgt r_o1                  ;no official action, we already did it
         cmp #11,54(a6) ; Object update routine in run_vex is 'run_pulsar'. 
         bne setxx
-        move pucnt,d1
-        and #$0f,d1
+        move pucnt,d1 ; Put our pulsar counter in d1.
+        and #$0f,d1 ; Keep it between 0 and 15.
         cmp #3,d1                 ;Make sure that a pulsar is not created in a dangerous phase
         blt setxx
-        add #2,12(a6)
+        add #2,12(a6) ; Set Z position in activobject entry.
         bra r_o1                  ;Makes pulsars wait until innocent before touchdown
 
 setxx:  neg 34(a6)                ;make it real now
@@ -15341,7 +15449,7 @@ zokk:   movem.l d6-d7,-(a7) ; Stash some values in the stack so we can restore t
         move #3,diag
         move.l a0,diag+4
         move.l a6,diag+8
-        tst locked                ;>>>>> A nasty hack.
+        tst locked      ; Are we in the middle of adding stuff to activeobjects? ;>>>>> A nasty hack.
         bne hack
         jsr (a0)                  ; Run the motion routine selected from run_vex.
 hack:   movem.l (a7)+,d6-d7       ;retrieve furthest-z
@@ -15357,14 +15465,14 @@ r_end:  move.l d6,droid_data
         bpl r_end1                ;Nope
         cmp #-2,wave_tim          ;total end
         beq rrts
-        cmp #webz-80,d7           ;furthest NME at top?
+        cmp #webz-80,d7           ;furthest NME at top of the web?
         bgt r_end1
 szoom:  move #-2,wave_tim
 
         tst dnt
         bpl skagi
         clr dnt
-skagi:  clr szap_on
+skagi:  clr szap_on ; Turn off superzapper.
         bsr clzapa
 zagga:  move.l #zoom1,routine     ;fly off the web
         clr l_soltarg
@@ -15443,77 +15551,90 @@ clzapa: clr szap_on    ;Yeah, he zaps 1 alien is all
 
 ; *******************************************************************
 ; rob
+; Special case for running the object update (run_vex) routine in activobjects - used by bonus level and 
+; text entry.
 ; *******************************************************************
-rob:    move.l activeobjects,a6
-r_ob:   cmpa.l #-1,a6
-        beq rob_end
-        tst 50(a6)
-        bmi rob_end    ;>>>>> KLUDGE to prevent a garbled list being traversed
-        lea run_vex,a0
+rob:    move.l activeobjects,a6 ; Point a6 at activeobjects list.
 
-        move 54(a6),d0
-        bpl r_ob1    ;-ve treated as no action
-        clr d0
-r_ob1:  asl #2,d0 ; Multiply it by 4.
-        move.l 60(a6),-(a7)  ;save address of current Next in case this object is unlinked
-        move.l 0(a0,d0.w),a0
-        jsr (a0)    ;call motion vector
-        move.l (a7)+,a6 ; Restore stashed values from the stack.
-        bra r_ob
-rob_end:rts
-r_nxt:  move.l 56(a6),a6
-        bra r_ob
+r_ob:   cmpa.l #-1,a6          ; Have we reached the end of the activeobjects list?
+        beq rob_end            ; If so, exit.
+        tst 50(a6)             ; Is it marked for deletion?
+        bmi rob_end            ; If so, exit. (>>>>> KLUDGE to prevent a garbled list being traversed)
+        lea run_vex,a0         ; Point a0 at run_vex array.
+        move 54(a6),d0         ; Get the object's index into run_vex
+        bpl r_ob1              ; If it's greater than zero, use it..
+        clr d0                 ; .. otherwise ensure it's zero.
+r_ob1:  asl #2,d0              ; Multiply it by 4.
+        move.l 60(a6),-(a7)    ; save address of current Next in case this object is unlinked
+        move.l 0(a0,d0.w),a0   ; Use d0 as an index into run_vex
+        jsr (a0)               ; call motion vector
+        move.l (a7)+,a6        ; Restore stashed values from the stack.
+        bra r_ob               ; Keep looping
+rob_end:rts                    ; Exit, we're done.
+r_nxt:  move.l 56(a6),a6       ; Move to the next object in activeobjects list.
+        bra r_ob               ; Keep looping
 
 ; *******************************************************************
 ; dob
-; Draw the objects list
+; Draw the objects list by calling each object's chosen entry in the
+; 'draw_vex' array.
 ; *******************************************************************
         ; Our first pass through the activeobjects list.
-dob:    move.l activeobjects,a6
-d_ob:   cmpa.l #-1,a6
-        beq dobend
-        move 50(a6),d0    ;'Unlink Me Please'
-        beq no_dunlink
-
+				; This loops through each item in the list.
+dob:    move.l activeobjects,a6 ; Point a6 at activeobjects.
+d_ob:   cmpa.l #-1,a6 ; Have we reached the end of the list?
+        beq dobend ; If so, exit.
+        move 50(a6),d0            ;  Is the object marked for deletion?
+        beq no_dunlink ; If not, we can run it's draw_vex routine.
+        
         move.l 56(a6),d1
         bmi dtlink
         move.l d1,a5
-        move.l 60(a6),60(a5)  ;if interrupted, unlinking object is invisible to int routine now
-
-dtlink: move #-1,50(a6)    ;mark it bad
-        move.l 60(a6),-(a7) ; Stash some values in the stack so we can restore them later.
-        move d0,-(a7) ; Stash some values in the stack so we can restore them later.
+        move.l 60(a6),60(a5)      ; if interrupted, unlinking object is invisible to int routine now
+        
+dtlink: move #-1,50(a6)           ; mark it for deletion.
+        move.l 60(a6),-(a7)       ; Stash address of next object in the stack so we can restore it later.
+        move d0,-(a7)             ; Stash some values in the stack so we can restore them later.
         move.l a6,a0
-        move 32(a6),-(a7)  ;save player ownership tag
-        move (a7)+,d1 ; Restore stashed values from the stack.
-        move (a7)+,d0 ; Restore stashed values from the stack.
+        move 32(a6),-(a7)         ; save player ownership tag
+        move (a7)+,d1             ; Restore stashed values from the stack.
+        move (a7)+,d0             ; Restore stashed values from the stack.
         bsr dafinc
         bra nxtdob
+
+				; Run the draw_vex routine for the object.
 no_dunlink:
-        lea draw_vex,a0
-        move 34(a6),d0    ;-ve it is collapsed to a pixel!
-        asl #2,d0 ; Multiply it by 4.
-        move.l 0(a0,d0.w),a0
-        move.l 60(a6),-(a7)    ;go to next object
-        jsr (a0)    ;execute chosen draw type
-        jsr gpuwait ; Wait for the GPU to finish.
-nxtdob: move.l (a7)+,a6    ;this way i can even trash a6 if i need II
-        bra d_ob    ;finish off and terminate the ud-list
+        lea draw_vex,a0           ; Point a0 at our draw_vex array.
+        move 34(a6),d0            ; Get our index into draw_vex.
+        asl #2,d0                 ; Multiply it by 4.
+        move.l 0(a0,d0.w),a0      ; Use the index to get our routine from draw_vex.
+        move.l 60(a6),-(a7)       ; go to next object
+        jsr (a0)                  ; execute chosen draw routine
+        jsr gpuwait               ; Wait for the GPU to finish.
 
-dobend: bsr showscore
-        tst blanka
-        beq dodvec
-        bsr drawpolyos    ;draw pri-list full of poly objects
-dodvec: bra drawmsg    ;draw Messager thang if needed
-
-dafinc: add #1,afree
-        move #1,locked
-        bsr unlinkobject
-        clr locked
+				; Loop and go to thenext item in the list.
+nxtdob: move.l (a7)+,a6           ; this way i can even trash a6 if i need II
+        bra d_ob                  ; Loop to the next item in the activeobjects list.
+        
+				; We've finished processing the activeobjects list.
+dobend: bsr showscore ; Show the score.
+        tst blanka                ; Are we drawing solids or vectors?
+        beq dodvec                ; If vectors, skip drawing any solid polygons.
+        bsr drawpolyos            ; draw pri-list full of solid polygon objects
+dodvec: bra drawmsg               ; draw Messager thang if needed
+        
+dafinc: add #1,afree              ; Mark one less available slot for activobjects.
+        move #1,locked            ; Lock the activeobjects list while we delete from it.
+        bsr unlinkobject          ; Remove the object from the activeobjects list.
+        clr locked                ; Unlock the activeobjecst list again.
         rts
-
-donki:  bsr showscore
+        
+; *******************************************************************
+; donki
+; *******************************************************************
+donki:  bsr showscore ; Show the score.
         bra drawmsg
+				; Returns
 
 ; *******************************************************************
 ; draw_vex
@@ -15652,16 +15773,16 @@ uls:    dc.l afinc,ashinc,pshinc
 pshinc: tst d1    ;player ownership of an unlinked bullet
         beq ulsh1
         add #1,shots+2
-ulo:    move #1,locked
-        bsr unlinkobject
-        clr locked
+ulo:    move #1,locked  ; Lock the activeobjects list while we delete from it.
+        bsr unlinkobject ; Remove the object from the active objects list.
+        clr locked ; Unlock the activeobjdects list again.
         bra nxt_o             ; Finished deleting, go the the next object.
 ulsh1:  add #1,shots
         bra ulo
 
 ashinc: add #1,ashots
 
-afinc:  add #1,afree
+afinc:  add #1,afree ; Make the slot available for a new activobject.
         bra ulo
 
         ; Actually draw the object.
@@ -15710,9 +15831,9 @@ odvec:  bsr drawmsg       ; Draw 'Superzapper Recharge' or other message, if app
 dunfirst:
         jsr centext    ; Draw the text in the centre.
 
-namsg:  tst blanka
-        beq xox1    ;no bolts on ordinary T
-        tst bolt_lock
+namsg:  tst blanka ; Are we drawing solids or vectors?
+        beq xox1    ;If vectors, then we don't draw bolts because no bolts in Classic Tempest.
+        tst bolt_lock ; Is the bolt lock set?
         beq xox1    ;only draw bolt if Bolt Lock is set
 
         jsr WaitBlit ; Wait for the blitter to finish.
@@ -16154,7 +16275,7 @@ r_podraw:
         sub.l vp_x,d2 ; Subtract the player/camera viewpoint X position.
         move.l 8(a6),d3 ; Get the object's Y position.
         sub.l vp_y,d3 ; Subtract the player/camera viewpoint Y position.
-        move #webz,d6
+        move #webz,d6 ; Store the top of the web's Z value in d6.
         swap d6 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d6
         move.l 12(a6),d1 ; Get the object's Z position.
@@ -16272,7 +16393,7 @@ draw_h2hclaw:
         lsr.l #2,d1 ; Divide by 4.
         neg.l d1
         add.l #$ff,d1
-        and #$0f,d1
+        and #$0f,d1 ; Keep it between 0 and 15.
         or #$f0,d1
         asl.l #2,d0 ; Multiply it by 4.
         move.l d0,12(a0)  ;rad
@@ -16369,7 +16490,7 @@ draw_h2hball:
         move.l d3,(a0)+ ; Add it to our GPU RAM input buffer.
         move.l d1,(a0)+  ;XYZ source
         move.l _claw,a4
-        cmp #webz,12(a6)
+        cmp #webz,12(a6) ; Have we reached the top of the web?
         bmi drh2hb1
         move.l 56(a4),a4
 drh2hb1:
@@ -16382,7 +16503,7 @@ drh2hb1:
         move.l 12(a4),d0
         tst h2hor
         beq nohorra
-        move #webz,d6
+        move #webz,d6 ; Store the top of web's Z pos in d6.
         swap d6 ; Swap position of the first 2 bytes with last 2 bytes.
         clr d6
         sub.l d6,d0
@@ -16614,7 +16735,7 @@ IniA:   move #-1,50(a0)
         move.l a0,60(a1)  ;set Next field of preceding one
         dbra d0,IniA
         move.l #-1,60(a1)
-        move #32,afree
+        move #32,afree ; There are 32 slots in total in the activeobjects list.
         rts
 
 ; *******************************************************************
@@ -16645,7 +16766,7 @@ insertobject:
         clr 50(a0)    ;init busy flag
         move.l 56(a0),a1
         move.l 60(a0),a2
-        sub #1,ofree
+        sub #1,ofree ; Make one less slot available on the freeobjects list.
         lea activeobjects,a3 ; Point a3 at activeobjects.
         lea freeobjects,a4 ; Point a4 at freeobjects.
         bra MoveLink
@@ -16658,7 +16779,7 @@ insertobject:
 unlinkobject:
         move.l 56(a0),a1
         move.l 60(a0),a2
-        add #1,ofree
+        add #1,ofree ; Make one less slot available on the freeobjects list.
         lea freeobjects,a3 ; Point a3 at freeobjects.
         lea activeobjects,a4 ; Point a4 at activeobjects.
         bra MoveLink
@@ -16854,7 +16975,7 @@ thaggit:
 ; enemy for each enemy type in the wave.
 ; *******************************************************************
 newgen: tst wave_tim
-        bmi rrts
+        bmi rrts ; If not, return now.
         tst startbonus
         bpl nostab
         bsr do_oneup
@@ -16935,16 +17056,16 @@ init_wave:
 ;  12-16    Z 
 ;  16-20    Position/lane on web.
 ;  20-24    Velocity 
-;  24-28    Acceleration                                     XY orientation 
-;  28-30    XZ Orientation                                   XZ orientation  
-;  30-32    Y Rotation 
-;  32-34    Z Rotation 
+;  24-28    Acceleration/Flipper Mode                        XY orientation 
+;  28-30    XZ Orientation  (Roll)                           XZ orientation  
+;  30-32    Y Rotation  (Pitch)
+;  32-34    Z Rotation  (Yaw)
 ;  34-36    Draw Type (Index into draw routine in draw_vex)
 ;  36-38    Start address of pixel data.                     Delta Z 
 ;  38-40    Y                                                Colour change value
 ;  40-42    Colour 
 ;  42-44    Scale factor 
-;  44-46    Mode to climb, descend or cross rail/radius
+;  44-46    0 = climb rail, 1 = cross rail, 2 = blowaway
 ;  46-48    Size of Pixel Data/Number of pixels              Duration.
 ;  48-50    Fire Timer / Sphere Type 
 ;  50-52    Marked for deletion 
@@ -17139,8 +17260,8 @@ isf:
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
         move.l d0,(a0)+    ;Z rand 0-1FF.FFFF
         and #$f0,d2
-        lsr #4,d3
-        and #$0f,d3
+        lsr #4,d3 ; Divide by 32.
+        and #$0f,d3 ; Keep it between 0 and 15.
         or d2,d3
         lsl #8,d3
         move d3,(a0)    ;make star co-ordinates an index into CRY-Space
@@ -17257,8 +17378,8 @@ ipstarf:
         add #$80,d0
         add #$80,d1
         and #$f0,d0
-        lsr #4,d1
-        and #$0f,d1
+        lsr #4,d1 ; Divide by 32.
+        and #$0f,d1 ; Keep it between 0 and 15.
         or d0,d1
         lsl #8,d1
         move d1,(a0)
@@ -17344,8 +17465,8 @@ impixel:
         add #$80,d2
         add #$80,d3
         and #$f0,d2
-        lsr #4,d3
-        and #$0f,d3
+        lsr #4,d3 ; Divide by 32.
+        and #$0f,d3 ; Keep it between 0 and 15.
         or d2,d3
         lsl #8,d3
         move d3,(a0)    ;make star co-ordinates an index into CRY-Space
@@ -17435,7 +17556,7 @@ sscore:
         bra setlives    ;and go do the lives
                 ;return if none
 sscore2:
-        and #$0f,d0
+        and #$0f,d0 ; Keep it between 0 and 15.
         lsl #4,d0    ;*16, pixel offset to digit position
         add #148,d0    ;source is OK...
         jsr CopyBlock    ;copy the digit
@@ -17541,7 +17662,7 @@ iii:
         add.l (a0),d0
         move.l 20(a0),d1
         cmp.l d1,d0
-        bmi rrts
+        bmi rrts ; If not, return now.
         move.l 16(a0),d1
         cmp.l d1,d0
         bpl rrts
@@ -17818,7 +17939,7 @@ score2num:
         move #3,d7    ;loop for all digits
 s2n:
         move.b -(a0),d2
-        and #$0f,d2
+        and #$0f,d2 ; Keep it between 0 and 15.
         mulu d1,d2
         add.l d2,d0
         mulu #10,d1
@@ -17827,7 +17948,7 @@ s2n:
         move #3,d7
 s3n:
         move.b -(a0),d2
-        and #$0f,d2
+        and #$0f,d2 ; Keep it between 0 and 15.
         mulu d1,d2
         add.l d2,d4
         mulu #10,d1
@@ -19839,9 +19960,11 @@ tempest:dc.b 1,1,1,2,0
         dc.b 0
 
 ; *******************************************************************
-; Data structures for the webs for each level. There are 37 in total
+; These are the data structures defining the  webs for each level. There are 37 in total
 ; and they are shared by the Classic and Tempest 2000 modes.
-; The strucutres consists of lists of vertex pairs (x,y pairs).
+; The strucutres consists of lists of vertex pairs (x,y pairs) followed
+; by a list of object orientation values for each lane in the web: in other
+; words how an object in the lane should be rotated when in that lane.
 ; *******************************************************************
 ;                                                                                                                 
 ;       =====================================================================                                     
@@ -22125,7 +22248,7 @@ pobj3:  dc.w 10
 ; *******************************************************************
 courses: dc.l course1,course6,course3,course2,course7,course5,course4,course8
 
-course1: dc.l $08001000
+course1:dc.l $08001000
         dc.l $08081100
         dc.l $08101200
         dc.l $08181300
@@ -23048,7 +23171,7 @@ raw_webs:
         dc.l web5,web11,web1,web2,web9,web3,web18,web18,web13,web4,web14,web10,web20,web6,web16,web21
         dc.l web24,web23,web27,web25,web21,web28,web26,web29,web30,web31,web32,web33,web34,web35,web36,web37
         dc.l 0
-option2:dc.l o2t1,o2t2,o2s1,o2s2,o2s3,0
+option2: dc.l o2t1,o2t2,o2s1,o2s2,o2s3,0
 
 raw_pus:dc.l pu1,pu2,pu3,pu4,pu5,pu6
 
