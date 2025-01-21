@@ -2,53 +2,56 @@
 
         Base equ $f00000
 
-  INCLUDE       "jaguar.inc"    ; Jaguar General definitions
+	INCLUDE       "jaguar.inc"    ; Jaguar General definitions
 
-gpu_mode EQU (GPU_RAM+$ffc)     ; Number defines which routine the GPU will do
-gpu_screen EQU (GPU_RAM+$ff8)   ; The address of the screen the GPU will draw on
-gpu_sem EQU $30100              ; Flag in external RAM for GPU completion
-p_sines EQU $30000              ; 256-byte sine table of unsigned bytes
-in_buf  EQU (GPU_RAM+$f60)      ; General space for passing stuff to GPU
-vertex_buffer EQU (GPU_RAM+$b40)        ; Used to stash already-calculated XY transforms and intensity values
-ORG $f03000
-width EQU 384
-height EQU 240
-sin1 EQU (GPU_RAM+$fe0)         ; Roll, pitch and yaw sine and cosine values
-cos1 EQU (GPU_RAM+$fe4)         ; (calculated before the vertex list is traversed)
-sin2 EQU (GPU_RAM+$fe8)
-cos2 EQU (GPU_RAM+$fec)
-sin3 EQU (GPU_RAM+$ff0)
-cos3 EQU (GPU_RAM+$ff4)
-z_max EQU (GPU_RAM+$fd8)        ; Distance along Z-axis at which depth cue intensity is zero
-z_top EQU (GPU_RAM+$fdc)        ; Intensity value at z=1
-scaler EQU (GPU_RAM+$fd4)       ; Scale of XY 2-D point
-_sysflags EQU (GPU_RAM+$fd0)    ;Thick vector flags etc
-vxlo EQU 0                      ; Screen extents for the Cohen-Sutherland clipping algorithm
-vxhi EQU ((384*1)-2)
-vylo EQU 0
-vyhi EQU ((280*1)-1)
-shift1 EQU 12
-shift2 EQU 5
+	gpu_mode EQU (GPU_RAM+$ffc)     ; Number defines which routine the GPU will do
+	gpu_screen EQU (GPU_RAM+$ff8)   ; The address of the screen the GPU will draw on
+	gpu_sem EQU $30100              ; Flag in external RAM for GPU completion
+	p_sines EQU $30000              ; 256-byte sine table of unsigned bytes
+	in_buf  EQU (GPU_RAM+$f60)      ; General space for passing stuff to GPU
+	vertex_buffer EQU (GPU_RAM+$b40)        ; Used to stash already-calculated XY transforms and intensity values
+	ORG $f03000
+	width EQU 384
+	height EQU 240
+	sin1 EQU (GPU_RAM+$fe0)         ; Roll, pitch and yaw sine and cosine values
+	cos1 EQU (GPU_RAM+$fe4)         ; (calculated before the vertex list is traversed)
+	sin2 EQU (GPU_RAM+$fe8)
+	cos2 EQU (GPU_RAM+$fec)
+	sin3 EQU (GPU_RAM+$ff0)
+	cos3 EQU (GPU_RAM+$ff4)
+	z_max EQU (GPU_RAM+$fd8)        ; Distance along Z-axis at which depth cue intensity is zero
+	z_top EQU (GPU_RAM+$fdc)        ; Intensity value at z=1
+	scaler EQU (GPU_RAM+$fd4)       ; Scale of XY 2-D point
+	_sysflags EQU (GPU_RAM+$fd0)    ;Thick vector flags etc
+	vxlo EQU 0                      ; Screen extents for the Cohen-Sutherland clipping algorithm
+	vxhi EQU ((384*1)-2)
+	vylo EQU 0
+	vyhi EQU ((280*1)-1)
+	shift1 EQU 12
+	shift2 EQU 5
 
-L_INC           REGEQU  R5
-L_PIX           REGEQU  R6
-L_COUNT         REGEQU  R7
-L_INCF          REGEQU  R8
-x1_n            REGEQU  R9              ;thangs
-y1_n            REGEQU  R10
-x2_n            REGEQU  R11
-y2_n            REGEQU  R12
-cmd             REGEQU  R20
-buffer          REGEQU  R14
-COUNT           REGEQU  R21
-col             REGEQU  R19
-intens_0        REGEQU  R13
-intens_1        REGEQU  R18
-A1PIXEL         REGEQU  R22
-UNDRAW          REGEQU  R25
-sinebase        REGEQU  R26
-RMODE           REGEQU  R29             ;Rotation mode. 0=XY rotate only.
+	L_INC           REGEQU  R5
+	L_PIX           REGEQU  R6
+	L_COUNT         REGEQU  R7
+	L_INCF          REGEQU  R8
+	x1_n            REGEQU  R9              ;thangs
+	y1_n            REGEQU  R10
+	x2_n            REGEQU  R11
+	y2_n            REGEQU  R12
+	cmd             REGEQU  R20
+	buffer          REGEQU  R14
+	COUNT           REGEQU  R21
+	col             REGEQU  R19
+	intens_0        REGEQU  R13
+	intens_1        REGEQU  R18
+	A1PIXEL         REGEQU  R22
+	UNDRAW          REGEQU  R25
+	sinebase        REGEQU  R26
+	RMODE           REGEQU  R29             ;Rotation mode. 0=XY rotate only.
 
+; *******************************************************************
+; fmult
+; *******************************************************************
         MACRO fmult     ;multiply 2 thangs, uses r2-r4, returns in first reg.
         moveq #0,r2
         move r2,r3
@@ -78,6 +81,9 @@ RMODE           REGEQU  R29             ;Rotation mode. 0=XY rotate only.
 \~fmptt:
         ENDM
 
+; *******************************************************************
+; sdiv
+; *******************************************************************
         MACRO sdiv      ;Divide, keeping sign of that which is divided, uses r2-r3
         move \2,r2
         abs \2
@@ -89,23 +95,35 @@ RMODE           REGEQU  R29             ;Rotation mode. 0=XY rotate only.
 \~sdtt: 
         ENDM
 
+; *******************************************************************
+; fjsr
+; *******************************************************************
         MACRO fjsr      ;Fast single-level JSR
         move PC,r30
         jump (\1)
         addq #6,r30     ; Determine Return Address
         ENDM
 
+; *******************************************************************
+; frts
+; *******************************************************************
         MACRO frts
         jump (r30)
         nop
         ENDM
 
+; *******************************************************************
+; gjsr
+; *******************************************************************
         MACRO gjsr      ;Fast single-level JSR
         move PC,r31
         jump (\1)
         addq #6,r31     ; Determine Return Address
         ENDM
 
+; *******************************************************************
+; grts
+; *******************************************************************
         MACRO grts
         jump (r31)
         nop
@@ -1050,9 +1068,12 @@ do_out3:
 
 
 
-gouline:
+; *******************************************************************
+; gouline
 ;
 ; line draw with colour graduation. x2_n and y2_n are mashed
+; *******************************************************************
+gouline:
 
 
 

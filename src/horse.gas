@@ -3,38 +3,43 @@
 
   INCLUDE       "jaguar.inc"    ; Jaguar General definitions
 
-        gpu_mode EQU (G_RAM+$ffc)       ; Number defines which routine the GPU will do
-        gpu_screen EQU (G_RAM+$ff8)     ; The address of the screen the GPU will draw on
-        source_flags    EQU (G_RAM+$ff4)
-        dest_flags EQU (G_RAM+$ff0)     ; Blitter flags 4 source+dest
-        backg   EQU (G_RAM+$fec)
+        gpu_mode     EQU (G_RAM+$ffc)       ; Number defines which routine the GPU will do
+        gpu_screen   EQU (G_RAM+$ff8)     ; The address of the screen the GPU will draw on
+        source_flags EQU (G_RAM+$ff4)
+        dest_flags   EQU (G_RAM+$ff0)     ; Blitter flags 4 source+dest
+        backg        EQU (G_RAM+$fec)
 
-        sysflags EQU (G_RAM+$fd0)
-        xcent   EQU (G_RAM+$efc)
-        ycent   EQU (G_RAM+$ef8)
+        sysflags     EQU (G_RAM+$fd0)
+        xcent        EQU (G_RAM+$efc)
+        ycent        EQU (G_RAM+$ef8)
 
 
-        p_sines EQU $30000              ; 256-byte sine table of unsigned bytes
-        in_buf  EQU (G_RAM+$f60)        ; General space for passing stuff to GPU
-        ORG $f03000
-        width EQU 384
-        mwidth EQU 768
-        height EQU 240
-        diag EQU $4000
+        p_sines      EQU $30000              ; 256-byte sine table of unsigned bytes
+        in_buf       EQU (G_RAM+$f60)        ; General space for passing stuff to GPU
+        ORG          $f03000
+        width        EQU 384
+        mwidth       EQU 768
+        height       EQU 240
+        diag         EQU $4000
 
+; *******************************************************************
 ;***** EQUATES for Blitter offsets
+; *******************************************************************
 
-        _base EQU 0
-        _flags EQU 1
-        _clip EQU 2
-        _mask EQU 2
-        _pixel EQU 3 
-        _step EQU 4
-        _fstep EQU 5
+        _base   EQU 0
+        _flags  EQU 1
+        _clip   EQU 2
+        _mask   EQU 2
+        _pixel  EQU 3
+        _step   EQU 4
+        _fstep  EQU 5
         _fpixel EQU 6
-        _inc EQU 7
-        _finc EQU 8
+        _inc    EQU 7
+        _finc   EQU 8
 
+; *******************************************************************
+; sdiv
+; *******************************************************************
         MACRO sdiv      ;Divide, keeping sign of that which is divided, uses r27
         move \2,r31
         abs \2
@@ -46,6 +51,9 @@
 \~sdtt: 
         ENDM
 
+; *******************************************************************
+; sdiv0
+; *******************************************************************
         MACRO sdiv0     ;Divide, keeping sign of that which is divided, uses r2-r3
         move \2,r0
         abs \2
@@ -58,6 +66,9 @@
         ENDM
 
 
+; *******************************************************************
+; waitblit
+; *******************************************************************
         MACRO waitblit  ; Wait for the Blitter to stop
 \~waitt:        load (blit),r31
         btst #0,r31
@@ -95,6 +106,9 @@
 \~fmptt:
         ENDM
 
+; *******************************************************************
+; bank0
+; *******************************************************************
         MACRO bank0
         movei #G_FLAGS,r0
         load (r0),r1
@@ -112,6 +126,9 @@
         nop
         ENDM
 
+; *******************************************************************
+; bank1
+; *******************************************************************
         MACRO bank1
         movei #G_FLAGS,r0
         load (r0),r1
@@ -129,6 +146,9 @@
         nop
         ENDM
 
+; *******************************************************************
+; swap
+; *******************************************************************
         MACRO swap
         move \1,r31
         move \2,\1
@@ -157,7 +177,9 @@ waifer: load (r0),r31
 
 
 
-;*****
+        
+; *******************************************************************
+; polyo2d
 ;*
 ;* POLYO2D:  Draw 2D object made of polygons, positioned in Tempest 3D space (extended version with clipping)
 ;*
@@ -165,8 +187,8 @@ waifer: load (r0),r31
 ;*         +4=X +8=Y +12=Z, Tempest world co-ordinates
 ;*         +16=X centre; +20=Y centre, as 16:16 fractions; +24=XY Rotation Angle
 ;*
-;*****
-        
+; *******************************************************************
+polyo2d:
         x1_n            REGEQU r3       
         y1_n            REGEQU r4
         x2_n            REGEQU r5
@@ -217,8 +239,6 @@ waifer: load (r0),r31
         poly_loop       REGEQU r20
         colour          REGEQU r21
         vertex          REGEQU r22
-
-polyo2d:
         bank0
 
         movei #A1_BASE,a1_n     ;blitter Base
@@ -903,7 +923,8 @@ stoploop: jr stoploop
 
 
 
-pring2:
+; *******************************************************************
+; pring2
 ;
 ; Pixel Ring for explosions; small pixels. Enter with:
 ; in_buf=# pixels this ring
@@ -912,7 +933,8 @@ pring2:
 ; +12=Z centre          ;all 16:16 frax
 ; +16=Raw colour        ;0-255
 ; +20=Radius as 16:16 frac
-
+; *******************************************************************
+pring2:
         dstx            REGEQU r21
         dsty            REGEQU r26      
         dstz            REGEQU r1
@@ -1064,10 +1086,12 @@ pixloop2: move phase,r0
         jump (r0)
         nop                     ;terminate
 
-psphere:
-;
+; *******************************************************************
+; psphere
 ; Generate a sphere of particles. Inputs: x,y,z,xyrad,xyphase,yzphase,xycount,yzcount,xystep,yzstep,col
 ;
+; *******************************************************************
+psphere:
 
 
         byte_mask       REGEQU r20

@@ -1,34 +1,38 @@
-
+; vim:ft=asm68k
+; *******************************************************************
+; *******************************************************************
         Base equ $f00000
 
   INCLUDE       "jaguar.inc"    ; Jaguar General definitions
 
-        gpu_mode EQU (G_RAM+$ffc)       ; Number defines which routine the GPU will do
-        gpu_screen EQU (G_RAM+$ff8)     ; The address of the screen the GPU will draw on
-        p_sines EQU $30000              ; 256-byte sine table of unsigned bytes
-        in_buf  EQU (G_RAM+$f60)        ; General space for passing stuff to GPU
+        gpu_mode      EQU (G_RAM+$ffc)       ; Number defines which routine the GPU will do
+        gpu_screen    EQU (G_RAM+$ff8)     ; The address of the screen the GPU will draw on
+        p_sines       EQU $30000              ; 256-byte sine table of unsigned bytes
+        in_buf        EQU (G_RAM+$f60)        ; General space for passing stuff to GPU
         vertex_buffer EQU (G_RAM+$b40)  ; Used to stash already-calculated XY transforms and intensity values
-        ORG $f03000
-        width EQU 384
-        height EQU 240
-        palheight EQU 280
-        z_max EQU (G_RAM+$fd8)  ; Distance along Z-axis at which depth cue intensity is zero
-        z_top EQU (G_RAM+$fdc)  ; Intensity value at z=1
-        scaler EQU (G_RAM+$fd4) ; Scale of XY 2-D point
-        sysflags EQU (G_RAM+$fd0)       ; Type of screen blanking: 1=full-screen erase
-        vxlo EQU 0                      ; Screen extents for the Cohen-Sutherland clipping algorithm
-        vxhi EQU ((384*1)-1)
-        vylo EQU 0
-        vyhi EQU ((240*1)-1)
-        shift1 EQU 12
-        shift2 EQU 5
-        debug EQU $4000
-        xcent   EQU (G_RAM+$efc)
-        ycent   EQU (G_RAM+$ef8)
+        ORG           $f03000
+        width         EQU 384
+        height        EQU 240
+        palheight     EQU 280
+        z_max         EQU (G_RAM+$fd8)  ; Distance along Z-axis at which depth cue intensity is zero
+        z_top         EQU (G_RAM+$fdc)  ; Intensity value at z=1
+        scaler        EQU (G_RAM+$fd4) ; Scale of XY 2-D point
+        sysflags      EQU (G_RAM+$fd0)       ; Type of screen blanking: 1=full-screen erase
+        vxlo          EQU 0                      ; Screen extents for the Cohen-Sutherland clipping algorithm
+        vxhi          EQU ((384*1)-1)
+        vylo          EQU 0
+        vyhi          EQU ((240*1)-1)
+        shift1        EQU 12
+        shift2        EQU 5
+        debug         EQU $4000
+        xcent         EQU (G_RAM+$efc)
+        ycent         EQU (G_RAM+$ef8)
 
 
 
+; *******************************************************************
 ;***** EQUATES for Blitter offsets
+; *******************************************************************
 
         _base EQU 0
         _flags EQU 1
@@ -42,6 +46,9 @@
         _finc EQU 8
 
 
+; *******************************************************************
+; fmult
+; *******************************************************************
         MACRO fmult     ;multiply 2 thangs, uses r2-r4, returns in first reg.
         moveta \2,r0    ;(preserves second Thang)
         moveq #0,r27
@@ -73,6 +80,9 @@
         ENDM
 
 
+; *******************************************************************
+; sdiv
+; *******************************************************************
         MACRO sdiv      ;Divide, keeping sign of that which is divided, uses r2-r3
         move \2,r27
         abs \2
@@ -84,6 +94,9 @@
 \~sdtt: 
         ENDM
 
+; *******************************************************************
+; sdiv0
+; *******************************************************************
         MACRO sdiv0     ;Divide, keeping sign of that which is divided, uses r2-r3
         move \2,r0
         abs \2
@@ -95,12 +108,18 @@
 \~sd0tt:        
         ENDM
 
+; *******************************************************************
+; fjsr
+; *******************************************************************
         MACRO fjsr      ;Fast single-level JSR
         move PC,r30
         jump (\1)
         addq #6,r30     ; Determine Return Address
         ENDM
 
+; *******************************************************************
+; frts
+; *******************************************************************
         MACRO frts
         jump (r30)
         nop
@@ -112,11 +131,17 @@
         addq #6,r31     ; Determine Return Address
         ENDM
 
+; *******************************************************************
+; grts
+; *******************************************************************
         MACRO grts
         jump (r31)
         nop
         ENDM
 
+; *******************************************************************
+; rannum
+; *******************************************************************
         MACRO rannum
         btst #0,rseed   ;check bottom bit
         jr nz,\~donett  ;one, go discard btm bit and do mask
@@ -129,6 +154,9 @@
 \~xrndtt:       nop
         ENDM
 
+; *******************************************************************
+; waitblit
+; *******************************************************************
         MACRO waitblit  ; Wait for the Blitter to stop
 \~waitt:        load (blit),r28
         btst #0,r28
@@ -138,6 +166,8 @@
 
 
 ; *******************************************************************
+; Execution of the module starts here.
+;
 ; Detect the GPU mode selected by the caller.
 ; *******************************************************************
         movei #gpu_mode,r0              ;mode 0 is fline, mode 1 is mode7
@@ -160,9 +190,12 @@
         nop
 
 
+; *******************************************************************
+; fline
+; draw a 3D line with points on the line _offset by a function (ie line+noise=lightning)
+; *******************************************************************
 fline:
 
-; draw a 3D line with points on the line _offset by a function (ie line+noise=lightning)
 
         pointer REGEQU r0
         x1_n    REGEQU r15
@@ -817,9 +850,12 @@ nline:  add slstep,sline                ;move to next scanline
         jump (r0)
         nop
 
-starseg:
+; *******************************************************************
+; starseg
 ;
 ; draw one section of startunnel
+; *******************************************************************
+starseg:
 
         rcenx   REGEQU r3
         rceny   REGEQU r4               ;Ring X and Y centre
@@ -1019,10 +1055,11 @@ nopixel: add r1,segphase                ;rotate to next pixel
         nop                             ;done it doody
 
 
-voo:
-;
+; *******************************************************************
+; voo
 ; Vertex-only object (made of particles). Pass IN_BUF: pointer to object,X,Y,Z,Xscale,Yscale,Zscale,Colour,<XY
-;
+; *******************************************************************
+voo:
 
         opointer        REGEQU r3
         xn              REGEQU r4
@@ -1197,7 +1234,6 @@ z_neg:  subq #1,vertices                ;Loop de loop for all vertices..
 ; psphere
 ;
 ; Generate a sphere of particles. Inputs: x,y,z,xyrad,xyphase,yzphase,xycount,yzcount,xystep,yzstep,col
-;
 ; *******************************************************************
 psphere:
         s_base          REGEQU r30

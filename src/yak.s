@@ -1,4 +1,4 @@
-; vim:ft=asm68k
+; vim:ft=asm68k ts=2
 ; *******************************************************************
 ; Welcome to the source code for 'Tempest 2000' by Jeff Minter.
 ;                                                                                                                 
@@ -26,19 +26,272 @@
 ;                   ========                                    ======  ==                                     
 ;                                                                  =======                                     
 ;                                                                     ====                                     
-;          The 'sine wave' web used in level 12 of Tempest 2000.
+;
+; Fig 1. Ascii rendering of the 'sine wave' web used in level 12 of Tempest 2000.
 ;                                                                                                                 
 ; This is a cleaned-up and commented version of the main source code
-; file for Tempest 2000. No code has been changed so this source file
+; file for Tempest 2000. No code has been changed, so this source file
 ; can be used to create a build of Tempest 2000 that is byte-for-byte
 ; identical to the original release.
+;
 ; All original variable and routine names are preserved.
 ; The changes include:
 ;   - Fixed up indentation.
 ;   - Added comments and routine headers.
 ;
-; As a place to start reading, try 'dloop', which is the game's topmost
-; control loop.
+;             
+; Objects in Tempest 2000
+; -----------------------
+; Nearly every game element in Tempest 2000 is an 'object' that is managed
+; in the list of all active game objects called 'activeobjects'. Each object
+; is 64 bytes of data and represents the total state of that object, including
+; its position, behaviour, the routine to use for drawing it, and the routine
+; to use for updating it.
+;
+; As enemies are created and killed they are moved in and out of the activeobjects
+; list. Likewise for the player's claw and all the bullets the enemies and the player
+; fire. Once every frame, we need to take the state of all these objects and draw
+; them on the screen. While the state of every object is updated in the 'Frame'
+; routine, they are drawn to the screen by draw_objects in the game's 'mainloop'. 
+; 'Drawing' here means using the GPU or the Blitter to convert each object's state
+; into some pixel data and including that data in a block of data that represents
+; either the whole or part of the screen displayed to the player.
+;
+;
+; The structure for all members in the activeobjects list is broadly as follows:
+;
+;  Bytes    Solid Objects                                    Vector Objects
+;  -----    ---------------------------------------------------------------
+;  0-4      Index into draw routine in 'solids'.             Address of the prepared vector object.
+;  4-8      X 
+;  8-12     Y 
+;  12-16    Z 
+;  16-20    Position/lane on web.
+;  20-24    Velocity 
+;  24-28    Acceleration/Flipper Mode                        XY orientation 
+;  28-30    XZ Orientation  (Roll)                           XZ orientation  
+;  30-32    Y Rotation  (Pitch)
+;  32-34    Z Rotation  (Yaw)
+;  34-36    Draw Type (Index into draw routine in draw_vex)
+;  36-38    Start address of pixel data.                     Delta Z 
+;  38-40    Y                                                Colour change value
+;  40-42    Colour 
+;  42-44    Scale factor 
+;  44-46    0 = climb rail, 1 = cross rail, 2 = blowaway
+;  46-48    Size of Pixel Data/Number of pixels/Duration/Secondary Object Update Routine
+;  48-50    Fire Timer / Sphere Type 
+;  50-52    Marked for deletion 
+;  52-54    Whether an enemy or not. 
+;  54-56    Object Type  (Index into update routine in run_vex).
+;  56-60    Address of Previous Object 
+;  60-64    Address of Next Object 
+;
+;
+; Overview of How Objects Are Created, Updated and Drawn to the Screen
+; -------------------------------------------------------------------- 
+; Two routines work in lockstep to generate, update, and draw objects in Tempest
+; 2000 while a game is in progress. These are:
+; 
+;  - 'Frame': This routine is a 'vertical sync interrupt handler'. This means
+;     that the Atari Jaguar's CPU runs it every time the Graphics Processor has
+;     finished painting the screen and is about to start painting it again. This
+;     creates a brief interlude in which game state can be updated and even some
+;     preparation of the next batch of pixels to be drawn to the screen. Very little
+;     pixel preparaion is done in 'Frame': it focuses principally on updating the
+;     state of all the objects in the game. This routine is called up to 60 times a
+;     second.
+;
+;  - 'mainloop': This routine is the game's main loop. It is responsible for
+;     nearly all of the 'drawing' in Tempest 2000. By 'drawing' we mean preparing the
+;     pixel data in RAM that the Jaguar's Graphics Processor will use to paint the
+;     screen after the next vertical sync. It relies on 'Frame' to get the state of
+;     all objects in the activeobjects list up-to-date so it can iterate through them
+;     all and convert that state into pixels.
+;
+; The mechanism these two routines use to hand off work to each other is the
+; 'sync' variable. When 'Frame' has completed updating all the objects it will
+; reset 'sync' to 0. When 'mainloop' sees that 'sync' is set it will process all
+; the activeobjects and 'draw' them. When it is finished it will set sync to 1,
+; so that 'Frame' knows it is time to advance the state of all the objects again.
+; 
+; 'Frame': Creating Objects 
+; -------------------------
+;  Most objects are created from an unlikely place: the 'moveclaw' routine. For
+; most visits to 'Frame' this 'moveclaw' routine will be called (it is possible
+; that the game enters other states where moveclaw isn't run, such as high score
+; tables etc.). As the name suggests it will move the player's claw, but it will
+; also call a routine 'run_wave', and it is in here that most or all of the enemy
+; objects are first generated.  Every object the game creates is added to the
+; 'activeobjects' list - a master array containing nearly all objects in the game
+; (see 'insertobject').
+; 
+; 'Frame': Updating Objects
+;  ------------------------- 
+; Once we have an 'activeobjects' list with stuff in it, 'Frame' has a list to
+; process every time it is called by the CPU (in addition to generating new
+; objects). The routine 'run_objects' iterates through every object in the
+; activeobjects list and runs the given routine for that object, e.g.
+; 'run_flipper' for a Flipper object.  Every object points to the routine
+; responsible for updating its state in Bytes 54-56. It does this using an index
+; into the 'run_vex' array. So for example, a flipper object will have a value of
+; 2 in Bytes 54-56 as this points to the third element in run_vex: 'run_flipper',
+; a Tanker object will have a value of 5 as this points to the sixth element in
+; run_vex: 'run_tanker', and so on.
+; 
+; Once all the objects in activeobjects have had their 'run_vex' routine
+; executed, 'Frame' can reset 'sync' to 0, indicating to 'mainloop' that it's
+; time to draw stuff.
+; 
+; 'mainloop': Drawing Objects 
+; --------------------------- 
+; While all of this is happening mainloop is running in a loop waiting for 'sync'
+; to be reset to 0.  Once it sees that has happened it can finally start work.
+; It's main task it run 'draw_objects', which iterates through every object in
+; the activeobjects list and calls its draw_vex routine. Like 'run_vex' this is
+; an index in Bytes 34-36 of the object that it uses to look up the object's draw
+; routine in the 'draw_vex' array.
+; 
+; Each object's routine will do one of the following: -  draw the object itself
+; (e.g. ) using the routine pointed to in draw_vex by 'Bytes 34-36'.  -  if we
+; are in Tempest Classic mode, draw the simple vector object pointed to by the
+; address Bytes 0-4.  -  if the value in Bytes 0-4 is negative, treat it as index
+; referencing a solid polygon in the 'solids' list.  In this case drawing is
+; deferred and the object is added to the 'apriority' list.
+; 
+; Once 'draw_objects' has processed all the objects in activeobjects, it will
+; have drawn some, but not all. It may have deferred drawing on a few and instead
+; added them to the 'apriority' list. These objects are always simple solid
+; polygons that were constructed when the game was initialized. To draw these it
+; will now call 'drawpolyos' which will iterate through every object in the
+; 'apriority' list. The routine to draw the polygon for each object is selected
+; by treating the value in Bytes 0-4 as an index into the 'solids' list. 
+; 
+; So to restate the above slightly differently. Drawing has three orders of
+; complexity:
+;
+;  - The object requires customized drawing, so has its own dedicated
+;    routine, such as draw_pixex for explosions.
+;  - The object is a simple vector-based object, such as a claw or enemy in 
+;    Tempest Classic mode.  
+;  - The object is simple polygon-based object, such as a claw or enemy in 
+;    Tempest 2000 mode.  
+;
+; Which of these we use is determined by the routine in 'draw_vex' that
+; the object points to in Bytes 34-36. 
+; 
+; In the hope that it will aid understanding, the table below sets out the
+; routines used for creating, updating, and drawing all player and enemy objects
+; in the game. For example, you can hopefully see that 'make_tanker' will create
+; a Tanker object, and 'Frame' will use 'run_tanker' as the routine to update its
+; state, while 'draw_objects' 'draw' to draw it to the screen, which will in turn
+; use either 'draw_sfliptank' to draw it as a solid polygon in Tempest 2000 mode,
+; or the '_fliptank' vector object if in Tempest Classic mode.
+  
+;
+;       Description             Creating                Updating        Drawing           Solids            Vectors
+;                                                       (Bytes 54-56)  (Bytes 34-36)      (Bytes 0-4        Bytes 0-4
+;                                                       (run_vex)        draw_vex          solids          (Address)          
+;  -----------------------      ----------------------  -------------   -----------       -------------    ------------    
+;   0   Exploding Player                                rrts            changex
+;   1   Player Shot             frab                    player_shot     draw              draw_pixex       _shot           
+;   2   Flipper                 make_flipper            run_flipper     draw_vxc          cdraw_sflipper   _flipper        
+;       Blue Flipper            ggen                    run_flipper     draw_vxc          draw_blueflip                    
+;       Super Flipper 1         make_sflip2/superflip   run_flipper     draw_vxc          supf1                            
+;       Super Flipper 2         make_sflip3/superflip   run_flipper     draw_vxc          supf2                            
+;       Beast                   make_beast              run_flipper     draw_vxc          draw_beast          
+;   3   Type of Explosion       changex                 run_zap         draw                                               
+;   4   A shot that kills       colok                   kill_shot       1                                                  
+;   5   Tanker                  make_tanker             run_tanker      draw              draw_sfliptank   _fliptank                
+;       Pulsar Tanker           make_putanker           run_tanker                        draw_spulstank   _pulstank                
+;       Fuse Tanker             make_futanker           run_tanker                        draw_sfusetank   _fusetank                
+;   6   Spike                   make_spike              run_spike       draw_spike                         _spike                
+;   7   Spiker                  make_spiker             run_spiker      draw                               _spiker                
+;   8   Enemy Bullet            alienfire               run_ashot       draw              ringbull                         
+;                                                                                         s_shot           _shot
+;   9   Fuseball                make_fuseball           run_fuseball    draw              draw_sfuseball   _fuse1/_fuse2
+;  10   Bonus Blowaway          vecbons                 blowaway        draw                                               
+;  11   Pulsar                  make_pulsar             run_pulsar      draw              draw_spulsar                     
+;  12   one up blowaway         do_oneup                oblow           draw                               _oneup          
+;  13   Going-Down Claw         gotu                    go_downc        draw                                               
+;  14   Going-Down Flipper      gotu                    go_downf        draw                                               
+;  15                                                   claw_con2                                                    
+;  16                                                   claw_con1                                                    
+;  17   AI Droid (Cube)         mkdroid                 rez_claw        rrts                               _cube           
+;  18                                                   czoom1                                      
+;  19                                                   czoom2                                     
+;  20   Explosion?              ouch                    pzap            draw                                               
+;  21   AI Droid                rez_claw                rundroid                                           _cube           
+;  22   Pixel Explosion         xpixex                  run_pixex       draw_pixex        draw_pixex       _bons                
+;  23   Pulsar Spark            run_pulsar->lanetop     run_pspark      draw              draw_spulsar     _pu1/_pu2/_pu3 &c.                
+;  24   Power Up Explosion      changex                 run_prex        draw_prex                                           
+;       Power Up Explosion(H2H) changex                 run_prex        draw              draw_pprex                        
+;  25   Power Up                changex                 run_pup         draw_pup1         draw_pup1                        
+;  26   Splatter                dxle                    xshot           draw              dxshot                           
+;  27   Run Gate                cg                      run_gate        draw_gate         draw_gate                        
+;  28   XR Pixel Explosion      blowmeaway              xr_pixex        draw_mpixex                                        
+;  29   Firework                make_fw                 run_fw          draw_fw                                            
+;  30   Rez Claw                rez_claw                run_h2hclaw     draw_h2hclaw      draw_h2hclaw                     
+;  31   Mirror                  make_mirr               rumirr          draw              draw_mirr                        
+;  32   Player bullet           h2hfrab                 run_h2hshot     draw              draw_h2hshot                     
+;  33   Head to Head Gen        make_h2hgen             run_h2hgen      draw              draw_h2hgen                      
+;  34   Head to Head Ball       make_h2hball            run_h2hball     draw              draw_h2hball                     
+;  35   Excellent Explosion     any_pixex               oblow2          dmpix                                              
+;  36   Mirror                  make_mirr               rumirr          draw                                               
+;  37   Reflected Shot          rumirr                  refsht          draw                                               
+;  38   Reflected shot          beastrail               refsht2         draw                                               
+;  39   Type of AI Droid        make_adroid             run_adroid      draw              draw_adroid                      
+;  40   Loitering claw          go_downc/llost          loiter          1                                                  
+;
+; Solids
+; -------
+; 00 rrts
+; 01 cdraw_sflipper
+; 02 draw_sfliptank
+; 03 s_shot
+; 04 draw_sfuseball
+; 05 draw_spulsar
+; 06 draw_sfusetank
+; 07 ringbull
+; 08 draw_spulstank
+; 09 draw_pixex
+; 10 draw_pup1
+; 11 draw_gate
+; 12 draw_h2hclaw
+; 13 draw_mirr
+; 14 draw_h2hshot
+; 15 draw_h2hgen
+; 16 dxshot
+; 17 draw_pprex
+; 18 draw_h2hball
+; 19 draw_blueflip
+; 20 ringbull
+; 21 supf1
+; 22 supf2
+; 23 draw_beast
+; 24 dr_beast3
+; 25 dr_beast2
+; 26 draw_adroid
+
+; Draw Type  draw_vex
+; --------   --------
+;   0       rrts
+;   1       draw
+;   2       draw_z
+;   3       draw_vxc
+;   4       draw_spike
+;   5       draw_pixex
+;   6       draw_mpixex
+;   7       draw_oneup
+;   8       draw_pel
+;   9       changex
+;   10      draw_pring
+;   11      draw_prex
+;   12      dxshot
+;   13      drawsphere
+;   14      draw_fw
+;   15      dmpix
+;   16      dsclaw
+;   17      dsclaw2
 ;
 ; A Short Primer on 68K Motorola Assembly
 ; ---------------------------------------
@@ -49,10 +302,11 @@
 ;           in the game, such as enemies and the player's claw and bullets.
 ;           It is called every time the screen has finished painting, i.e.
 ;           at a 'vertical sync' interrupt.
+; 'dloop' - The game's topmost control loop.
 ; 'mainloop' - The game's main loop. It's primary task is performing all the
 ;             GPU operations that prepare all the game's elements for drawing
 ;             to the screen.
-;             
+;
 ; *******************************************************************
         .include  'jaguar.inc'
         .extern  VideoIni
@@ -161,12 +415,235 @@
 
 ; *******************************************************************
 ; References to the sprite maps stored in RAM.
+;
+; OK! OK! I'm probably going way too far with this ascii art thing here, but they at
+; least give you a sense of what each sprite map contains.
 ; *******************************************************************
+
+; 'pic' references the contents of the beasty3.cry file. It contains the 'Tempest' logo, the 'Excellent' message,
+; bonus scores, and the small font reference as 'cfont'.
+;
+; !===="<===============================================================================================\|====s|          
+; l    ,\                                                                                               /=    >|          
+; *_'=|!n\/=;:.           .                                                                       .';=+)za|+'_%|          
+; s.`_'i]<<)=+==^;:_``.  -^                                              .-               .``_:;^==+=><<Ic:_`.v|          
+; r    ->""<,,,,;^^=^===/)r"=^_--``..                                    '/ ..``---_':;^^^==^=^^;,,,,\|">'    i|          
+; r    ->||)^;;;;,;,,,,,;/v<^;;;;;^^;^"^'''::::__'_'_________'_'_'::::;^"vr/^^^;;;,;;\<+,,,,,,;,;;;;;>)|>'    i|          
+; r    `<>)ci><)|"^^^^^;;=|"''''''''''"='__''''''::;''''''''';:,''''''__:/"''''''''''"|/;;^^^^^/")<>ili><_    i|          
+; r       `-'=%>)%+=+>+/"<)":':,,,::::"='________':,_________,::________:/=''::,,,;^^\\>|"+>"==v)>v/'_`       i|          
+; r          `|==)"/|"  _=:|^,/=':'':=/^_-:|'-/;-',;-_;''';'-,,:-,==:'__:=/,,\||,___-````  +)/"i+=|_          i|          
+; r          `"^^i|")|  -;_|=;/=-___-:'^:';":'/^_,;^':^   ,,_;,;_^;:....._";;<=/'':::;_'`  +\"|i=^"_          i|          
+; r          `/;;i\)<|  -:`|+^=///////\^;:^";:/=:;;=:,=;;;=;:=;^:^+^^=^;=+|^^//+++///<';'  />))v^;/_          i|          
+; r          `+,,i<\>|  `'`|"===+=====\+=;=|=;|/;=^/;;;;;;;;;/;+;;;;;;;;++\=+==+++==/)`__  /)\\v;,+_          i|          
+; r          `=''i><)\  `'`||/\<"|||"|\+=^+\+=\";+^/^^/======"^/^+/==+/+//<""|||"\</"\`'-  /i<<%:'^_          i|          
+; r          `^__vi>i\  `'`))">^     --//=";.':|="="=//.......:"=);_...          :)"|<`'-  "v>)%__;-          i|          
+; r          `;--vvi%<  `'-\<)>>|||||)<"|/): -'\/|=|/|+       ,)/\|=^^^^+=>||||||<))\>-_`  "xiix_-,-          i|          
+; r          `,__%%vx<  .'-<><<<<<<<<<i|)"<, -:<"\+\")/       ,<""||||||<|v<<<<<<<<<>)-'`  |cvvc__,-          i|          
+; r          -=''llcri  .'_)viiiiii))i%\\|>; _,)|</<)<"       ;>))))))))>|c))iiiiiiivv_'`  \{clr''='          i|          
+; r        .-=):`"\|)^   ``^/+/++++/+++;^^=- ``/;^'^^+;       '/========/^)"""""""""""`-`  ^>\\<_,>|_`        i)          
+; [I][I>*]]]!i*?[?)r11tacc1ttr\}II{>*II?c|*[ee])!ee[>"""/::,=;_:::::::::;^=::::::;^+/""""""/////""<\""""""""""c^          
+; pgXXYn6PXXGegXPb56@$$HfE$@Kku&$$@ABWWWDJDWWW&fBWWMJ`^=_`,,.      .................._;_   ':   ..............-:_    `_   
+; h4oLgfFgLoztgS7gmF$gyFLbA5EOfUP2kOhVSbWyK&FF2pWXmW2 .>#6Jot??17L%                   `|!e]I;\I{               `=<\\<=`   
+; ?e!qXLpg662[gz^m6p$GEEjbd+FAw$o>Oh||1@KTDKbGp5N?rW3 :/|!&Ng]L3wdw::_  `'_ .:,:`   _:;>?2kV%Tg3`  :;;:  ._`,^: -%gk}'..  
+; /uEgjiu35gPjg[ m6TEEZ@3bm 2Aw@{'Oq .VNgxEGYDApW<|W3 .  xKDm2O[./IpZg{)L#IcCpudP%\yVfwYf^b&^)q3^'Lg5wG61FYd6hYf%nGHg>,.  
+; pXp1\_LC%Cgjgj=qmuVtwUybd/mAw$o)Aq !B@r"43[AApW!{W3   _dMdl[6i[z`vFk$86\ihq!_eS!mB8yugE)P8^^PG\xSSfu6Pn[@Hl|V0n-1HP^`_  
+; dgdVV%FPgEg7dEhE6F$bk$fP8k&kJ8&kUm qWg`)BDABO5WDKWy  /yO&h}1FPU[*Ff*#bA2tpV3[!CIok&Ppqp?XA);X8*"w6pJTSe;XKf 7Kk>,hKp!'  
+; 32336>rTFpF%1f56L!FXPZajgPGgIfEXZT #bo /wgkAh?pZk&7  )1!!!!]!!c`{!/ /11?=\*]!!l_-i*??l+/!!"-af} =s![]c-,!]s.i][) /}ar`  
+; \cazu}<)<v"`;<r{;'<{}l':v*Ic:"re?^.v1\.`=c*I"_)r}{:      =j3y[=n2y{   "T5y% {y3T:'72y!.    [EZU?                 '      
+; [o11?a1L<.:_ `xl `+i `.|..`/_.-L:.`,L`'r%/.              abGBGE8mKK^ "bASDk7K4XW3p@qUD)  .LHGPG?se['+e}la|cei?[|yZv     
+; X[i. ,r#w lx/`^r'`<r)-/s<_:i<`^]v,'rs^_%%|`>)+.\i"`    ,#w68kgDSh$fc!yDpE8fA&y&P3Ddm@m; .TD44Dh5@4DFZKkHDYKHkDOPH8T_    
+; Jz*cvl!C*.#!*_/J<`<j1:<I[=+It,\Ce"/Fo<-/o<_Tj*-au!:    'jTao7]tuzirGu)ono\ *7u];:1Luc   -aLjjacxjo*vzi"z1[LtL7*{Lt<     
+; :%too7{" .)c/`v%)`\x\-)l<-^>\';li;_%i;_),=`|x=`-|\`|^+`/_  '</._"')i>"-.<\;."|:.\\; ^)/`=>+.,:_-'=-'`/`'."::.".; =</.   
+; JVF\j#,  -CI}_#n?_ee{'[L!={fl;v#/:"w]i^Ci*-iC)`|c!'7t}'11/_{L}\iwIi=w!%^y{)_JIr_#o{_}C!:;nI_sos\/t})"C}c'zev_e!I_If{_   
+; cll;':   -}v)_}{\-xs<-%*)'>?>,|I"'^I%^,*^|_>}+_,<>_r>\_%),_\*>;|*"+;I%=:!)^_*%|_*c)_vI>_/*)_>v|;/v/;=s"/'s>/_r))_%I<'.  
+;        ..'[|<'[}>_{r<_r}i:v[\:<}--/[%+^]/<'\!^_>i>'}x>'r{"'%c|=<?i"+[v/^[+::]i|'!v)_%?i''*<-i})^;xi:+[x/:}c/'{r<_c]\_.. 
+; 
+
         pic          EQU $820000              ;beasty3.cry
+
+; 'pic2' references the contents of the beasty4.cry file. It contains  the 'GAME OVER' message, the crosshair for the
+; bonuslevel, the Yak head used in level selection and elsewhere, and the 'bfont' character map.
+;
+; !=================^^^^=+")\\\)|/=^^^^^================|[z1oe;*##*;eo1zlw[Li%?*`                                         
+; l                .;<l?ojTCTTTJJuz1*v/_                _c%!1<  ee  <1!})o}]+)wu-                                         
+; r             'ctT52u[r</^,::;="vIoC5f7r+.            'r)oar'=e*  )oec_``  cgS=                                         
+; r           ^!yV2I|`      .``       :)j52Li`          's %Tp6S51I}1}*l:   _IgZI.     <*>-       _i*| c**}}}}Is`         
+; r  ;"=-   _]mg7>-      .:,,,,::_       :s3hJ\    ,//- '*cLe!*{{*?tLa+     -!3yJ\     [FyT*/  .|?#yF{ nFjs{{s*{_         
+; r  >tTJLl\w4#\        .;^:_-_,,;-        '?mVI)1#Jj}: -#wv-    ..-+]*.   /zwr|7fs`   IyIcz#o}7#o%[3c 7yevvv%=           
+; r    .;{3Sb7'     _"ll)c%*cxvIcx><}>;.     igXFj\_    -CJ+    *oeatLz, .%##jee7uCt;  }yc -"{1r+` }yc 7ftvvv%/           
+; r       7532L![TypTtscxc%clIc{xvrll?7yFw7?aCFf5<      _]]oi+:'+"\%[j%.:!J{;,;;,:)zn< }fc         }fc of}    .`          
+; r      /bylzjnj7t]o*>||+=/"++"=+"|\%tt]ooTju!?Yu      's_>{I????I{v=.'?1).       :*t\xe>         %e> }t!***I?*_         
+; r      )8y: ')s*]?ll>/,:'____'_':^\vr{!?{%;- lAf      '{  +s[attt[l=  )[{_        '![){[?!!!!!*;I][[!11ta!i:-_.         
+; r      |&m=.`';=)i|\>>)|=:___'^/>)>v">>/^:_..?UC      's:[n1}srrsItn[:_sfu"      "uws:uFzclllrl|y2]clccl{afL"           
+; r      'gYs:,,''':"))<c\<i=_'<)<>l/)<^''_:;:+wU}      'r?#/        /#]  )zfv    vfz) .7yoxxxc+ ^#f[cx%%{[77I+           
+; r       xG6v_-_'',"i))\/+/+;^"/+|\|>>^'_'_-^ebf_      'r?L_        _L]   '?J?__?J?'  `7ft>))i= ^TC7L#n7?%/_             
+; r        {Em}:-__';\\|)\",'__:=\)||</:'_--\nXf;       'r=e1)+,::,+)1e+    .>L7zu).   `owI....``^Tw>_/i*1t]r\'           
+; r         <2dC%_-_::^/==v<'__^c>^/+,:'_:"1mht_        'r =v{!]!1[!*v=``   .`/??^  `  -!ot!I}?]I+[o>..  `^i{]%  ``       
+; r          _{f6#}/_-_';:/<:_'+<:,,'--^%Thmj\          -C65mJ;=jE7_ c25hC:>pFmJ,_?5dl !gghF"lhmgT;s6FhS=vm5mC,%qFqJ,     
+; r            'ie35Jtc|',"is[Ix\;:^)IL2py1/.           `dGljZv_%PC: -r5g3<^r2gP){X4Zm|}4qdS)tbmdm<.+m4L/IYmEg>sESEP%     
+; r               '|{oTuxtqJ#2fu6fc[Ju[i^'.             -C23pm%%Chqw|xg4qy<>C5gmc`,cg7/>f5Sq%%F6gqc _F#= vF6gm%>f6gml.    
+; r                   ._=ceue+luj?\:-                   -" +)|:'|//\/-^||)/.-/|",   :+. `/|", `/|",  :<^_ `/|", `/|",     
+; r                       ,|)c%<+`                       `ITr. :[n%                -^//'             .|=+                 
+; r                          ..                          `cCwz[T2#<               :I#qF7|             |=^                 
+; r                                                      .  =}a*,                 'ru62t+      _^____'<+"____;'           
+; r                                                     _c                        .izCns-      _^____'<+"____;:           
+; s                                                     '{                        >6qhhgI             |=^                 
+; >+\), ^\\^  .+)); `/|);  ."\, ;)|||-./)); ^\))|-./|)^ _*|\;     ;)_    _);      '!J3fo=            `)=+                 
+; lt![1=>[t!  )zot1^\1zo1="1jas-{t1tt^xtaje;i!1te=iezj[;%ejjt+   =t];    ;]t=       `_-              .'-_           :;`   
+; %l{{l+/cclv'v?]?!;/*L]l=|)ccl,<[taI^%rat?= `rr^ \lo!%:>aj[{+   +ls:    :rc+                                       ^"_   
+; ')I*<.\cxr}/^<iv*"+ic%<;'_:\; =lIc"`_%}{)` -)>:`'>l*\-/vcxi;::-`/)=:'  ;c\.''  _'      _::.  -: .'.  -::`  .:::-        
+; ;?te[) ;eta[> `{1[1% .[t[1s` xtea{_ >1eo?, )1[1!^ <7xiz% ^tttex   xoax 't[sa{.`1a'    xaee?' {7*\j" )ttt1/ >oeo])       
+; |l{Icx ;l{ac> :sl|\).`lc\xr' lce]>- xc}l,` ili)}/ )x*Ix> -"cc>, .^^\ll 'l%rv_ `cl+^^..rl\v*^ vlr}r+ ir%cr< )c{{x/       
+; :)\=x| 'vrIx= ."s!*" .)cIr<. "cs{%- )x' -. ;vrlr/ =x+;x" ^?x)Ii :I*{l/ -<\,<> .\v{sr- \) ;i_ "<-|>: :>sr<' ^)+..        
+; ;}eoo{ ;oeo1) `stae%..?ze7[_ Io;Io; lz%?7+ %o_,7> "e?Ie< "7{\7s ,to7a*          >o%    =1%          .```.               
+; ^c*?c% ;lsI{v -{I][s. `<li- .xl\cr; ;sI*%. >svv{)  /rs). ;*aecv `<l*c/   :)'    "[<    ^[v    :?%   ">%v\=              
+;  .`^v) 'v<^v> .>}?l).  =%/   /xIr<-  =v)_  ^%cc%, ;l|"l+ _xI}%= ,*v%*c   \?"    /I\    ,c)    `|/   . ....              
+
         pic2         EQU pic+$1f400           ;beasty4.cry
+
+; 'pic3' references the contents of the beasty5.cry file. It contains  the Atari logo background using during option selection.
+;
+; ^^;;^^=^^=^^=^^^^^^/)<)i)>i%rss?!?]?srsrs*I}}{sss{{rlllx%v>>)v%%clc%i<\<)i>\iviv>"=,_____'''__',,:';^==^^==+=+/|\)/==//"
+; ^^^^===^^^^^=====^+<i)ivivlr*!![!???*}?!!te1?rl{}???I{lc%v)>ixclr*sx)/"\<<><i)>><"/=:_',:'''':,::':',^/+=/""/|\)))/+////
+; ^^^=====^^^^^^^=//))iicc%%ls?1t[?I***I[ttoa?{>{[a7uoIc?jzjj7ttzLuj!c/c?1oLzx>\\))|/=,:,;''::::::,;;:,+///")\\\)"\\"////"
+; ;;;^^^^;;;^^^+)|/\>iii)>>icr{I}**slc{I**II*li^s!]t7ar<}T#T#u7aoeeuI);r!17uL>||"+=/='_'''''''':,::'_';===""=+"""///++""//
+; ;^^^^^;;=/)>ivx>>%v)))vvv%%c{*I?II!?]?rs{xv)>=}![aa1l\{LTLLzee1[1Ll)=*][aoz><\\<|/;_'''__':',,:::::,^")\<"+//===///"///+
+; ;;^^^^^+|<)iiiiiiv%%xcrxxlr{}I!]!I}{rllllcxxx/*1![atc|sLuzoat1e1[LIi/I[!1ejv)>\";''_''''':;'::::,;==/"""//++//"|\"/////+
+; ^^;;;^"\\)<)xvivivxvvc{{s{{s*!?I*s{sccccrl%v)^l}?[tac+rLL7attta11L*>+r?]1e7i<<|/^'''_''__','::'';=////""/+=+"""|\|//+^=/
+; ^;;^^|)>v%v%v)ivvvvvvc{rl}?!1!}I{sr%iiv%cxvv<=r{{!aoc+lzLj7eeeetau{>^c*I1e7))><|;____''__':_'::,+/"|"""//++/|||\<"=+//||
+; ^==^+\>>)))>ii)i%vxclllr}!]]]Islcx%%vvv%%clr%|{}*?1e%^%jjuj7o7eaeT}<;c*{]ta|+/=^,__'''''''':,:::;=+++=//////|\\<)"""/+//
+; ==^=">v)i%xcci>iviv%xl{I????I{xccclc%xccxcr{%)I]?toov;cuLLj7eoooj#*>^r?}]11+^=^;:__'_____':,:':,^=///"|/=====/"""""++/""
+; ++/\><))vx%%xi>)vi%s*{{{ss*rc%vxxxccxccx%rI*<<1o7LJa>;luLuujoojLTw*\={1][tzi/=;:'_____';:''''::,^=////"+^=+==|\"/+==////
+; |)\>ii%x%iv%xx%lrs}!I*I{rllcxccx%%%%%vcxc*I{)i1toLfz%+rTnTTLooLnnC*)+*1tto#*\"=;''_'::;^,:;::::;=//++///+/|||><||"/////"
+; ))\ivvi)>>viivllc{}I*scxxcrrrlccc%i>iv<>xs{s|%[?!tT1"'cu##TLaaateT*\=s!tojTr"/^'_''__':,:'''':,,^===++^=""=/"|\|"/=+""//
+; >>ivii)>v%%cl{I**?Islxcclrrrrrlllcccl%>xsrr%/}a?[1j1\^rn#Tnzat[[tLr</{?[ezuI"=;;;^,_'''''',:,,::;^/""|)<<"/""/""|"/"///=
+; ii%%vvv%rssr{*}III*rlrrlccxxccrrlxv)>iv%llsl/{1]!]j1)/sLTTLoea1![LIv"%!?1ez]=;::'''___':;^;::,:,;="||"""///""|)<>)""///=
+; %%%%ivr***{}!?II*{rx%clc%vi)iccc%iv%vv%vxx%\^r???1L{>^ljnJu7oea[1L{)/>!?[tat^__'''''__:'::;::'_-,++///|"////|||\<)"/+^^+
+; vv%lr}!I?!!]!}{slxvvi%xvii)i%%%cxxcx%%%%%vi;"s{{}1n}<;%7TJL7ooet1ul<^<*I![11|'':'__'__''',,_':':^=/"/""++///"|||\"=+/+"|
+; **}*{*IIIII*}{c%%vvvivvv%v)>iiivxxcrc%cx%xv;%I!!!tTr|:%7jTj77e7zoul|="{I!]]e%__'''_''':,,,::,,::;^=++=++=+/""|""//""/++/
+; 11!}}?]??]?I}l%vvi)))iv%%vv%ccxs{{*s%xllxx)"1[1teuLv):cLjLjzoaonnJl)//11[]!t];'':'''_-_'::,;;;;=///"""|/=+//+/++/""++//"
+; ]!I??}II??*sr%vii>>%xiiivcsrrlcrrlrl%crlcx"*e[[]a#z\":rTLLLjoaeL#wl"=:!7oa[tz%_''''''_:^;:::,=////"""/"/=+/++|\"++==//++
+; ??*{{s*}*rlccc%%%vxrlcsrrs{ssrl%i%crrr}Ir|ce1[!!tT!\<;sTnLLjoaajT#v=;-cojjeez?+_''',;,^=,:;;^+//"||////"/"|||\\"|"//////
+; I{rrlllcxxcvivc%i%lssrlc%crlc%vi%%v%r{c>^i1[!!??1Tc|"'cT#uLjoatteL\__-/[oLjo77}=_::__:,,:'::;=//+==^==^=""=+"""///+/""/+
+; ]!I*llcxllxllr}sr*{llcsl%%v%cclsr{II]*<^x1][[[1!La\|/:lnTuLjoa1[t7"_'_'cte7777j[>=;'';:''';;^++==^=++")\<"+//++="|||"//+
+; I}}*rlx%cx%v%lrrrsss{s{%%ccrrr{****{r<^s1!!]][17Li|||^lLuuLzett[tj\'''_,*t1eoozTj)''::::,^^;=++++/"""""/++++++/")|||"//+
+; cxccvivv)))%{{rslrslx%xxxll%css{sl{l"/*1!!?}**tui==|\;cjunj7aaa[tL\''_'_=I[[teojnov;'::::;^^==^^+"""//""//++/+++""""/^^/
+; iiv%v%cvxrr*{rrrrrlvivl%%lrr}}{}{c<=i1a1[!IsrIjl||<i<;x7uujjeet[1L)'___'_+}t[te7LLas/::::;=^=++/|""|"""///////+/"/=+++"|
+; %ccxv%xclrlcrrlrslcccllrs{rrssr%);>1oeoa[11*]7l\<\<>\;%7jLLjooe1tu\_''''__+[t1te7joe[i^::;^+//+/"////+//+/"""""||""/++/+
+; xccxcr{sr*s{*l%cc%%clr{*{lllrv/=v[nujjLjLunnwI><\<))\,cLuuLjoo7zjT\_''__''_\[oeae7z7zuz*/,;+/+/"|"/"""|/+//+=//"|)|/=/""
+; vxcr{rsrs{srr%)i%vc}Isrl%vv\"<rauTTuuzjTJJ3C?%>\>i>>\,rTTnLzee7LT#)____''''_+?Lj7o7jjuCC7{);:^//"//"////===^^")"""/+////
+; csssss{*{cxcllcl{s*?{c%<")>sanujn##TTjeLw5nIsrv))i)ii^rT##ujoeojnT)'''''''''_,v7TLjjjjuTLt[}c>|===+^^=+///|||\|/"|"////"
+; %cl{{{rl%ivvvc{r\"<>>iil*[ezzzjoLTT#Tj7u#oIr%)\\)i)>\,lu#TnjeaozjL)____''___-__"?Luj777z7t1[[[[[*c)\\\)+""=+/""/+++/|||"
+; lr{{rsl%xlr*I!!r"i1t[11et1eeoozjLTnTCwn1?{c)>)<>><<\|;lu#Tje11teo7"_''''_____':,=i?ooeaaat1[]![etezzuTLv<"/""//+/""|)))|
+; rrs{sr%x{***{srl"vt11]?]1!]1tae7jnCyJ[rllxvi%i\<>><\\^rLuu7t[[11t7\:'_''___'::,,:':<{]11[[[[[[]![[1ejTwi///""""|)"")\)||
+; srrrxv%rs{lr*slc"v[t1?{*}}[1[1t7TJj{iiv)i)>)ii>>>\|<>;cjun7t[[!]tj\'______'''''':''':"lI!?III??!!!]1oLfv////"//"""|||""\
+; cxcrr{*r**{*{lx%"v11[**{{{!e7LLoIv<\<>>>)>>>i)\<>>i%i+lLnT7t11]]tj|______::'''':'''::::^)vls*{*?!?[1eufi+///"///"/+"""">
+; crssrrsrrrlcrlcc">1e[II]ttea]ri<\|\><<))iiiii>>))>)i)+lzjuzoeoatau<_'''__'''''''''':::,,::;/<%s?]1oa7jCi+/"""""""/"|""">
+; s{rll{*sr*s{*rcr<{nTL7a]*x)>ii>iiivi\<>><<>>iii><>iv)|*nTTL7jL7ezn)_''__''''::'::''::'':::,,:',"%I[t7nfi=///+///"""///"|
+; lccr{rsrs{ss*{{{lllrli><\\)))>>ii))>)\><\>%v>><\>i>)>)%cxv";^=^,+":____''''_'''''__''_:^;:''':,:,^/|)>%"=+/++|)"//++""//
+; {srsss{*{lr{![Isl%%cv>vi))i))ii)<>>)>>vvvcciiv)))i)iii<)|";__:':;:_''''''''''_''''';;;==,:;::,::;^===+///"|||\)/""""""""
+; llls{{rlccrs{rci)<)ii)><<>i>\)||<<))<i)|<iii>><<)ii)>\\\/^'''__''''____''''_______:'_':::::'':,:::':=+==/"=+""""//+/"""/
+
         pic3         EQU pic2+$1f400          ;beasty5.cry
+
+; 'pic4' references the contents of the beasty6.cry file. It contains the swirly background used in bonus levels. 
+;
+; %iiv{[7Jyymn!Ix<)iviv%r?[!][!}slrrllllllclx%c{}?[[?}I11[7uTT#nj1]1!*I]1]}{lxxcxccclllllrr{I]]?![Ic%iivi>>l?!T6ff#7[rviv%
+; /""/"|v{I1unT#jer\\<><>vls{}II{lxii>><>>>)><))||)<>>\\)c?oe]to[ri<)\>>\||)|\<>>)<<<)iivcr*II*sslv<<<\<>*oLJTuj1}{v|//""/
+; "=====/<%cc}175m6[<||)<<>))vrI!I*lv><\))\\)||"//++====+<xI111!l>"=====+/"""|)|\\|\\>i%s}?!}ci))><\|||)omF3o1*xcv</=+==="
+; i<|)\\\irs*ssr*eqVti)||)\\|\icr{?Is%)<\)|"|||"//+=====^=")r!*v|=^^====++/""||"||)\<ic*?Irlx>)|\))||\cn4F]{s{{*sc)\\))|<i
+; }?[ezznJ###uuo}s!64jc>)<)|||)<)v%c{{rv><\)||""""/+==^^^^^=|i\+^^^^^===//"""|"|\\<ix{{rx%i>\)||)\>>iswX3?{?7nu##JJnjze[I*
+; T#yF533y26qhdmJt{[4PwI%)<\)|||\\\<)vcxx%i>)||"""/+====^;;;;=;;;;^^===++/""|||<)ivxx%i>\\\)||)\<>vl12GmIIewqVSSp3332Fpy#T
+; uj7t?{s{*}tn2SFCu!LSX4C}%ii>||\<><<i%%%%%v<))|""/+====^;;;,:,,;;^====+/""||)<v%%cx%v><<><)|\)ivx]FgEp1[TJ6qyu[*{ss{?t7Lu
+; Ic>\||\<)ii%{[Tfujo}*JZdo*{*v||\<)))<\<)v%vi>\)"/++====^;;,:,;;^^===++/"|)<vii%i<\\<i)><)|\l{{ITX4o{!zj#JL]{%ii><\)|\>r?
+; %<)||ir}?1t}lxstjL22LeTPdLtt[sci<\\vxi\|)>iii>)|"/+=^=^^;;;,,,;^====+/"|)\)%v)<|)>vc)\)>vc}1tafPEjoL5fLz]lxrIt[I*ri||)>%
+; <||"<%l}]]tze?sxroy4df?wZdj]tuJTe}x)ccli|"))vv<\|"/==^^^^;;,;;^^^^==/"")<>vi\|"<ccc%)l!jJ#z[tfGgLtp4h#elc*!o71!!*lv\"||<
+; [c<||<%rsix{*???*r[fEd#]2Gy]1ttySq3zs%l*c<+/)<<\|"/+=;;;;;;;;;;;;;==/"|)<<\"+"is{%c[CFSmT[t[1mXL!2XdTIr}???*{%isr%\||<l[
+; J#[i"\cli>%xcsI1e[s*ug4TISgt*%rCgggF#a??*ri/^+"|||"/=^^;;;;,,,;;;^=+""|||/==\x{I??jfqhgmo%lILEJ*fE67{{1e[*rxxv)%lx\"v[JJ
+; I7f1\|%c)\\<>x{I?ttI{t#67jV7!1{1nTjC33j7t{}I>=^^=+/++==^;;;,,;;^==+//+=^^^|l!*?ooJ2fnL#LIIt?yS1JFu]{!e1I*r%)<\<il%"<two}
+; !*]n!|\v<|)))>c{*?at{l?#2153!oes}1amXdw]7!cIIc<^;^^=//+===^^^====+/+^;;^)%*]sret7S44#1!sIz1tS#76j*x*t1I*s%<)|||>v\\1n]}!
+; c]I]u*")><||||\)l?!1[rc*Loogo{e[I54dqgy17zr%*I]l+;;,;^===^^^^^===^;,;^^>[??l%1jtjgSVEdL{e1{fmtne{c*1[!Ix>|||||<<|"Iu!I!c
+; \i[t{[r+"<\|||)\\)xrI?cxIt?553Jt!y22pmCa3y7v*??]%//^;:,;;;;;;;;;;:,^//\*[I?%IC3nomp5y5L{zyy6n}trvs!Ir%>\\\|||\>"/r]st[i)
+; /\i*!rs%//\<<\)\\<>vl}I%%*{1JfwJwy2yp2o#gp#*%%vl})""//,''::::::''+//"|rsv%vceydqeJF3y3fCCwfu*{sv%I*ci<\\\)<<<)/|lss]*i\/
+; =+)<%{lsv|/<i<)||)\<cs*c<%rcITnnJf3#wfueJpnIi>){*c"vt7x,_'_____'|a7*)i**v<>%73mjoCfJf3w#nTjllr)<l*rx<\|||\>i\/|vsl{v<)/=
+; "||v<)iclr<"|\<\\\\\iclv)<vi{J#LjuTujet[a!jjvrc{si<Inu1|''____'=rLTov<c*xrvI#1!11eoLTTujuJz%vi\\vlc)\\\\<>\|"isrc)\)%||"
+; \vv)%/">r{li)"|)>><>icc<|>??aTn#?}L#ottaa1TJ[ss>vlvv7L7s/:''''=%tjL*>r%>c{*uJ7[eetauJe{oJnn!!{)|)l%i<<<<)|"|ir*r>""rivi\
+; <v%)<+"/=vrx%>)||)<>vi>)"<c*Jgwn7vsa![aooea77l%i\i"<tuu7{+:''^xaLLzc">i\x%tLooooa1]11i{TuFmor%|"\)vv><\||)>%x{v+"/"<|%i<
+
         pic4         EQU pic3+$25800          ;beasty6.cry
+
+; 'pic5' references the contents of the beasty7.cry file. It contains the '2000' title logo, the 'TOP GUNS' title,
+; a small Atari logo, and the 'Joby' logo.
+;
+; {!"||\)"|")L/>I?rixI}if7))||>rI}i__''__>I*xix*I{nn)\#w\I3*){Fl){a+cJ7)i3ec?*i>lI})_;+            'rv+)<+_<^             
+; Je%x| 's%c!Tei^>c%i,=t11 :vv%l\,!{    r!;/csc/^}[7,-yc'/?j lF{ `>]c>J'+T[l:/r*s<"}{_=            =J]<*1l:l|             
+; ttrI1;}n{r1w*;77l)}7^vnt=)t?!z[;rJ-   o)<f[{1#zLuus=j;'"xj+vu[=//"1tuc+Lf%;}z?ayTj{_=            /Cl%?{c^[|             
+; +_/I1>T?v)^Lcsw%<=iCi?Joi%ccl{*aTI:   tvIo^^t??}tj!>o^ ;ijvlfJvx#[)}m7>LeotI{s{}}1?>=            )j\c7!r^7{.            
+; /  7!?wli)/z}[yIixwo{uno{u1tea!*i|_   u?!#+`o6]seLnsL1__}w*?3#!?uaJ?I!*zoeazJ]ILJ*!y"           `}L\)jT[;1z/            
+; + +C1Jji<|,ILo7T#CLoJTwje5i|)||/^_    u2oznj#TetT!yTeujeTooftTJtFs1mCtto53fzzTLuu7Tu/          :*7?'/Ia*-)1!+           
+; >edS5SVoi/- <TdS66Sg5qg5FE3%```.      |wSqmmSFq5glrfqqmmmgg!jgq2VEundqFS5snqh6mVm7x:=       .,>[zs' ;xe*` )[1%+`        
+; "\a5mF52Ts'  `IggF2w#yqm52pz.         `%ow22gw#6h^|1#y5FEg>*F256m#ojfpgwcrzf2mgu)  _=    '+%*1tr/.  ;v1}`  ;%![[{v/`    
+; /  ./v<\<<=.   _vv\\|;:i>\\|.          -"ivivv">>  ;|||ii``\\)>v: ^\<v" _|<\v)'    _=   .i[]{%;.    "]o{`    '+%1e{:    
+; /             `-    -:-   -=)v)=_  `,,vr)ivv";_'   `^>i"^_   `'`    `              _=    ',-        _=/,        .-'.    
+; /       `:|c?]1y4J??fbP#1[![updgdpFS7vF%?r\<;),jSFpdgdpu[![1#Pbf??J4y1]?c|:`       _=                                   
+; /        `';;'`^r{\^"}Cfe%+:,^|c1Cd&AzbS]%)il<{&&dC1c|^,:+%efC}"^\{r^`';;'`        _=                                   
+; /                                 _|?l7kbSTI|`x!|_                                 _+                                   
+; "':::''_'''''''::::::::'''''''''''''_',vIIx|,______''::::::'''''__''__''::::::::::';^                                   
+;  .. .;>{*I*Il|:  ..... .,)c*!?*%<;  ...    ;i{!I}{l>^. .....  ;>s?II}{>^. .....`````................................... 
+;    >a1]]t1*ll?7!_     |[zjz7JwLo#nt"     x73mp#e[}cc][<     vr[t!}srIjTLo<    -""""""""/"/"""""""""""""""""""""""""""""%
+;   s#sxc?o]11{!!aL`  `lteuww#w2yCyy#nv  _o##gXX5uju?))\u}  `e1v)>{o17uLzeefI            ij\                             \
+;  ;F{x|v*:``I?vc<e)  )7[zuye^':\ywwTo3, ly!C6gC"__)#{<|+f/ s#;i\!z=-'\#o11]6)           )fyl       .:                   \
+;  :Ls<\rv`->[%|=^o=  it]e1Ti    {7Cye2/ I#{?*w}    ja{arwi ta^>|7I    1Lr}%fx            %jpa-     _\                   \
+;   ^tr*x=\?c==/\*)   v7[t]z%    lzf3ny+ IJr{lf?    7aTV#y> 1t:)<ur    ej*!I5v             %o5w=  ../1`.                 \
+;    `^|i!%///%*<_    \!ejanv    !wm5j2" IJ%slf!    7z2dC2> 1a|{cL{    o7zw75%              >epF/`..<#`.``..             \
+;    ;}!rv<)is>       lLat?#l    eFS5t5" ?Txc\J!    jzfhLy) 1e>{vnI    o#FhJpx               |1nu<,|?2v":  .`.           \
+;  .lL?cciv7*xvii)/'  vL![?z7)^=%uattty: lyr%)*z\=+%e{7jsy^ xJ/>\su>^+%JTunLq/             .-  {g4ECCE]?oe). .-          \
+;  |5rs*c)//lejja1*1   >![[**I??[I*sIt\   !j*v)%cI?c"\c*Tv  .?e)|)%!enTttj7Tl              _  'jSS4YgAn>"lwr. `_         \
+;  'r1rlr{ciIon#j1{t    ^r1[I{{{!}*{i_     "]ta[llI}*}a*^     /?1!x*1ojto7}^       .`_:^+"r[vx7GLFXO&KHbF7y4{vlt>/=;'-.  \
+;    _^^+////|<)|/,'      -^<ivv>^_.         _|)vv%%<^`         _"\ii%i)=.           ...``:"-_\6]i{#kKdecvwL,`:+``...    \
+;                                                                                          _^',)j7c)nP{iIu!- /v%^        \
+;                                                                                    .;I+;{LLoe{^|lIug[*v;`|)r]hgL%-     \
+;                                                                                    _w@FcTA&S!>%Il<<u<ilsisTfIwdg$6:    \
+;                                                                                     :aZb2Ggc|TdSFnlnnf2phf)LSyqbp%.    \
+;                                                                                       ,]CI'}YV#2X8[iV&S6V8w''#3v       \
+;                                                                                           _T44h6E$[^EU4VdP4}           \
+;                                                                                             .;){!r_`?a?{i^`            \
+;                                                                               .'''''''''''''_-`..`_'`...`-_'''''''''''_i
         pic5         EQU pic4+(640*128)       ;beasty7.cry
+
+; 'pic6' references the contents of the beasty8.cry file. It contains the character map for the 'bfont' character set.
+;
+; >**rs??*II=`,?[rrs??*I?"`;|s}ss?!}![!`:xerrrI]}I!)`:/cIsr}!*?!a:_+%Isr*!}?!e^-=iI{r*]II?{:`=eIx```.=![<`^)1srrI?}][;`;  
+; I%x)|)|><r{ ,{%x)|)|>i%! :xri<=++^^=" _v{i>++=/))o.-<})c)))"=^|``|I)c\))"=^|-./I)v/=+/\)I+ =?)%'__-+<rx ^=/="r\x^^/- ,  
+; x\cri)>)\x? ,i<%l)><>"xx :>>{+        '\)l)    *"z`_|i>sv><%+   `"v\{xi>%\   `/%>{  i\>it" =v\llvi>i"*l ^'   *|<     ,  
+; s\r=,::|*\c ,%>{c)<\i)|l :ivxi//^^,:' '>%cl"/==[+I._)l<r)>\>":: `"l<l,::;:   `+r\{""))*vc| =r\r;,::>li) ^;=/|}+l^,,. ,  
+; ?<{-   ^!<x ,s)>llxvi|i/ :)v\ilc%v<i! _vl)llc%v)<< _"v<>ccvv>\[_.)I<x        .+i><clvvv/s| =I\{    |*v> ;\?rri^iv\!; ,  
+; "=/,,;;^)\='^//+;;;;;/|:';^="=;;^=^+"';+^+==;=")/'',=^"/;;^=+|)::==/",;^;;:__:=^/"=+/""//,'^++|,,;;="/;'^+/==+|""//:';  
+; ,`_l{?I{*Ii`,}?l'._/vrI%`:r[l;````````:/s*cls*{?ev`'>alrv_.`i}?'_=v*ll{?*{}l__/ercclI{s*r'-^>*rlsI*{{{;`;[}ccl**s{*=`;  
+; : .===^/<v* ,s%v|<iv>/^_ 'clv;        _i*i>v)v|<\z.->*>c%r^ \/a:.|I>v====)"e= /I>l\))"i/1< =Ii%"==^\)Ix ;}ic)))|>)r} ,  
+; :      :{%I ,)<>)<i"_    :>>{=        '\>l|)vi_{"7`_|i%r)>{)s|7:`"vil    %<a/ +v\rxi><<%o= =v<}    "l{c ^v\%%<)>\>1v ,  
+; I!I\|"=v{<% ,x>r\/)><|;. :virc|"+=;;: '>%x\_,;.e/I._\lii`+">I=I_`"r\r||/+?){;.+r\r::'',/' .=r\s)|/%cii) ;l\s"/"|<%). ,  
+; ii<ic%i>"v^ ,s)r:._,+)ll 'cv)lc%vv\i! _vc%)    !|*.-<s))  :"=,I_`/i<<%cvv<|i`./I\l        .^>)\vcv<^,=l/,*<{_.';+"rv ,  
+; ;;"//"||)^_'^""|^;^^+|\"';/"/^;;^^"\"';/||;'''_/<|',+||=''',/<|::^="+;;^^+<+':=||/'''':=^':^^/"//"|))|\";^;^_---_,^;-:  
+; ){rcl**r{I/`,{Illls*s}I%`:s[l;.`.`l*{`'<[{c```,e}s`_>er|`...i*?'_)ori'..:c{]^`/es)..../I!"`^]sllr*{{*]<.,               
+; ?v%i)\|><x> ;"^^^r\c;,;; :ccv;   .i|a '=\)I)  {v|= -<*)|.::.</e:`/\)iv\)v>/)-./I>%;::'>|?< =";;;+isx"<; ,               
+; <vvv><\\v*^ ;:   {)>     :><{+    I|o '^_><t,>r=/. _|i%)"{x'l)o:`= `xs)|<>_  `=>vvv)<<<,]< =`."%x)|^:`  ,               
+; ?ttx%)<x|)% ;,   %+c.    :vv%v\)"\!+* :^ ,\>7!="-  _\r>{l\<%]/I_`=|!!>"/|iv/..+[t]vv><l=l/ ^x[*sri|+;^_ ,               
+; >)\>vi><|i; ;,   |/s.    :|i\>%v))")" :^  ^/"+)'   _/xi>>++)\>) `|?>>:. '\|*, +)>\iv))\)i- =I|/>vi)>|{) ,               
+; ;^|"/|))\^''^^:^^|<"'''''^;,|"/|))\/'';==^="|<\+;_';^:^;;/))"=:',=||"^=/=)>\,:^:+|/")))),':^"""/")))<<=';.-::,;;;,`.``  
+; i*rll**rs?/`;,'[r{*?-.```,){{ll{*rs?)`'v]llcr*rsI%`'=`,">r}r% .._)occcl*rr{1^`=%*lcl*sr{},`^]sllr*{{{]>`^>*rcl*{rs?/.;  
+; Ii%/;;,|>lI ;, ;;r\s.    :>v</:;+>i)] '/^;;/\|<c"o._"ccrlv*"i^: `|*<cii)<<\/`./I>r>))|)<r^ =+,;;=ir%"<, ;{vci)\|v>l* ,  
+; %\I`   ,*vI ;,   s)<     ,;`+>vv>)/+^ :^   \x\\"<{ _|%>%%i<=>r! `/vii<)|"\i{-.+v\rv<\)<%{_ =_  `s)\='`  ^\><i><)\+r< ,  
+; {<l)>\"%r<v ;^\>)I+s|=/_ :)*{I]{%>"+^ '"<>>%%>iv;}._+,:'''v/e'' `|etIii<<l;*;.+{)rx%i>l=s/ =_  _x/%.    ;l>vcxi>x">v ,  
+; <>)>i)><"i; ;|*%%>=<)\}" :c%+\i)>>\i? _i}%%vi)>)>) _=     c\!   -/<<\iv))\<>`.+<>\iv))\\i- =_  `\\x     ^\)\>vi)<)i; ;  
+; ;^)""\\\<=':^^;;;;^^^^=;:;=^^;=\|^^==';=;;;;;;^==:';;_,;^,:;:-_-';;=/=,::,;'-_,_:,:'::,;'-_,'--_:;:-____:'',:':::;:--:  
+; v*rxc{slr?".;;...........;;...l*['....:^          .'-<%)\%\      ^r||<c`                                                
+; Ii%v\\|v>cI ;,           ,;   c>l-    '/"/+^^;;;=+ __\v^=)<      ^l\<){>\                                               
+; <%%i<\)\^%} ;,           ,;   l\>`    '<}rcv)><\ve._-:==\i'.,=   '+>xrr^_                                               
+; !t1ccv)l)>v ;,"vv=       ,;   i}r`    :=''_______' '_   /%)\/,     ,<cc\)                                               
+; \>\<i>><)i, ;,lcc>       ,;   \v}_    :=           '_   =i|""=.     .;iv\+"`                                            
+; '':'''::,'-_::'':'-_____-::__-'':_-__-':__________-'`   -:. _;.      `:'::^`                                            
+;                                                                                                                      
         pic6         EQU pic5+(640*200)       ;beasty8.cry
 
 ; *******************************************************************
@@ -428,7 +905,7 @@ dntrstl:
         clr.l (a0)+                       ; Reset score in a0
         move #3,lives                     ; Set lives to 3
         move #3,lastlives                 ; Set last lives to 3
-        move #2,warpy                     ; Set warp
+        move #2,warpy                     ; Set number of power-ups needed before warp
         clr bolev1                        ; Clear bonus level 1
         clr bolev2                        ; Clear bonus level 2
         clr bolev3                        ; Clear bonus level 3
@@ -664,7 +1141,7 @@ glocube:
         move.l d0,28(a0)                     ; Add y centre  to CPU input buffer.
         move.l #$0,32(a0)                    ; offset of dest rectangle in input buffer
         move.l delta_i,36(a0)                ; change of i per increment in input buffer
-        move.l #2,gpu_mode                   ; op 2 of this module is Scale and Rotate
+        move.l #2,gpu_mode                   ; Select 'scar' in antelope.gas. op 2 of this module is Scale and Rotate
         move.l #demons,a0                    ; Load the GPU module in antelope.gas.
         jsr gpurun                           ; Run the selected GPU module.
         jsr gpuwait                          ; Wait for the GPU to finish.
@@ -718,7 +1195,7 @@ glopyr:
         move.l d0,28(a0)                     ;y centre the same
         move.l #$0,32(a0)                    ;offset of dest rectangle
         move.l delta_i,36(a0)                ;change of i per increment
-        move.l #2,gpu_mode                   ;op 2 of this module is Scale and Rotate
+        move.l #2,gpu_mode                   ;Select 'scar' in antelope.gas. op 2 of this module is Scale and Rotate
         move.l #demons,a0                    ;Load the GPU module in antelope.gas.
         jsr gpurun                           ;Run the selected GPU module.
         jsr gpuwait                          ;Wait for the GPU to finish.
@@ -849,7 +1326,7 @@ stropt: jsr DISABLE_FX        ; any SFX to off
         bmi setauto
         bra rrrts
         
-				; Start playing in 'Demo' mode.
+        ; Start playing in 'Demo' mode.
 setauto:clr z                 ; Clear hard reset signal.
         clr cwave ; Set current level to 0.
         clr cweb ; Set current web to 0.
@@ -885,9 +1362,9 @@ gselg:  move solidweb,-(a7)   ; Stash some values in the stack so we can restore
         
         ; Start playing attract mode, with 1 player life.
 lvlset: move #1,players       ; Just 1 player
-        move #$1c,bulland
-        move #7,bullmax
-        move #1,entities
+        move #$1c,bulland ; Standard number of bullet slots.
+        move #7,bullmax ; Max number of bullets.
+        move #1,entities ; 1 entity: claw.
         clr pawsed
         clr.l paws
         clr noxtra
@@ -1035,39 +1512,39 @@ gnopal2:jmp centext ; Display horizontally centred text.
 ; updating the bonus points for the selectedlevel that this takes care
 ; of.
 ; *******************************************************************
-draw_o: cmp #1,webcol ; Is the web the default colour? 
-        bne do_2 ; If yes, skip.
-        add #1,wpt ; 
+draw_o: cmp #1,webcol                ; Is the web the default colour?
+        bne do_2                     ; If yes, skip.
+        add #1,wpt                   ; 
         and #7,wpt
         bne do_1
-        bsr swebpsych ; Make the web psychedelic.
+        bsr swebpsych                ; Make the web psychedelic.
         bra do_2
 do_1:
 do_2:
-        jsr draw_objects ; Do all the object drawing.
-        tst.l csmsg ; Do we have any bonus points to show?
-        beq rrrts ; If no bonus points to show, return now.
-
+        jsr draw_objects             ; Do all the object drawing.
+        tst.l csmsg                  ; Do we have any bonus points to show?
+        beq rrrts                    ; If no bonus points to show, return now.
+        
         ; Clear a spot for us to display the bonuspoints.
         move.l #screen3,gpu_screen
-        move #0,d0 ; Source X position.
-        move #84,d1 ; Source Y position.
-        move #384,d2 ; Full screen width.
-        move #32,d3 ; Set height
-        move #0,d4 ; Destination X position;
-        move #0,d5 ; Destination Y position;
-        move.l #screen3,a0 ; Source screen
-        move.l #screen3,a1 ; Destination screen.
-        jsr ecopy    ;just blit a clear bit
-
+        move #0,d0                   ; Source X position.
+        move #84,d1                  ; Source Y position.
+        move #384,d2                 ; Full screen width.
+        move #32,d3                  ; Set height
+        move #0,d4                   ; Destination X position
+        move #0,d5                   ; Destination Y position
+        move.l #screen3,a0           ; Source screen
+        move.l #screen3,a1           ; Destination screen.
+        jsr ecopy                    ; just blit a clear bit
+        
         ; Display bonus points.
-        lea afont,a1      ; Load the 'Atari' font to a1.
-        move.l csmsg,a0   ; Load the bonus points for the selected level as our text.
-        clr.l csmsg       ; Clear csmsg for next time.
-        tst h2h           ; Are we playing a head-to-head game?
-        bne rrrts         ; If so, return now.
-        move #20,d0       ; Set Y position of text.
-        jmp centext       ; Display horizontally centred text.
+        lea afont,a1                 ; Load the 'Atari' font to a1.
+        move.l csmsg,a0              ; Load the bonus points for the selected level as our text.
+        clr.l csmsg                  ; Clear csmsg for next time.
+        tst h2h                      ; Are we playing a head-to-head game?
+        bne rrrts                    ; If so, return now.
+        move #20,d0                  ; Set Y position of text.
+        jmp centext                  ; Display horizontally centred text.
         ;Returns
 
 ; *******************************************************************
@@ -1075,22 +1552,29 @@ do_2:
 ; Populate the bonus score, e.g. BONUS 00001000
 ; *******************************************************************
 setcsmsg:
-        lea csmsg1,a0
-        move.l score,a1
+        lea csmsg1,a0 ; Point a0 at the "0000000 BONUS" message.
+        move.l score,a1 ; Point a1 at the score.
+
+        ; Iterate through the digits of the score message, updating
+        ; as required.
         move #7,d0
-sstb:
-        move.b (a1)+,d1
-        bne gotadig
-        move.b #'0',(a0)+
-        dbra d0,sstb
+sstb:   move.b (a1)+,d1 ; Put current digit in d1.
+        bne gotadig ; Go to gotadig if non-zero,
+
+        move.b #'0',(a0)+ ; It's a zero. Put a zero in the score message.
+        dbra d0,sstb ; Keep looping for all 7 digits.
+
         lea -2(a0),a0
         move.l a0,csmsg
         move.b #'n',(a0)
         rts
+
+; *******************************************************************
+; gotadig
+; *******************************************************************
 gotadig:
-        move.l a0,csmsg
-gadig:
-        add.b #'0',d1
+        move.l a0,csmsg  ; Store the bonus message in cmsg.
+gadig:  add.b #'0',d1
         move.b d1,(a0)+
         move.b (a1)+,d1
         dbra d0,gadig
@@ -1122,8 +1606,9 @@ rrrts:
 ; to select a different web.
 ; *******************************************************************
 waitfor:
-        lea _web,a0
-        add #1,28(a0)
+        lea _web,a0 ; Point a0 at the web.
+        add #1,28(a0) ; Increment the web's 'roll'.
+
         btst.b #3,sysflags ; Rotary controller enabled for Player one?
         beq ojoj
         move.b pad_now,d0
@@ -1175,20 +1660,20 @@ noxxo:
 
         btst.b #6,pad_now+1
         beq wfor
+
         cmp #-$50,vp_x
         ble oro
         sub.l #$11000,vp_x
-oro:
-        add #1,30(a0)
+oro:    add #1,30(a0)
         rts
-wfor:
-        btst.b #7,pad_now+1
+
+wfor:   btst.b #7,pad_now+1
         beq rrrts
         cmp #$50,vp_x
         bge oro2
         add.l #$11000,vp_x
-oro2:
-        sub #1,30(a0)
+
+oro2:   sub #1,30(a0)
         rts
 
 zforward:
@@ -1198,10 +1683,11 @@ zforward:
         sub d1,d0
         bpl zff
         rts
-zff:
-        move.l #zprev,routine
+
+zff:    move.l #zprev,routine
         clr 24(a0)
         rts
+
 zbackward:
         move cwave,d0
         move #2,d1
@@ -1210,8 +1696,8 @@ zbackward:
         cmp topsel,d0
         ble gzn
         rts
-gzn:
-        move.l #znext,routine
+
+gzn:    move.l #znext,routine
         clr 24(a0)
         rts
 
@@ -1256,10 +1742,12 @@ znext:
         lea _web,a0
         bsr ccent
         sub.l #$40000,12(a0)
-        sub #2,28(a0)
-        add #1,24(a0)
-        cmp #50,24(a0)
-        blt rrrts
+        sub #2,28(a0) ; Subtract 2 from the web's roll.
+        add #1,24(a0) ; Add 1 to its acceleration.
+        cmp #50,24(a0) ; Has web reached max acceleration yet?
+        blt rrrts ; If not, return.
+
+        ; Otherwise, move the next web.
         move #2,d0
         sub h2h,d0
         add d0,cwave
@@ -1331,7 +1819,6 @@ ccnt3: sub #4,d0
         rts
 
 ; *******************************************************************
-; mandy
 ; settrue3
 ; Create the second entry in the beasties object list. It's a full-screen
 ; object.
@@ -1400,7 +1887,7 @@ sthang: bsr settrue
         bra mp_demorun
 
 sthiing: 
-        move.l #0,gpu_mode
+        move.l #0,gpu_mode ; Select 'undraw' in antelope.gas.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
@@ -1464,7 +1951,7 @@ stunnel:
 ; Unused code
 ; *******************************************************************
 stunl:
-        move.l #0,gpu_mode
+        move.l #0,gpu_mode ; Select 'undraw' in antelope.gas.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
@@ -1554,8 +2041,8 @@ sflipper:
         add paltop,d1 ; Adjust Y origin for PAL screens.
         swap d1 ; Swap position of the first 2 bytes with last 2 bytes.
         move #0,d5
-        move #$24,d3
-        move #$24,d4
+        move #$24,d3 ; Set the width
+        move #$24,d4 ; Set the height
         jsr makeit
         move.l #rrts,fx
         move.l #sflip,demo_routine
@@ -1569,7 +2056,7 @@ sflipper:
 ; A 'demo_routine' routine
 ; *******************************************************************
 sflip:
-        move.l #0,gpu_mode
+        move.l #0,gpu_mode ; Select 'undraw' in antelope.gas.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
@@ -1907,7 +2394,7 @@ draw_spulstank:
         movem.l (a7)+,d0-d1/a1   ; Restore stashed values from the stack.
         add.b #$80,d0            ; Add $80 to the rotation angle.
         bra drawsolidxy          ; Draw it as a solid polygon.
-				; Returns
+        ; Returns
 
 ; *******************************************************************
 ; draw_sfuseball
@@ -2155,12 +2642,12 @@ gofeed:
         move.l d0,28(a0)                     ; y centre the same
         move.l #$0,32(a0)                    ; offset of dest rectangle
         move.l delta_i,36(a0)                ; change of i per increment
-        move.l #2,gpu_mode                   ; op 2 of this module is Scale and Rotate
+        move.l #2,gpu_mode                   ; Select 'scar' in antelope.gas. op 2 of this module is Scale and Rotate
         move.l #demons,a0                    ; Load the GPU module in antelope.gas.
         jsr gpurun                           ; Run the selected GPU module.
         jsr gpuwait                          ; Wait for the GPU to finish.
         
-        move.l #4,gpu_mode                   ; Multiple images stretching towards you in Z
+        move.l #4,gpu_mode                   ; Select 'rex' in camel.gas. Multiple images stretching towards you in Z
         lea p_sines,a0                       ; Load the positive sine table to a0.
         move pongx,d0
         move pongy,d3
@@ -2233,7 +2720,7 @@ clearfeed:
         move.l d0,28(a0)    ;y centre the same
         move.l #$0,32(a0)    ;offset of dest rectangle
         move.l delta_i,36(a0)
-        move.l #2,gpu_mode    ;op 2 of this module is Scale and Rotate
+        move.l #2,gpu_mode    ; Select 'scar' routine in antelope.gas. op 2 of this module is Scale and Rotate
         move.l #demons,a0 ; Load the GPU module in antelope.gas.
         jsr gpurun      ; Run the selected GPU module.
         jsr gpuwait ; Wait for the GPU to finish.
@@ -2385,7 +2872,7 @@ versiondraw:
         move.l d2,28(a0)    ;y centre the same
         move.l #$0,32(a0)    ;offset of dest rectangle
         move.l delta_i,36(a0)
-        move.l #2,gpu_mode    ;op 2 of this module is Scale and Rotate
+        move.l #2,gpu_mode    ; Select 'scar' routine in antelope.gas. op 2 of this module is Scale and Rotate
         move.l #demons,a0 ; Load the GPU module in antelope.gas.
         jsr gpurun      ; Run the selected GPU module.
         jsr gpuwait ; Wait for the GPU to finish.
@@ -2414,7 +2901,7 @@ dop:
 ; ppyr
 ; *******************************************************************
 ppyr:
-        move.l #2,gpu_mode
+        move.l #2,gpu_mode ; Select 'pretty_poly' in camel.gas.
         move.l #pypoly1,in_buf
         lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do clear screen
@@ -2483,15 +2970,16 @@ sfres:  move (a1)+,d1
 ; *******************************************************************
 firesel:
         bsr setfires
-        move.l #option4,the_option
-        move #3,selectable
-        clr selected
-fslp:
-        bsr do_choose
+        move.l #option4,the_option ; Select 'Fire Button Selection' messages.
+        move #3,selectable ; 4 possible selections:  jump, fire, superzapper, exit.
+        clr selected ; Default is first.
+fslp:   bsr do_choose ; Get the user's selection.
+
         tst z          ; Has the player done a hard reset?
-        bne firsend
-        cmp #3,selected
-        beq firsend    ;user selected exit
+        bne firsend ; If so, we're done.
+        cmp #3,selected ; Did the user choose 'Exit'?
+        beq firsend    ;user selected exit, so save and exit to previous screen.
+
         lea fires,a0 ; Point a0 at fires.
         move.l selbutt,d0  ;get button(s) used for select
         move #0,d7
@@ -2529,7 +3017,7 @@ gotwhr:
 ; *******************************************************************
 firsend:
         jmp eepromsave
-
+        ; Returns
 
 ; *******************************************************************
 ; rotset
@@ -2623,7 +3111,7 @@ dcc:    tst z                             ; Has the player done a hard reset?
         clr webbase
         move #$0f,weband
         move #3,selectable                ; There are 4 possible options.
-				; Player can choose: Traditional, Tempest Plus, Tempest 2000, or Tempest Duel (Head to Head).
+        ; Player can choose: Traditional, Tempest Plus, Tempest 2000, or Tempest Duel (Head to Head).
         bsr do_choose                     ; Display the selection screen for Game Type.
         
         ; We've chosen a game, decide what to do next.
@@ -2655,7 +3143,8 @@ dcc:    tst z                             ; Has the player done a hard reset?
         move #2,selectable                ; Three options
         move.l #option10,the_option       ; Enable the 'how many rounds' option screen.
         bsr do_choose                     ; Show the screen and get a selection.
-        
+       
+        ; THey've selected how many rounds to play. 
         move selected,d0                  ; Get the selection (0=1 round,1=3 rounds,2=5 rounds).
         lsl #1,d0                         ; Multiply it by 2.
         move d0,rounds                    ; Store the selection in rounds
@@ -2664,10 +3153,10 @@ dcc:    tst z                             ; Has the player done a hard reset?
         
 fago:   bsr fade                          ; Do a melto-vision transition.
         clr selected                      ; Clear selection.
-        move #1,players
-        move #$1c,bulland
-        move #7,bullmax
-        move #1,entities
+        move #1,players ; 1 player
+        move #$1c,bulland ; Standard number of bullet slots.
+        move #7,bullmax ; Max number of bullets.
+        move #1,entities ; 1 entity: claw.
         bra xsel1                         ; Configure the game we've selected. 
         ; Returns
 
@@ -2693,17 +3182,20 @@ gameopt:
         cmp #1,d0                    ; Did they select 'Controller Setup?
         bne nxtsl                    ; If no, skip to nxtssl.
         
-        ; Do Controller Setup.
+        ; They selected Controller Setup.
         bsr firesel                  ; Enter 'Controller Setup' option screen.
+        ; User has finished controller setup.
         tst z                        ; Has the player done a hard reset?
         bne fago                     ; If yes, go ahead and start game?
-        bra dcc                      ; Display all options until user has selected a game.
+        bra dcc                      ; Go back to the main options screen.
         
 nxtsl:  cmp #2,d0                    ; Did they select 'Controller TYpe'?
-        bne dcc                      ; If not, display all options until user has selected a game.
+        bne dcc                      ; If not, go back to the main options screen.
         
+        ; Otherwise they've selected rotary controoler options.
         bsr rotset                   ; Display the rotary controller options screen.
-        bra optionscreen             ; Display all option screens until user has selected a game.
+        ; They've finished setting up rotary.
+        bra optionscreen             ;  Go back to the main options screen.
         ; Returns
 
 ; *******************************************************************
@@ -2788,8 +3280,8 @@ dweeb2: move.l d0,option3+12   ; Store the result in option3.
 ; *******************************************************************
 selse:
         move #1,players              ; Set as a 1 player game.
-        move #$1c,bulland
-        move #7,bullmax              ; 7 bullets max.
+        move #$1c,bulland ; Standard number of bullet slots.
+        move #7,bullmax              ; 8 bullets max.
         move #1,entities             ; 1 entity: a claw.
         cmp #2,selected              ; Is Tempest 2000 selected?
         beq npling                   ; If so, jump to npling and skip 2 player setup.
@@ -2804,7 +3296,7 @@ selse:
         move.l #option7,the_option   ; Enable 'Select Options for this Game'
         bsr do_choose                ; Display it and get a selection.
         
-				; Process the player's selection for the type of Tempest Plus game.
+        ; Process the player's selection for the type of Tempest Plus game.
         move selected,d0             ; Store the selection in d0.
         beq stdstrt                  ; 1 Player was selected, go start it up.
         cmp #2,d0                    ; If not, was two player mode selected?
@@ -2812,16 +3304,16 @@ selse:
         
         ; Otherwise, it's a 1 player game with a Droid..
         move #1,players              ; 1 Player
-        move #$3c,bulland            ; for test droid mode
-        move #15,bullmax             ; 15 bullets max
+        move #$3c,bulland            ; Increased number of bullet slots for test droid mode
+        move #15,bullmax             ; 16 bullets max
         move #2,entities             ; 2 entities: claw and droid.
         bra stdstrt                  ; Skip to rest of set up.
         
         ; Player has selected 2 player: set up two player game.
 set22:  move #2,players              ; start 2-player simul mode
         move #2,entities             ; 2 entities: claw and claw.
-        move #$3c,bulland
-        move #15,bullmax             ; 15 bullets max.
+        move #$3c,bulland ; Increased number of bullet slots for 2 players.
+        move #15,bullmax             ; 16 bullets max.
         clr dying
         
 stdstrt:move (a7)+,selected          ; Restore the game selection value from the stack.
@@ -2882,7 +3374,7 @@ xsel1:
         cmp #2,selected ; Was Tempest 2000 selected?
         bne rrrts ; If not, return early.
 
-				; We selected Tempest 2000.
+        ; We selected Tempest 2000.
         move #-1,t2k ; Enable Tempest 2000.
         move #1,solidweb ; Enable the solid web for Tempest 2000.
         move #$10,webbase
@@ -3013,8 +3505,8 @@ ssys:
 ; optiondraw
 ; *******************************************************************
 optiondraw:
-        move.l #1,gpu_mode
-        bsr ssys
+        move.l #1,gpu_mode ; Select ripplewarp routine in antelope.gas
+        bsr ssys ; Copy GPU flags.
         move.l #(PITCH1|PIXEL16|WID320),d0
         move.l d0,source_flags
         move.l #(PITCH1|PIXEL16|WID384),d0
@@ -3381,7 +3873,7 @@ nbnc2:
 ; *******************************************************************
 
 tundraw:
-        move.l #0,gpu_mode
+        move.l #0,gpu_mode ; Select 'undraw' in llama.gas.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
@@ -3391,7 +3883,7 @@ tundraw:
         lea in_buf,a0      ;This is Starplane code
         move.l #32,(a0)      ;no. of stars
         move.l #84,20(a0)    ;seed Y
-        move.l #1,gpu_mode
+        move.l #1,gpu_mode ; Select 'starplane' in donky.gas.
 
         move sfyo,d7
         move sfxo,d3
@@ -3427,6 +3919,7 @@ stalp:
         lea equine2,a0 ; Load the GPU module in donky.gas.
         jsr gpurun      ;do starplane
         jsr gpuwait ; Wait for the GPU to finish.
+
         move.l (a7)+,a0 ; Restore stashed values from the stack.
         dbra d6,stalp
 
@@ -3694,8 +4187,7 @@ nmoo2:
 
         lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
 
-
-        move.l #3,gpu_mode
+        move.l #3,gpu_mode ; Select 'voo' in ox.gas.
         move.l #0,d4
         move tbbptr,d0
         sub #1,d0
@@ -3832,7 +4324,7 @@ text_o_run:
 ; Unused code
 ; *******************************************************************
 text_o_draw:
-        move.l #0,gpu_mode
+        move.l #0,gpu_mode ; Select 'undraw' in llama.gas.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
@@ -4422,10 +4914,10 @@ spup:
         add.l d0,grndvel
         tst psycho
         bne agagg
-        lea m7msg1,a0
-        clr.l d0
-        move.l #$8000,d1
-        jsr setmsg
+        lea m7msg1,a0 ; Set message to "Speed Boost".
+        clr.l d0 ; Set X pos to 0.
+        move.l #$8000,d1 ; Set Y pos.
+        jsr setmsg ; Set the message to display.
 agagg:
         move.l (a7)+,d1 ; Restore stashed values from the stack.
         rts
@@ -4533,7 +5025,7 @@ noicon:
 
         move.l #$130000,d4
         move.l #128,d3
-        move.l #6,gpu_mode
+        move.l #6,gpu_mode ; Select 'pring' in xcamel.gas.
         lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l d3,(a0)+    ;# pixels per ring
         move.l 4(a6),d0 ; Get the source X position.
@@ -4633,7 +5125,7 @@ failfade:
         move.l d0,28(a0)         ; Put y centre in GPU buffer.
         move.l #$0,32(a0)        ;offset of dest rectangle
         move.l delta_i,36(a0)    ;change of i per increment
-        move.l #2,gpu_mode       ;op 2 of this module is Scale and Rotate
+        move.l #2,gpu_mode       ; Select 'scar' in antelope.gas. op 2 of this module is Scale and Rotate
         move.l #demons,a0        ; Load the demons module (antelope.gas).
         jsr gpurun               ; Run it.
         jmp gpuwait              ; Wait until GPU finished.
@@ -4665,7 +5157,7 @@ m7test:
         move.l d0,28(a0)         ; Put y centre in GPU buffer.
         move.l #$0,32(a0)        ;offset of dest rectangle
         move.l delta_i,36(a0)    ;change of i per increment
-        move.l #2,gpu_mode       ;op 2 of this module is Scale and Rotate
+        move.l #2,gpu_mode       ; Select 'scar' in antelope.gas. op 2 of this module is Scale and Rotate
         move.l #demons,a0        ; Load the demons module (antelope.gas).
         jsr gpurun               ; Run it.
         jsr gpuwait              ; Wait until GPU finished.
@@ -4717,7 +5209,7 @@ wwear:  and.l #$ff,d0 ; Keep it between 0 and 255
 ; npsu1
 ; *******************************************************************
 npsu1:
-        move.l #0,gpu_mode
+        move.l #0,gpu_mode ; Select 'undraw' in llama.gas.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
@@ -4725,7 +5217,7 @@ npsu1:
         jsr gpuwait ; Wait for the GPU to finish.
 
 
-        move.l #3,gpu_mode  ;mode 3 is starfield1
+        move.l #3,gpu_mode  ;mode 3 is starfield1 in llama.gas.
 ;  move.l vp_x,in_buf+4
 ;  move.l vp_y,in_buf+8
         clr.l in_buf+4
@@ -5271,7 +5763,7 @@ tgoto:
 ; txendraw
 ; *******************************************************************
 txendraw:
-        move.l #0,gpu_mode
+        move.l #0,gpu_mode ; Select 'undraw' in llama.gas.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
@@ -5327,8 +5819,8 @@ slet01:
         add.l #10,d0
 hnotpal:
         move.l d0,36(a0)  ;y
-        move.l #4,gpu_mode
-        lea xparrot,a0    ;xparrot is REX w/o 3D
+        move.l #4,gpu_mode ; Select 'rex' in xcamel.gas.
+        lea xparrot,a0    ; Load GPU module in xcamel.gas.
         jsr gpurun    ;do pixex draw
         jsr gpuwait ; Wait for the GPU to finish.
 sletooo:
@@ -5466,7 +5958,7 @@ ctl:
 ; *******************************************************************
 swebby:
         ; This just clears the screen I think.
-        move.l #0,gpu_mode
+        move.l #0,gpu_mode ; Select 'undraw' in llama.gas.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
@@ -5485,7 +5977,7 @@ starri:
         lea in_buf,a0 ; Point our GPU RAM input buffer at a0
         move.l #32,(a0)      ;no. of stars
         move.l #84,20(a0)    ;seed Y
-        move.l #1,gpu_mode
+        move.l #1,gpu_mode ; Select 'starplane' in donky.gas.
 
         move frames,d7 ; Store frames in d7.
         move #10,d6
@@ -5597,7 +6089,7 @@ yakhead3:
         add.b #3,pongxv+1
         bra yhead
 
-yhead:  move.l #0,gpu_mode ; Op 0 is 'clear screen'.
+yhead:  move.l #0,gpu_mode ; Selcet 'undraw' in llama.gas. Op 0 is 'clear screen'.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
@@ -5622,7 +6114,7 @@ yhead:  move.l #0,gpu_mode ; Op 0 is 'clear screen'.
         clr d2
         asr.l #2,d1 ; Divide by 4.
         asr.l #2,d2 ; Divide by 4.
-        move.l #3,gpu_mode  ;mode 3 is starfield1
+        move.l #3,gpu_mode  ; Selecte 'starfield1' in llama.gas. mode 3 is starfield1
         move.l d1,in_buf+4
         move.l d2,in_buf+8
         move.l vp_sf,in_buf+12    ;pass viewpoint to GPU
@@ -5651,7 +6143,7 @@ notjob: cmp #1,joby          ;Should we display the 'Atari' graphic?
 
        ; Paint and rotate the graphic we've selected.
 notatari:
-        move.l #4,gpu_mode  ; Op4 is multiple images stretching towards you in Z
+        move.l #4,gpu_mode  ; Select 'rex' in camel.gas. Op4 is multiple images stretching towards you in Z
         move pongy,d7
         move.l pongz,d6
         move pongx,d5
@@ -5710,7 +6202,7 @@ xane:   movem.l (a7)+,d0-d1 ; Restore stashed values from the stack.
 ; Used by the victory bonus screen.
 ; *******************************************************************
 yh:
-        move.l #4,gpu_mode  ;Multiple images stretching towards you in Z
+        move.l #4,gpu_mode  ; Select 'rex' in camel.gas. Multiple images stretching towards you in Z
         lea in_buf,a0 ; Point our GPU RAM input buffer at a0
         move.l a2,(a0)+  ;srce screen for effect
         move.l d0,(a0)+  ;srce start pixel address
@@ -5744,7 +6236,7 @@ rexdemo:
         bra mp_demorun
 
 rxdemo:
-        move.l #0,gpu_mode
+        move.l #0,gpu_mode ; Select 'undraw' in llama.gas.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         move.l #$0,backg
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
@@ -5757,7 +6249,7 @@ rxdemo:
 ; Display an 'Excellent' message
 ; *******************************************************************
 rexfb:
-        move.l #4,gpu_mode
+        move.l #4,gpu_mode ; Select 'rex' in camel.gas.
         lea in_buf,a0 ; Point our GPU RAM input buffer at a0
         move.l #pic,(a0)+  ;srce screen for effect
         move.l #$10001,(a0)+  ;srce start pixel address
@@ -6057,7 +6549,7 @@ dprdpr: bsr pulser           ; Calculate pulse colour and store in d6.
 ; Draw the ring around a power up.
 ; *******************************************************************
 pupring:
-        move.l #6,gpu_mode
+        move.l #6,gpu_mode ; Select 'pring' in xcamel.gas.
         move #3,d4
 prloo:
         lea in_buf,a0      ; Point our GPU RAM input buffer at a0.
@@ -6089,7 +6581,7 @@ prloo:
 ; *******************************************************************
 opupring:
         movem.l d0-d3,-(a7)   ; Stash some values in the stack so we can restore them later.
-        move.l #6,gpu_mode
+        move.l #6,gpu_mode ; Select 'pring' in xcamel.gas.
         lea in_buf,a0         ; Point our GPU RAM input buffer at a0.
         move.l #20,(a0)+      ; # pixels per ring
         move.l d2,(a0)+       ; Add it to our GPU RAM input buffer.
@@ -6112,7 +6604,8 @@ opupring:
         movem.l (a7)+,d0-d3   ; Restore stashed values from the stack.
         move #3,d4
         move 48(a6),d7
-        move.l #7,gpu_mode
+
+        move.l #7,gpu_mode ; Select 'pring2' in xcamel.gas.
 prloo4:
         lea in_buf,a0         ; Point our GPU RAM input buffer at a0.
         move.l #24,(a0)+      ; # pixels per ring
@@ -6317,7 +6810,7 @@ mpixex: lea in_buf,a0         ; Point our GPU RAM input buffer at a0.
 ; gringbull
 ; *******************************************************************
 gringbull:
-        move.l #3,gpu_mode  ;Multiple images stretching towards you in Z
+        move.l #3,gpu_mode  ; Select 'scar' in camel.gas.. Multiple images stretching towards you in Z
         lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l #pic2,(a0)+  ;srce screen for effect
         move.l #$8300d7,(a0)+  ;srce start pixel address
@@ -6327,7 +6820,7 @@ gringbull:
 ; cringbull
 ; *******************************************************************
 cringbull:
-        move.l #3,gpu_mode
+        move.l #3,gpu_mode ; Select 'crex' in camel.gas.
         bra ringa
 
 ; *******************************************************************
@@ -6335,7 +6828,7 @@ cringbull:
 ; Called during the draw_objects sequence as a member of the solids list.
 ; *******************************************************************
 ringbull:
-        move.l #4,gpu_mode  ;Multiple images stretching towards you in Z
+        move.l #4,gpu_mode   ; Select 'rex' in camel.gas. Multiple images stretching towards you in Z
 ringa:
         lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l #pic2,(a0)+  ;srce screen for effect
@@ -6387,7 +6880,7 @@ polyr:
 ; Unused code
 ; *******************************************************************
 polydemo:
-        move.l #0,gpu_mode
+        move.l #0,gpu_mode ; Select 'undraw' in camel.gas.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
 ;  clr.l backg
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
@@ -6663,7 +7156,7 @@ makepyr:
 ; ppolydemo2
 ; *******************************************************************
 ppolydemo2:
-        move.l #2,gpu_mode
+        move.l #2,gpu_mode ; Select 'pretty_poly' in camel.gas.
         move.l #ppoly1,in_buf
         lea parrot,a0 ; Load the GPU module in camel.gas.
         jsr gpurun      ;do clear screen
@@ -6888,14 +7381,14 @@ xinc:   add #4,polsizx
 ; ppolydemo
 ; *******************************************************************
 ppolydemo:
-        move.l #0,gpu_mode
+        move.l #0,gpu_mode ; Select 'undraw' in llama.gas.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
         jsr gpuwait ; Wait for the GPU to finish.
 ppolyfb:
         move.l #testppoly,in_buf
-        move.l #2,gpu_mode    ;mode to draw pretty poly
+        move.l #2,gpu_mode    ; Select 'pretty_poly' in camel.gas. mode to draw pretty poly
         move rpcopy,ranptr    ;reset RNG to known value
         move npolys,d0
 ppollies:
@@ -7193,7 +7686,7 @@ feedback:
         move.l d0,28(a0)    ;y centre the same
         move.l #$0,32(a0)    ;offset of dest rectangle
         move.l delta_i,36(a0)
-        move.l #2,gpu_mode    ;op 2 of this module is Scale and Rotate
+        move.l #2,gpu_mode    ;Select 'scar' in antelope.gas. op 2 of this module is Scale and Rotate
         move.l #demons,a0 ; Load the GPU module in antelope.gas.
         jsr gpurun      ; Run the selected GPU module.
         jsr gpuwait ; Wait for the GPU to finish.
@@ -7394,7 +7887,7 @@ sner:
         move.l d0,palad3    ;Randomise pal generator
 
 
-        move.l #5,gpu_mode    ;To make sine pattern screen
+        move.l #5,gpu_mode    ; Select 'sinethang' in antelope.gas. To make sine pattern screen
         lea demons,a0 ; Load the GPU module in antelope.gas.
         jsr gpurun      ; Run the selected GPU module.
         jmp gpuwait ; Wait for the GPU to finish.
@@ -7814,7 +8307,7 @@ h2hin:  bsr h2hclaws
 
         clr.l l_ud
         move.l #-1,l_sc      ;clear player scores and update flags
-        move #-1,_won
+        move #-1,_won ; Set flag that no-one has one yet.
         move #8,afree ; There are now 8 slots in total in the activeobjects list.
 
         bra go_in      ; Start the game and enter 'mainloop'.
@@ -7925,7 +8418,7 @@ wbsel:
         tst tblock
         bne gnosis
 
-				; Select the tune for the level.
+        ; Select the tune for the level.
         move cwave,d0 ; Get current level
         lsr #4,d0 ; Divide by 32.
         and #$07,d0 ; Keep the number between 1 and 7.
@@ -7933,20 +8426,20 @@ wbsel:
         move.b 0(a0,d0.w),d0 ; Use the number to select the tune.
         move d0,modnum    ; Make it the current tune.
 
-				; Clear the bullet list.
+        ; Clear the bullet list.
 gnosis: move #15,d0
         lea bulls,a0 ; Point a0 at bulls.
 clbulls:clr.l (a0)+ ; Clear the current 4-byte long.
         dbra d0,clbulls ; Keep clearing until all 16 elements are clear.
         clr bully
 
-				; Set the number of allowed enemies.
+        ; Set the number of allowed enemies.
         move #18,noclog ; Set the number of allowed enemies.
         tst t2k ; Are we playing Tempest 2000?
         beq clokay ; If not, skip to clokay.
         move #21,noclog ; If yes, set a higher value for allowed enemies.
 
-				; Reset freeobject and superzapper.
+        ; Reset freeobject and superzapper.
 clokay: move.l #$70007,shots
         move #32,afree; There are now 32 slots in total in the activeobjects list.
         move #1,szap_avail  ;Nuevo Superzapper!
@@ -8150,8 +8643,8 @@ sass:
         bsr clzapa
         tst t2k ; Are we playing Tempest 2000?
         beq nt2k_reset
-        move #$1c,bulland
-        move #7,bullmax
+        move #$1c,bulland ; Standard number of bullet slots for 1 player.
+        move #7,bullmax ; Max number of bullets.
 nt2k_reset:
         rts
 
@@ -8204,9 +8697,9 @@ sweb0:
         rts ; Bail out!
 
         ; Start the set up for a new level.
-wwoo:   tst warpy
-        bpl swip1
-        move #2,warpy
+wwoo:   tst warpy ; Do we still need more power-ups before we can warp?
+        bpl swip1 ; If so, carry them over to this level.
+        move #2,warpy ; Otherwise we warped already, so reset power-ups required before next warp.
         move.l #screen3,a0
         move #192,d0      ;Clear screen a0
         clr d1
@@ -8259,13 +8752,12 @@ sweb00:
         move pauen,_pauen
         move #1,ud_score
         jsr clvpx
-        clr outah
-        lea wmes2,a0
-        clr.l d0
-        move.l #$8000,d1
-        bsr setmsg
-
-        move #250,msgtim1
+        clr outah ; Clear the use of the cheat.
+        lea wmes2,a0 ; Get "superzapper" string.
+        clr.l d0 ; Set the X position of the message
+        move.l #$8000,d1 ; Set the Y position of the message.
+        bsr setmsg ; Draw the selected message
+        move #250,msgtim1 ; Set the duration of the message.
         rts
 
 ; *******************************************************************
@@ -8397,7 +8889,7 @@ xleb2:
 
 dlebon:
         move.l #lbonus,score
-        bra setcsmsg
+        bra setcsmsg ; Show the level bonus.
         rts
 
 ; *******************************************************************
@@ -8443,10 +8935,11 @@ ips:    bra initpstarfield
 ; Maybe make an AI droid object.
 ; *******************************************************************
 makedroid:
-        cmp #2,players
+        cmp #2,players ; Are we in 2 player mode?
         beq rrts    ;no Droid in 2p mode
-        cmp #2,entities
-        bne rrts    ;2 entities and not 2p, it's droidytime
+        cmp #2,entities ; Are there 2 entities?
+        bne rrts    ; If not, return.
+        ; Otherwise 1 of the entities must be a droid, 2 entities and not 2p, it's droidytime.
 
 ; *******************************************************************
 ; mkdroid
@@ -8470,7 +8963,7 @@ mkdroid:
         move #-1,42(a0)          ; Set the scale factor.
         clr 44(a0)               ; Set the mode to 'get target'
         clr 52(a0)               ; Set so not an enemy.
-        move #21,46(a0)          ; Set size of pixel data.
+        move #21,46(a0)          ; The secondary object update routine in run_vex is 'rundroid'.
         move #17,54(a0)          ; Object update routine in run_vex is 'rez_claw'.
         move.l a0,a6             ; Put the addres of our object in a6 so it can be added to activeobjects.
         bsr toweb                ; Set X/Y/Z position so we attach the droid to the web
@@ -8489,7 +8982,7 @@ rundroid:
         add #3,32(a6)              ; Increment yaw.
         move flashcol,40(a6)       ; Update the color.
         
-				; Should we expire the droid?
+        ; Should we expire the droid?
         cmp #2,entities            ; did we start with 2 entities (driod is permanent)?
         beq always_2
         cmp #-2,wave_tim
@@ -8516,7 +9009,7 @@ always_2:
         move.l _chevre,d5          ; Set address of the vector object to draw: _chevre.
         bsr frab0                  ; frab0 is fire w. arbitrary graphic
 
-				;  Is the droid moving already?
+        ;  Is the droid moving already?
 nodfire:tst 44(a6)
         bne movedroid              ; mode non0 means droid is moving.
 
@@ -8526,7 +9019,7 @@ nodfire:tst 44(a6)
         bne droidright             ; init droid motion to the right.
         bra droidleft              ; init droid motion to the left.
         
-				; Move the droid.
+        ; Move the droid.
 movedroid:
         move.l 20(a6),d0
         add.l d0,4(a6)             ; Set X position in activobject entry.
@@ -8676,7 +9169,7 @@ h2hclaws:
         clr.l 50(a6)
         move #17,54(a6) ; Object update routine in run_vex is 'rez_claw'. 
         jsr insertobject ; Add it to the activeobjects list.
-			  ;make the players' mirrors.  Always at (C-2) object.
+        ;make the players' mirrors.  Always at (C-2) object.
         move #webz-76,d0  ; Store the top of the web's Z position in d0. 
         bsr makemirr
         move #webz+76,d0; Store the top of the web's Z position in d0.
@@ -8997,10 +9490,10 @@ snglsmart:
 gsmart:
         sub #1,szap_avail
         bmi nmsg
-        lea zmes1,a0
-        clr.l d0
-        move.l #$8000,d1
-        bsr setmsg
+        lea zmes1,a0 ; Set message to "Eat Electric"
+        clr.l d0 ; Set X pos to 0
+        move.l #$8000,d1 ; Set Y pos
+        bsr setmsg ; Display the message.
 nmsg:
         move #1,szap_on      ;Start the sizzle... start the Superzapper.
         move #7,sfx ; Select the 'Crackle' sound effect.
@@ -9025,10 +9518,10 @@ h2hfrab:
         move.l freeobjects,a0   ; address of new shot
         lea bulls,a3            ; Point a3 at bullets list.
 hgoaty: move bully,d0           ; Get current index into bullets list.
-        move bulland,d1
-        and d1,d0
-        lea 0(a3,d0.w),a2       ; point to this bulls slot
-        move.l (a2),d0
+        move bulland,d1 ; Put bulland in d1.
+        and d1,d0 ; Use it to limit the slot we can select in the bullets list.
+        lea 0(a3,d0.w),a2       ; point a2 to this bullets slot
+        move.l (a2),d0 ; Move it to d0 to see if it's free.
         beq hfreeslot           ; If it's a free slot, add a bullet.
         add #4,bully            ; Otherwise move to next slot.
         bra hgoaty              ; Loop to test whether new slot is free.
@@ -9037,7 +9530,7 @@ hfreeslot:
         add #4,bully            ; Point to the next slot in 'bulls' for later.
         move.l a0,(a2)          ; store address of this bull
         move.l a2,24(a0)        ; store slot addr. in bull
-        move.l #-14,(a0)        ; header of shot data
+        move.l #-14,(a0)        ; Set index into solid polygon draw routine in 'solids': draw_h2hshot.
         move.l 4(a1),4(a0)      ; Set X position to player's position.
         move.l 8(A1),8(a0)      ; Set Y position to player's position.
         move.l 12(a1),12(a0)    ; Set Z position to player's position.
@@ -9128,8 +9621,8 @@ biu:
 ; Kill a claw in head-tohead mode.
 ; *******************************************************************
 h2hckill:
-        tst _won
-        bpl rrts
+        tst _won ; Has someone won?
+        bpl rrts ; If so, return early.
         tst 48(a4)
         bne rrts
         move #-1,48(a4)    ;start it exploding!
@@ -9141,29 +9634,32 @@ bunce_p1:
         move #1,l_ud
         cmp #4,l_sc
         bne rrts
-        move.b #'1',wonmsg+7
-        add #1,p1wins
-        lea wonmsg,a0 ; Point a0 at wonmsg.
-showwin:
-        move #180,_won
-        clr.l d0
-        move.l #$8000,d1
-        bra setmsg
+        ; Player 1 won.
+        move.b #'1',wonmsg+7; Update the player wins message to refer to player 1.
+        add #1,p1wins ; Increment Player 1 win count.
+        lea wonmsg,a0 ; Point a0 at wonmsg; "Player 1 wins!".
+showwin:move #180,_won ; Start the someone-has-won timer.
+        clr.l d0 ; Set X pos
+        move.l #$8000,d1 ; Set Y pos
+        bra setmsg ; Display the message
 
 bunce_p2:
         add #1,r_sc
         move #1,r_ud
         cmp #4,r_sc
         bne rrts
-        tst practise
-        bne p2_prac
-        move.b #'2',wonmsg+7
-        add #1,p2wins
-        lea wonmsg,a0 ; Point a0 at wonmsg.
-        bra showwin
-p2_prac:
-        lea wonprc,a0 ; Point a0 at wonprc.
-        bra showwin
+        tst practise ; Are we in practice mode?
+        bne p2_prac ; If so, show practicover message.
+
+        ; Player 2 won.
+        move.b #'2',wonmsg+7 ; Update the player wins message to refer to player 2.
+        add #1,p2wins ; Increment Player 2 win count.
+        lea wonmsg,a0 ; Point a0 at wonmsg: "Player 1 wins!".
+        bra showwin ; Display the message
+        
+        ; Practice over.
+p2_prac:lea wonprc,a0 ; Point a0 at wonprc: "Pratice over".
+        bra showwin ; Display the message
 
 
 ; *******************************************************************
@@ -9178,8 +9674,8 @@ frab:
 frab0:  move.l freeobjects,a0   ; address of new shot
         lea bulls,a3            ; Point a3 at bullets array..
 goaty:  move bully,d0           ; Put the current index in the array into d0.
-        move bulland,d1
-        and d1,d0
+        move bulland,d1 ; Put bulland in d1.
+        and d1,d0 ; Use it to limit the slots we can select in the bullet list.
         lea 0(a3,d0.w),a2       ; Use our index to get the current slot.
         move.l (a2),d0          ; Store it in d0 so we can check it.
         beq freeslot            ; If it's zero, it's free - so go ahead and add a bullet.
@@ -9260,7 +9756,7 @@ make_h2hball:
         clr.l 30(a0)
         clr 20(a0)
         move #1,34(a0)          ; Draw routine in draw_vex is 'draw'.
-        move.l #-18,(a0)
+        move.l #-18,(a0); Set index into solid polygon draw routine in 'solids': draw_h2hball.
         clr.l 50(a0)
         bsr rannum              ; Put a random number between 0 and d1 in d0.
         sub #$80,d0
@@ -9336,7 +9832,7 @@ breset:
 ; *******************************************************************
 make_h2hgen:
         move.l freeobjects,a0 ; Point a0 at the address to use for our new activeobject.
-        move.l #-15,(a0)
+        move.l #-15,(a0); Set index into solid polygon draw routine in 'solids': draw_h2hgen.
         move d0,d2
         move #webz,d0; Store the top of the web's Z position in d0.
         swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
@@ -9454,8 +9950,8 @@ gmove1:
 ; *******************************************************************
 ggen:
         clr 20(a6)
-        tst _won
-        bpl rrts
+        tst _won ; Has some one won a 2 player game?
+        bpl rrts ; If so, return.
         cmp #1,afree ; Is there just one slot available in the activeobjects list?
         ble rrts ; If so, that's not enough, so return.
         sub #2,afree ; Reserve the 2 slots we're going to us.
@@ -9478,7 +9974,7 @@ arse:
         move.l d0,44(a6)
         move #-3,48(a6)
         bsr flip_set_left
-        move.l #-19,(a6)  ;blue Flipper
+        move.l #-19,(a6)  ; Set index into solid polygon draw routine in 'solids': draw_blueflip. blue Flipper
         move #-1,38(a6)
         move.l a5,a6
         rts
@@ -9541,11 +10037,11 @@ afid:
         clr 20(a0)
         tst blanka ; Are we drawing solids or vectors?
         beq vfyre ; If vectors, go to vfyre.. otherwise set it up as a solid:
-        move.l #-3,d0 ; Set 's_shot' as the draw routine to use.
+        move.l #-3,d0 ; Set 's_shot' as the draw routine to use in 'solids'.
         bra vfyre ; Jump to object creation.
         
-				; Looks like this branch is never reached.
-        move.l #-7,d0          ; Set 'ringbull as the draw routine to use.
+        ; Looks like this branch is never reached.
+        move.l #-7,d0          ; Set index into solid polygon draw routine in 'solids': ringbull.
         move #1,20(a0)         ; Set the velocity to 1.
 
         ; Make an enemy bullet object and add it to the activeobjects list.
@@ -9590,10 +10086,12 @@ shouch:
         cmp #-2,wave_tim
         beq rrts      ;in case any find us while we zoom
         move.l a0,-(a7) ; Stash some values in the stack so we can restore them later.
-        lea gmes2,a0
-        clr.l d0
-        move.l #$8000,d1
-        bsr setmsg
+
+        lea gmes2,a0 ; Set "Shot You!" as the message
+        clr.l d0 ; Set X pos.
+        move.l #$8000,d1 ; Set Y pos.
+        bsr setmsg ; Display the message.
+
         move.l (a7)+,a0 ; Restore stashed values from the stack.
         bsr ouch
         bra kill_ashot
@@ -9607,7 +10105,11 @@ rash1:
 kill_ashot:
         add #1,ashots
         bra killme
+        ; Returns
 
+; *******************************************************************
+; ouch
+; *******************************************************************
 ouch:
         clr l_soltarg
         clr.l 20(a0)      ;stop Claw moving
@@ -9615,7 +10117,8 @@ ouch:
         beq ouch1p
         cmp #2,players
         bne ouch1p
-        move #20,54(a0) ; Object update routine in run_vex is 'pzap'.       ;blow up one claw while allowing play to proceed with the other
+        ;blow up one claw while allowing play to proceed with the other
+        move #20,54(a0) ; Object update routine in run_vex is 'pzap'.
         move #0,52(a0)
         bra ow
 
@@ -9663,6 +10166,9 @@ killme:
         jsr fox ; Play selected sound effect.
         bra sphkillme
 
+; *******************************************************************
+; kime
+; *******************************************************************
 ;##### New shit
         clr 48(a6)
 kime:   move #0,54(a6) ; Clear the motion routine.
@@ -9686,15 +10192,17 @@ changex:
         tst t2k ; Are we playing Tempest 2000?
         beq nobobo    ;powerups only on t2k
 
+        ; Turn the object we've killed into a power-up explosion.
 dpring: move #11,34(a6)      ; Draw routine in draw_vex is 'draw_prex'.
-        move #16,46(a6)
-        clr 44(a6)
+        move #16,46(a6) ; Number of pixels per ring.
+        clr 44(a6) ; Set it climb the rail
         move #24,54(a6) ; Object update routine in run_vex is 'run_prex'. 
-        tst h2h ; Are we playing a head-to-head game?
-        beq rrts
 
+        tst h2h ; Are we playing a head-to-head game?
+        beq rrts ; If not, return.
+        ; Otherwise use different routines.
         move #1,34(a6)   ; Draw routine in draw_vex is 'draw'.
-        move.l #-17,(a6)
+        move.l #-17,(a6); Set index into solid polygon draw routine in 'solids': draw_pprex.
         rts
 
 nobobo: sub.b #1,pupcount
@@ -9706,10 +10214,12 @@ nobobo: sub.b #1,pupcount
         bne nopup           ; If yes, no power up.
         
         ; Do power-ups!
+        ; Play the power-up sound effect.
         move #9,sfx         ; Select 'Warp' sound effect.
         move #3,sfx_pri     ; Set the sound's priority compared to others.
         jsr fox             ; Play selected sound effect.
         
+        ; Conver the killed enemy into a power up object.
         bsr toweb           ; Calculate the X and Y position from position on the web.
         move #1,34(a6)       ; Draw routine in draw_vex is 'draw'.
         move #300,48(a6)    ; initial rez diameter
@@ -9720,6 +10230,7 @@ nobobo: sub.b #1,pupcount
         move #25,54(a6) ; Object update routine in run_vex is 'run_pup'. 
         cmp #3,cwave        ; Are we already past level 3?
         bgt noidiot         ; If so, no need for a message.
+
         ; Otherwise, tell the player to collect power-ups.
         lea pupmes,a0       ; "Collect Powerups!"
         clr.l d0            ; Set the X position of the message.
@@ -9764,8 +10275,8 @@ xpixex:
         clr 52(a6)
         move #22,54(a6) ; Object update routine in run_vex is 'run_pixex'. 
         move.l d3,42(a6)  ;initial pixel expansion
-        move.l d0,36(a6)
-        move.l d1,46(a6)
+        move.l d0,36(a6) ; Set the srce start address of the bonus graphic in pic.
+        move.l d1,46(a6) ; Set the srce data length of the bonus graphic in pic.
         move.l d2,20(a6) ; Set the velocity in activeobject entry.
         rts
 
@@ -9810,6 +10321,7 @@ doita:  move #9,sfx             ; Select 'Warp' sound effect.
         move.l #$8000,d1        ; Set Y position.
         bsr setmsg              ; Display the message.
         bra adenoid             ; Make an AI Droid.
+        ; Returns
         
         ; Maybe we can do an AI droid next time?
 stdpu1: cmp #-2,wave_tim        ; if we are zooming give a droid next time
@@ -9845,7 +10357,7 @@ nadr:   asl #2,d2               ; Multiply the power-up by 4 so we can use it as
         
         ; Select the warp message to display.
         lea wtxts,a0            ; Point a0 at our warp texts.
-        move warpy,d3           ; Get many power-ups to collect before we warp.
+        move warpy,d3           ; Get how many power-ups to collect before we warp.
         bpl dopoo1              ; If non-zero, go to dopoo1.
         clr d3                  ; Otherwise clear d3.
 dopoo1: lsl #2,d3               ; Multiply warpy by 4.
@@ -9899,15 +10411,16 @@ suprise:
         move #1,inf_zap    ;Infinite zapper yeah!
 
 ; *******************************************************************
-; "Get outtah here!" Skips to the next level?
+; "Get outtah here!" Skips to the next level.
 ; Only called when cheat is enabled.
 ; *******************************************************************
 douttah:
         lea ohtxt,a0     ; Set message to "Outtah here!"
         clr.l d0         ; Set message x position.
         move.l #$8000,d1 ; Set message y position.
-        bsr setmsg       ; Set message.
-        move #1,outah    ;
+        bsr setmsg       ; Display the message.
+
+        move #1,outah    ; Signal we've enabled the cheat.
         move #13,d0      ; Give 3,000 points.
         jsr doscore      ; Update score.
         move.l #pic,a2      ; Select beasty3.cry
@@ -9972,40 +10485,41 @@ jenab:  move #1,jenable
 addroid:
         tst dnt
         bmi suprise    ;already had a droid
+
 ; *******************************************************************
 ; adenoid
 ; Make an AI Droid.
 ; *******************************************************************
 adenoid:
-        move #$3c,bulland  ;for test droid mode
-        add #8,bullmax
-        move.l a6,-(a7) ; Stash some values in the stack so we can restore them later.
-        bsr mkdroid ; Make an AI Droid
-        move.l (a7)+,a6 ; Restore stashed values from the stack.
+        move #$3c,bulland   ; Increased bullet slots for test droid mode
+        add #8,bullmax      ; Add 8 extra to Max number of bullets.
+        move.l a6,-(a7)     ; Stash some values in the stack so we can restore them later.
+        bsr mkdroid         ; Make an AI Droid
+        move.l (a7)+,a6     ; Restore stashed values from the stack.
         rts
 
 ; *******************************************************************
 ; sprzap
 ; *******************************************************************
 sprzap:
-        tst warpy
-        bmi knibble
-        sub #1,warpy
+        tst warpy            ; We got a power up, do we already have enough for a warp?
+        bmi knibble          ; If not, no need to decrement number needed.
+        sub #1,warpy         ; Decrement number of power-ups needed before warp is available.
 knibble:
-        move.l #pic,a2      ; Select beasty3.cry
-        move.l #$6e0089,d0  ; Snip out the x pos for the 'Excellent' graphic
-        move.l #$2a00b2,d1  ; Snip out the y pos for the 'Excellent' graphic
-        jsr any_pixex
-        move #21,sfx ; Select 'Excellent' sound effect.
-        move #90,sfx_pri ; Set the sound's priority compared to others.
-        jsr fox ; Play selected sound effect.
-        move #21,sfx ; Select 'Excellent' sound effect.
-        move #90,sfx_pri ; Set the sound's priority compared to others.
-        jsr fox ; Play selected sound effect.
-        move #1,szap_on ; Start the superzapper.
-        tst szap_avail
-        bpl rrts
-        clr szap_avail
+        move.l #pic,a2       ; Select beasty3.cry
+        move.l #$6e0089,d0   ; Snip out the x pos for the 'Excellent' graphic
+        move.l #$2a00b2,d1   ; Snip out the y pos for the 'Excellent' graphic
+        jsr any_pixex        ; Display the graphic.
+        move #21,sfx         ; Select 'Excellent' sound effect.
+        move #90,sfx_pri     ; Set the sound's priority compared to others.
+        jsr fox              ; Play selected sound effect.
+        move #21,sfx         ; Select 'Excellent' sound effect.
+        move #90,sfx_pri     ; Set the sound's priority compared to others.
+        jsr fox              ; Play selected sound effect.
+        move #1,szap_on      ; Start the superzapper.
+        tst szap_avail       ; Is superzap set as available?
+        bpl rrts             ; No, return.
+        clr szap_avail       ; yes, make it unavailable now that it's on.
         rts
 
 ; *******************************************************************
@@ -10059,7 +10573,7 @@ vectorzap:
         move #$c8,40(a6)    ;Explo colour
         move #1,34(a6)       ; Draw routine in draw_vex is 'draw'.
         clr 52(a6)      ;NOT vulnerable to the Superzapper
-        move #3,54(a6) ; Object Update routine is 'run_zap'.       ;Type run_explo
+        move #3,54(a6) ; Object Update routine is 'run_zap'. 
         bsr rannum ; Put a random number between 0 and d1 in d0.
         move d0,28(a6)      ;random orientation
         rts
@@ -10101,7 +10615,7 @@ make_adroid:
         clr.l 30(a0) ; Set rotation to 0.
         move #3,20(a0)      ;mode=go up web
         move #1,34(a0) ; Draw routine in draw_vex is 'draw'.
-        move.l #-26,(a0) ; Set the header.
+        move.l #-26,(a0) ; Set index into solid polygon draw routine in 'solids': draw_adroid.
         clr 50(a0) ; Make sure it's not marked for deletion.
         move #1,52(a0) ; Set it as an enemy type.
         bsr rannum ; Put a random number between 0 and d1 in d0.
@@ -10167,7 +10681,7 @@ uppweb:
         bpl blowmeaway
         rts
 arab:
-         move.l flip_zspeed,d0
+        move.l flip_zspeed,d0
         lsl.l #1,d0 ; Multiply it by 2.
         sub.l d0,12(a6) ; Set Z position in activobject entry.
         cmp #webz-95,12(a6) ;  Have we reached the top of the web yet?
@@ -10184,7 +10698,7 @@ make_beast:
         move #5,44(a6)    ;Sflipper 5
         move #2,46(a6)    ;current Level
         move #-1,26(a6)    ;No delay
-        move.l #-23,(a6)
+        move.l #-23,(a6); Set index into solid polygon draw routine in 'solids': draw_beast.
         clr 48(a6)
         rts
 
@@ -10196,7 +10710,7 @@ make_sflip3:
         bmi rrts ; If not, return now.
         move #3,44(a6)    ;Sflipper 3
         move #-1,26(a6)    ;No delay
-        move.l #-22,(a6)
+        move.l #-22,(a6); Set index into solid polygon draw routine in 'solids': supf2.
         clr 48(a6)
         move #2,24(a6)    ;Stop mode makes it start running
         rts
@@ -10207,7 +10721,7 @@ make_sflip2:
         bmi rrts ; If not, return now.
         move #2,44(a6)    ;Sflipper 2
         move #-1,26(a6)    ;No delay
-        move.l #-21,(a6)
+        move.l #-21,(a6); Set index into solid polygon draw routine in 'solids': supf1.
         clr 48(a6)
         rts
 
@@ -10234,6 +10748,7 @@ maflip:
         tst blanka               ; Are we drawing solids or vectors?
         beq nsf                  ; If vectors we've alread selecetd _flipper, so skip to nsf.
         move.l #-1,d0            ; We're drawing solids, so set index to 'cdraw_sflipper' instead.
+
 nsf:    move.l d0,(a0)           ; Set the draw routine we selected above, i.e. solid or vector.
         move #webz+80,12(a0)     ; Store the top of the web's Z position as the zlipper's Z position.
         clr 14(a0)
@@ -10336,7 +10851,7 @@ h2hrail:
         blt rrts
         move #webz+80,12(a6) ;  Set the top of the web as its new Z position.
         bra sra
-				; Returns
+        ; Returns
 
 ; *******************************************************************
 ; stdrail
@@ -10510,7 +11025,7 @@ fkillme:
 fkm:
         bsr doscore
         bra killme      ;kill and score points for a flipper
-				; Returns
+        ; Returns
 
 ; *******************************************************************
 ; stopped
@@ -10575,6 +11090,9 @@ notgt:
         move.b 27(a6),26(a6)    ;reset timer..
         bra flip_set      ;.. and try to Flip again
 
+; *******************************************************************
+; gotu
+; *******************************************************************
 gotu:
         cmp #-2,wave_tim    ;-2 means the zoom has started and player is safe
         beq rrts      ;so can't get you
@@ -10595,10 +11113,11 @@ gotu:
         rts
 
 singl_snatch:
-        lea gmes1,a0
-        clr.l d0
-        move.l #$8000,d1
-        bsr setmsg
+        lea gmes1,a0 ; Set message to "Caught You"
+        clr.l d0 ; Set X pos.
+        move.l #$8000,d1 ; Set Y pos.
+        bsr setmsg ; Display the message.
+
         move.l a6,tmtyl
         move.l #take_me_to_your_leader,routine
         move #1,screaming
@@ -10869,7 +11388,7 @@ make_tanker:
         
 mtv:    move.l _fliptank,d2   ; Set index into solid polygon draw routine in 'solids': _fliptank.
         clr d3
-				; Fall through to make the tanker.
+        ; Fall through to make the tanker.
         
 ; *******************************************************************
 ; maketank
@@ -10968,13 +11487,13 @@ superflip:
         neg d0
 suprf1:
         move d0,48(a6)    ;set random scarper value
-        move.l #-21,(a6)
+        move.l #-21,(a6); Set index into solid polygon draw routine in 'solids': supf1.
         bsr rannum ; Put a random number between 0 and d1 in d0.
         cmp sflip_prob2,d0
         bpl rrts
         move #3,44(a6)    ;Sflipper 3
         move #$0404,46(a6)  ;fire rate when activated
-        move.l #-22,(a6)
+        move.l #-22,(a6); Set index into solid polygon draw routine in 'solids': supf2.
         rts
 
 newflipper:
@@ -11151,7 +11670,7 @@ nospf:
         bne rspik1
         cmp.l #zoom1,routine
         bne rspik2
-				; Check if we've hit the player's claw.
+        ; Check if we've hit the player's claw.
         bsr checlane_only ; Check if in claw's lane.
         bne rspik1      ;naaw
         move 12(a0),d0      ; Get claw's current Z pos
@@ -11414,7 +11933,7 @@ gomirr:
         jsr fox ; Play selected sound effect.
 
         move #1,34(a4) ; Draw routine in draw_vex is 'draw'.
-        move.l #-7,(a4)    ;take over the bullet
+        move.l #-7,(a4)  ; Set index into solid polygon draw routine in 'solids': ringbull. Take over the bullet
         move #37,54(a4) ; Object update routine in run_vex is 'refsht'.     ;and make it a Reflected Shot..
         move.l 24(a4),a1
         clr.l (a1)    ;clear the entry in the Bull Lable
@@ -11721,8 +12240,8 @@ run_pulsar:
         lea _pus,a0; Set address of the vector object to draw: _pus.
         tst blanka ; Are we drawing solids or vectors?
         bne vop3 ; If vectors, skip to vop3.
-				; If solids, the pucycl array contains the index of the routine in 'solids'
-				; that we're going to use. The one we select will depend on pucnt (pulse count).
+        ; If solids, the pucycl array contains the index of the routine in 'solids'
+        ; that we're going to use. The one we select will depend on pucnt (pulse count).
         move pucnt,d0 ; Put pucnt in d0.
         and #$0f,d0      ; Clamp it to a value between 0 and 15.
         lea pucycl,a1 ; Point a1 at pucycl arrray.
@@ -11785,18 +12304,21 @@ zd0:
 ; Kill the player!
 ; *******************************************************************
 frouch:
-        move.l a0,-(a7) ; Stash some values in the stack so we can restore them later.
-        lea gmes3,a0
-        clr.l d0
-        move.l #$8000,d1
-        bsr setmsg
-        move.l (a7)+,a0 ; Restore stashed values from the stack.
+        move.l a0,-(a7) ; Stash a0 in the stack so we can restore them later.
+        lea gmes3,a0 ; Set the message to "Fried You!"
+        clr.l d0 ; Set X Pos
+        move.l #$8000,d1 ; Set Y Pos
+        bsr setmsg ; Display the message.
+        move.l (a7)+,a0 ; Restore a0 from the stack.
         bra ouch
 
 pkm:    move #3,d0
         bra fkm
 
 
+; *******************************************************************
+; lanetop
+; *******************************************************************
 lanetop:
         tst t2k ; Are we playing Tempest 2000?
         beq flipping_heck  ;not T2K, Pulsars turn into flippers
@@ -11870,6 +12392,10 @@ blowmeaway:
         ; Otherwise, we're drawing solids.
 xbonx:  move #3,d1
         bsr rand ; Put a random number between 0 and d1 in d0.
+
+; *******************************************************************
+; xbon
+; *******************************************************************
 xbon:
         move d0,-(a7) ; Stash some values in the stack so we can restore them later.
         add #4,d0
@@ -11882,13 +12408,13 @@ xbon:
 ntfx:   move (a7)+,d0 ; Restore stashed values from the stack.
         asl #3,d0 ; Multiply it by 8.
         lea px_bons,a0
-        move.l 4(a0,d0.w),d1
-        move.l 0(a0,d0.w),d0
+        move.l 4(a0,d0.w),d1 ; Get the start address of the bonus graphic in pic.
+        move.l 0(a0,d0.w),d0 ; Get the data length of the bonus graphic in pic.
         move.l #$8000,d2
         move.l #$20000,d3
         bsr xpixex      ;extended game, bonusus are pixelshatter effects
         move.l #$80000,24(a6)
-        move #28,54(a6) ; Object update routine in run_vex is 'xr_pixex'.       ; Set motion routine to XR_PIXEX
+        move #28,54(a6) ; Object update routine in run_vex is 'xr_pixex'.
         move #6,34(a6) ; Draw routine in draw_vex is 'draw_mpixex'.
         rts
 
@@ -11951,7 +12477,7 @@ vecbons:
         move #4,44(a6)
         move #2,34(a6)    ; Draw routine in draw_vex is 'draw_z'.
         clr 28(a6)      ;clear rotate
-        move #10,54(a6) ; Object update routine in run_vex is 'blowaway'.       ;blowaway
+        move #10,54(a6) ; Object update routine in run_vex is 'blowaway'.
         clr 52(a6)      ;not an enemy
         move #150,46(a6)    ;duration
         move #8,sfx ; 'Select 'Cleared Level' sound effect
@@ -12051,8 +12577,14 @@ go_downc:
 
         bsr go_down
         blt rrts    ;go_down return >0 if we are at the btm
+        ; Fall through
+
+; *******************************************************************
+; llost                               go_downc/llost
+; *******************************************************************
 llost:
-        move #40,54(a6) ; Object update routine in run_vex is 'loiter'.     ;go to Loiter mode (waits for DYING=0 before proceeding)
+        ;go to Loiter mode (waits for DYING=0 before proceeding)
+        move #40,54(a6) ; Object update routine in run_vex is 'loiter'.
         clr 34(a6)    ;set to Not Displayed
         rts
 
@@ -12189,7 +12721,7 @@ collie:
         tst _sz ; Is superzapper running?
         beq colok ; If not, check if bullet hits it.
         bmi colok ; If not, check if bullet hits it.
-				; Fall through to superzap it.
+        ; Fall through to superzap it.
 
 ; *******************************************************************
 ; zappit
@@ -12251,7 +12783,7 @@ jstop:  move.l a4,a0
 kbull:
         move.l 24(a0),a1  ;Clear coll table entry
         clr.l (a1)
-        move #4,54(a0) ; Object update routine in run_vex is 'kill_shot'.     ;Kill nxttime
+        move #4,54(a0) ; Object update routine in run_vex is 'kill_shot'.
 xle2:
         move #1,d0    ;return a hit
         rts
@@ -12264,23 +12796,32 @@ xle:
         bsr dxle
         move #0,d0    ;spatter but return no hit for s.s.
         rts
+
+; *******************************************************************
+; dxle
+; *******************************************************************
 dxle:
         move.l 24(a4),a1
         move.l #0,(a1)
-        move.l #-16,(a4)
-        move #26,54(a4)    ;Make it splatter
+        move.l #-16,(a4); Set index into solid polygon draw routine in 'solids': dxshot.
+        move #26,54(a4)    ; Object update routine run_vex is 'xshot'. Make it splatter
         move #8,30(a4)
         move #1,34(a4) ; Draw routine in draw_vex is 'draw'.
         bsr rannum ; Put a random number between 0 and d1 in d0.
         move d0,46(a4)
         bra xle2
+        ;Returns
+
+; *******************************************************************
+; xle3
+; *******************************************************************
 xle3:
         cmp #6,54(a6) ; Object update routine in run_vex is 'run_spike'.     ;check for power ring hitting super spike
         bne xle2    ;not a power ring, goes thru
         tst 20(a6)
         beq xle2    ;not Super
         bra dxle    ;go kill-and-spatter, that was Super
-				; Returns
+        ; Returns
 
 ; *******************************************************************
 ; toweb 
@@ -12405,7 +12946,9 @@ znazm:  lea _web,a0              ; Load the web data structure.
 ; *******************************************************************
 rez_claw:
         tst h2h ; Are we playing a head-to-head game?
-        beq srezclaw
+        beq srezclaw ; If not, use the customized object update routine in srezclaw.
+
+        ; We're in head-to-head mode.
         move.l #-12,(a6)  ; Set index into draw routine in 'solids': draw_h2hclaw.
         move #1,34(a6) ; Draw routine in draw_vex is 'draw'.
         move #30,54(a6) ; Object update routine in run_vex is 'run_h2hclaw'. 
@@ -12439,14 +12982,18 @@ balls:
         move (a7)+,d1 ; Restore stashed values from the stack.
         dbra d1,balls
 noball:
-        lea fightmsg,a0 ; Point a0 at fightmsg.
-        clr.l d0
-        move.l #$8000,d1
-        bsr setmsg    ;say Fight!
+        lea fightmsg,a0 ; Point a0 at fightmsg: "Fight!".
+        clr.l d0 ; Set X pos
+        move.l #$8000,d1 ; Set Y Pos
+        bsr setmsg    ; Display message.
+
         move #16,afree    ;put max alien lim in
         move.l (a7)+,a6 ; Restore stashed values from the stack.
         rts
 
+; *******************************************************************
+; srezclaw
+; *******************************************************************
 srezclaw:
         move #17,34(a6) ; Draw routine in draw_vex is 'dsclaw2'.
         add #$40,36(a6)  ;close rez spacing
@@ -12460,10 +13007,12 @@ srezclaw:
 ncjmp:
         tst blanka ; Are we drawing solids or vectors?
         beq vclaw ; If vector, skip to vclaw.
-        cmp #21,46(a6)
+        cmp #21,46(a6) ; Is it a droid?
         beq vclaw    ;standard vector rez if a droid
+
         move #16,34(a6)     ; We're a solid. Draw routine in draw_vex is 'dsclaw'. This is draw solid claw.
         bra rclaw
+
 vclaw:  move #1,34(a6)     ; Draw routine in draw_vex is 'draw'.
 rclaw:  move 46(a6),54(a6)  ;set clawcon in run_vex as intrinsic routine
         move #-1,52(a6)    ;set mode to Vuln
@@ -12480,9 +13029,9 @@ go_con:
 ; Called during the draw_objects sequence as a member of the draw_vex list.
 ; *******************************************************************
 dsclaw2:
-        cmp #21,46(a6) ; Check the size?
-        beq droidyo
-        jsr nutargg
+        cmp #21,46(a6) ;  Is it a droid?
+        beq droidyo ; If so, get draw_z to draw it.
+        jsr nutargg ; Otherwise use nutargg.
 droidyo:
         jmp draw_z
 
@@ -12527,17 +13076,18 @@ nofire:
 ; Update all objects in a h2h game.
 ; *******************************************************************
 h2hrun:
-        bsr run_objects
-        bsr vp_set2
+        bsr run_objects        ; Update all the objects.
+        bsr vp_set2            ; Update player 2's viewpoint.
         clr.l vp_xtarg
-        tst _won
-        bmi rrts ; If not, return now.
-        sub #1,_won
-        bne rrts
-        clr _pauen ; Disable pausing.
-        clr pauen ; Disable pausing.
+        tst _won               ; Has someone won?
+        bmi rrts               ; If not, return now.
+        sub #1,_won            ; If someone has won, decrement the timer.
+        bne rrts               ; Timer reached zero yet, if not: return.
+        ; Timer has expired, signal end of game.
+        clr _pauen             ; Disable pausing.
+        clr pauen              ; Disable pausing.
         move.l #rrts,routine
-        move #1,term
+        move #1,term           ; Signal end of game.
         rts
 
 ; *******************************************************************
@@ -12556,7 +13106,7 @@ run_h2hclaw:
         sub #1,48(a6)
         cmp #-64,48(a6)
         bgt rrts
-        tst _won
+        tst _won ; Has someone won?
         bmi roga
         add #1,48(a6)
         rts
@@ -12939,6 +13489,10 @@ dpshift:
         move d3,vp_ytarg    ;Viewpoint targets
         rts
 
+; *******************************************************************
+; vp_set2
+; Set viewpoint for player 2.
+; *******************************************************************
 vp_set2:
         move.l _claw,a0
         move 4(a0),d2
@@ -13453,7 +14007,7 @@ makeit_trans:
 ; 20-22    Index to post-creation routine in 'postfixups'.
 ; *******************************************************************
 makeit:
-        move d5,14(a0)     ; Set the Object Type.
+        move d5,14(a0)     ; Set the Object Type. (See ObTypes.)
 mit:
         move.l d0,(a0)     ; Set the X position.
         move.l d1,4(a0)    ; Set the Y position.
@@ -13863,7 +14417,8 @@ gamefx:
         lsl #8,d1
         or #$ff,d1
         move d1,CLUT+2
-        bsr runmsg    ;run the Messager
+        bsr runmsg    ; Should we stop showing the current message? 
+
         move l_soltarg,d0
         cmp l_solidweb,d0
         beq donowt
@@ -13920,35 +14475,37 @@ decco1:
 
 ; *******************************************************************
 ; Update the message displayed to the player with whatever is in a0.
+; The display of the message is handled by 'drawmsg'.
 ; *******************************************************************
 setmsg:
         move #100,msgtim1  ;set default Messager parameters
         move #50,msgtim2
-        move.l d0,msgxv
-        move.l d1,msgyv
-        move.l #$10000,msgxs
-        move.l #$10000,msgys
-        move.l a0,msg
+        move.l d0,msgxv ; X position for second phase of message.
+        move.l d1,msgyv ; Y position for second phase of message.
+        move.l #$10000,msgxs ; Initial X position.
+        move.l #$10000,msgys ; Initial Y position.
+        move.l a0,msg ; Set the message object.
         rts
 
 ; *******************************************************************
 ; runmsg
+; Decide whether we should stop showing an active message.
 ; *******************************************************************
 runmsg:
-        tst.l msg    ;run the Messager
-        beq rrts
-        tst msgtim1
-        bmi runmsg2
-        sub #1,msgtim1
+        tst.l msg         ; Do we have an active message?
+        beq rrts          ; If not, return early.
+        tst msgtim1       ; How's the message timer doing?
+        bmi runmsg2       ; If it has run out, go to the second timer.
+        sub #1,msgtim1    ; Otherwise subtract 1.
         rts
 runmsg2:
-        move.l msgxv,d0
-        add.l d0,msgxs
-        move.l msgyv,d0
-        add.l d0,msgys
-        sub #1,msgtim2
-        bpl rrts
-        clr.l msg
+        move.l msgxv,d0 ; Get X position for second phase of message.
+        add.l d0,msgxs ; Set it.
+        move.l msgyv,d0 ; Get Y position for second phase of message.
+        add.l d0,msgys ; Set it.
+        sub #1,msgtim2    ; Decrement the second message timer.
+        bpl rrts          ; If still time left, return.
+        clr.l msg         ; Otherwise it has expired, so clear it to stop displaying.
         rts
 
 ; *******************************************************************
@@ -13957,8 +14514,10 @@ runmsg2:
 ; Used for Superzapper Recharge, for example.
 ; *******************************************************************
 drawmsg:
-        move.l msg,d6
-        beq rrts
+        move.l msg,d6 ; Is there a message to display?
+        beq rrts ; Return early if not.
+
+        ; There's a message to display so display it.
         jsr text_setup
         move.l d6,a3
         move.l d6,(a0)
@@ -14115,23 +14674,27 @@ beastiesoff:
 ; *******************************************************************
 paustuff:
         jsr text2_setup
-        ; Version number message retained below.
-        ;  move.l #$400040,32(a0)
-        ;  move.l #vertext,(a0)
-        ;  lea texter,a0 ; Load the GPU module in stoat.gas.
-        ;  jsr gpurun ; Run the selected GPU module.
-        ;  jsr gpuwait ; Wait for the GPU to finish.
-        tst pausprite
-        beq npspri
+
+        ; This commented-out code displayed the build version stored in
+        ; vertext: "t2k version 121193".
+        ; move.l #$400040,32(a0)
+        ; move.l #vertext,(a0)
+        ; lea texter,a0 ; Load the GPU module in stoat.gas.
+        ; jsr gpurun ; Run the selected GPU module.
+        ; jsr gpuwait ; Wait for the GPU to finish.
+
+        tst pausprite ; Do we display the paused message?
+        beq npspri ; If not, skip.
+
+        ; Display the 'paused' text.
         lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l #$490074,32(a0)    ;was 35
-        move.l #pautext,(a0)
+        move.l #pautext,(a0) ; Point a0 at "paused" string.
         lea texter,a0 ; Load the GPU module in stoat.gas.
         jsr gpurun ; Run the selected GPU module.
         jsr gpuwait ; Wait for the GPU to finish.
 
-npspri:
-        tst vadj
+npspri: tst vadj
         bmi rrts ; If not, return now.
 
         move #64,d0    ;To do pause+volume displays: clear a block of screen..
@@ -15031,6 +15594,7 @@ gv_end: move.l #-1,(a0)+
 ;   - a list of connected vertices terminated with a 0
 ;     or
 ;     -1 followed by the value of the color to use when drawing
+;
 ; Each array terminates with a 0.
 ;
 ; So for example, 'shot' breaks down as follows:
@@ -15059,46 +15623,46 @@ gv_end: move.l #-1,(a0)+
 ; *******************************************************************
 make_vo3d:
         move.l vadd,a0
-        move.l a0,-(a7) ; Stash some values in the stack so we can restore them later.
+        move.l a0,-(a7)         ; Stash some values in the stack so we can restore them later.
         bsr initvo
-        move #$0,d4             ;use this for colour-info
-
+        move #$0,d4             ; use this for colour-info
+        
         ; Get the x,y,z co-ordinates of a single point
-buildit:move #2,d2              ;loop for three items..
-b3d1:   move.b (a1)+,d0         ;X
-        beq builtit             ;zero means last vertex
-        and.l #$ff,d0 ; Keep it between 0 and 255
-        move.l d0,(a2)+         ;put it in the vertex list
-        dbra d2,b3d1            ;get x,y and z
-
-        move.b (a1),d0          ;test for zero connections from this point
+buildit:move #2,d2              ; loop for three items..
+b3d1:   move.b (a1)+,d0         ; X
+        beq builtit             ; zero means last vertex
+        and.l #$ff,d0           ; Keep it between 0 and 255
+        move.l d0,(a2)+         ; put it in the vertex list
+        dbra d2,b3d1            ; get x,y and z
+        
+        move.b (a1),d0          ; test for zero connections from this point
         bne dcnc
         lea 1(a1),a1
         bra nxtvrt
-
+        
 dcnc:   move d3,(a3)+           ; vertex # to connect list
 cnect:  move.b (a1)+,d0         ; get connected vertex #
         bpl stdvrt              ; Are we setting a new color? (-1 indicates we are)
         move.b (a1)+,d4         ; Yes,
         lsl #8,d4               ; set nu colour
         move.b (a1)+,d0
-
-stdvrt: and #$ff,d0 ; Keep it between 0 and 255
+        
+stdvrt: and #$ff,d0             ; Keep it between 0 and 255
         beq zv
         or d4,d0
 zv:     move d0,(a3)+
-        bne cnect               ;loop until a zero
-
-nxtvrt: addq #1,d3              ;next vertex number
-        bra buildit             ;go do next vertex
-
+        bne cnect               ; loop until a zero
+        
+nxtvrt: addq #1,d3              ; next vertex number
+        bra buildit             ; go do next vertex
+        
 builtit:move.l #0,(a3)+
         and.l #$ffff,d3
-        move.l d3,(a0)+         ;pass # of vertices in header
+        move.l d3,(a0)+         ; pass # of vertices in header
         move.l a3,connect_ptr
         move.l a2,vertex_ptr
         move.l a0,vadd
-        move.l (a7)+,a0 ; Restore stashed values from the stack.
+        move.l (a7)+,a0         ; Restore stashed values from the stack.
         rts
 
 ; *******************************************************************
@@ -15487,13 +16051,14 @@ banana: cmp #3,cwave
         blt rrts
         cmp #15,cwave
         bgt rrts
-        tst outah
-        bne rrts
-        lea wmes1,a0
-        clr.l d0
-        move.l #$8000,d1
-        bsr setmsg
-        move #250,msgtim1
+        tst outah ; Have we used the cheat?
+        bne rrts ; If so, return now.
+
+        lea wmes1,a0 ; Set message to "avoid the spikes".
+        clr.l d0 ; Set X position as 0.
+        move.l #$8000,d1 ; Set Y position.
+        bsr setmsg ; Set the message to display.
+        move #250,msgtim1 ; Set a slightly longer time for it to display.
         rts
 
 ; *******************************************************************
@@ -15580,7 +16145,7 @@ r_nxt:  move.l 56(a6),a6       ; Move to the next object in activeobjects list.
 ; 'draw_vex' array.
 ; *******************************************************************
         ; Our first pass through the activeobjects list.
-				; This loops through each item in the list.
+        ; This loops through each item in the list.
 dob:    move.l activeobjects,a6 ; Point a6 at activeobjects.
 d_ob:   cmpa.l #-1,a6 ; Have we reached the end of the list?
         beq dobend ; If so, exit.
@@ -15602,7 +16167,7 @@ dtlink: move #-1,50(a6)           ; mark it for deletion.
         bsr dafinc
         bra nxtdob
 
-				; Run the draw_vex routine for the object.
+        ; Run the draw_vex routine for the object.
 no_dunlink:
         lea draw_vex,a0           ; Point a0 at our draw_vex array.
         move 34(a6),d0            ; Get our index into draw_vex.
@@ -15612,16 +16177,16 @@ no_dunlink:
         jsr (a0)                  ; execute chosen draw routine
         jsr gpuwait               ; Wait for the GPU to finish.
 
-				; Loop and go to thenext item in the list.
+        ; Loop and go to thenext item in the list.
 nxtdob: move.l (a7)+,a6           ; this way i can even trash a6 if i need II
         bra d_ob                  ; Loop to the next item in the activeobjects list.
         
-				; We've finished processing the activeobjects list.
+        ; We've finished processing the activeobjects list.
 dobend: bsr showscore ; Show the score.
         tst blanka                ; Are we drawing solids or vectors?
         beq dodvec                ; If vectors, skip drawing any solid polygons.
         bsr drawpolyos            ; draw pri-list full of solid polygon objects
-dodvec: bra drawmsg               ; draw Messager thang if needed
+dodvec: bra drawmsg               ; draw  any active messages.
         
 dafinc: add #1,afree              ; Mark one less available slot for activobjects.
         move #1,locked            ; Lock the activeobjects list while we delete from it.
@@ -15633,8 +16198,8 @@ dafinc: add #1,afree              ; Mark one less available slot for activobject
 ; donki
 ; *******************************************************************
 donki:  bsr showscore ; Show the score.
-        bra drawmsg
-				; Returns
+        bra drawmsg ; Draw any active messages.
+        ; Returns
 
 ; *******************************************************************
 ; draw_vex
@@ -15668,7 +16233,7 @@ stayhalt:
         bra gwb                 ; Otherwise do the web.
 
         ; Prepare the starfield!
-dostarf: move.l #3,gpu_mode      ; mode 3 is starfield1
+dostarf: move.l #3,gpu_mode      ; mode 3 is starfield1 in llama.gas
         move.l vp_x,in_buf+4    ; Put x pos in the in_buf buffer.
         move.l vp_y,in_buf+8    ; Put y pos in the buffer.
         move.l vp_z,d0          ; Get the current z pos.
@@ -15678,7 +16243,7 @@ dostarf: move.l #3,gpu_mode      ; mode 3 is starfield1
         move.l d0,in_buf+16     ; And put it in the buffer.
         move.l warp_count,in_buf+20 ; Add the warp count.
         move.l warp_add,in_buf+24   ; Add the warp increment.
-        lea fastvector,a0       ; Get the GPU routine to use.
+        lea fastvector,a0       ; Get the GPU routine to use in llama.gas..
         jsr gpurun              ; do gpu routine
         jsr gpuwait             ; Wait until its finished.
 
@@ -15733,7 +16298,7 @@ vweb:   tst t2k ; Are we playing Tempest 2000?
         add #1,wpt    ;..are actually psychedelic vectors...
         bsr swebpsych
 
-gvweb:  move.l #2,gpu_mode  ;Mode 2 is do-the-vectors-in-3d-thang
+gvweb:  move.l #2,gpu_mode  ; Select 'vect3d' in llama.gas. Mode 2 is do-the-vectors-in-3d-thang
         lea _web,a6
         tst 34(a6)
         beq n_wb
@@ -15932,7 +16497,7 @@ nodraw: bsr clearscreen
         move.b sysflags,d0   ; Get the sysflags
         and.l #$ff,d0        ; Just the first byte.
         move.l d0,_sysflags  ; pass sys flags to GPU
-        move.l #3,gpu_mode   ; mode 3 is starfield1
+        move.l #3,gpu_mode   ; mode 3 is starfield1 in antelope.gas.
         move.l vp_x,in_buf+4 ; Put the camera x pos in the gpu buffer.
         move.l vp_y,in_buf+8 ; Put the camera y pos in the gpu buffer.
         move.l vp_z,d0       ; Get the camera z viewpoint
@@ -15950,7 +16515,7 @@ nodraw: bsr clearscreen
         ; Prepare the viewer's orientation transformation matrix.
         ; https://en.wikipedia.org/wiki/Transformation_matrix
         ;
-        move.l #4,gpu_mode ; Mode 4 is the 'viewer orientation transformation matrix (otm)'.
+        move.l #4,gpu_mode ; Select 'view_otm' in goat.gas. Mode 4 is the 'viewer orientation transformation matrix (otm)'.
         lea vpang,a0       ; Get the viewpoint angle.
         move #0,d0
         and.l #$ff,d0 ; Keep it between 0 and 255
@@ -15964,7 +16529,7 @@ nodraw: bsr clearscreen
         lea _web,a1
         move.l 12(a1),d0
         move.l d0,(a0)+ ; Add it to our GPU RAM input buffer.
-        lea xvector,a0    ; Load the gpu shader.
+        lea xvector,a0    ; Load the gpu shader in goat.gas.
         jsr gpurun        ; Run it.
         jsr gpuwait       ; Wait.
 
@@ -15978,7 +16543,7 @@ nodraw: bsr clearscreen
         move.l vp_x,d3       ; Get the viewer's X pos.
         move.l vp_y,d4       ; Get the viewer's Y pos.
         move.l vp_z,d5       ; Get the viewer's Z pos.
-        move.l #2,gpu_mode   ; Mode 2 is do-the-vectors-in-3d-thang
+        move.l #2,gpu_mode   ; Select 'vect3d' in goat.gas. Mode 2 is do-the-vectors-in-3d-thang
         lea _web,a6          ; Get the web data structure.
         tst 34(a6)           ; Check there's a web.
         beq noo_wb           ; If zero, there's no web, so skip drawing.
@@ -15995,7 +16560,7 @@ noo_wb:
         move.l activeobjects,a6
         bsr d_obj    ;do std. object stuff
         bsr draw2polyos
-        bsr drawmsg
+        bsr drawmsg ; Draw any active messages.
 
         lea screen3,a0    ;source screen for any score u/d xfers
         move.l a0,a1
@@ -16322,7 +16887,7 @@ swebbo:
 ; These objects are constructed in advance by make_bits.
 ; *******************************************************************
 vector:
-        move.l d0,a1          ; Get object header
+        move.l d0,a1          ; Get object header, e.g. _flipper.
         lea in_buf+4,a0
         move.l 4(a6),d0       ; Get the source X position.
         sub.l vp_x,d0         ; Subtract the player/camera viewpoint X position.
@@ -16586,7 +17151,7 @@ draw_pel:
 ; Clear the current gpu_screen.
 ; *******************************************************************
 clearscreen:
-        move.l #0,gpu_mode  ;GPU op 0 is clear the screen, 'undraw'
+        move.l #0,gpu_mode  ;GPU op 0 is clear the screen, 'undraw' in llama.gas.
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun          ; do gpu routine
         jmp gpuwait         ; returns
@@ -17046,98 +17611,6 @@ init_wave:
 ; *******************************************************************
 ; Routines for generating all types of new enemies.
 ;
-; The structure for all members in the activeobjects list is broadly as follows:
-;
-;  Bytes    Solid Objects                                    Vector Objects
-;  -----    ---------------------------------------------------------------
-;  0-4      Index into draw routine in 'solids'.             Address of the prepared vector object.
-;  4-8      X 
-;  8-12     Y 
-;  12-16    Z 
-;  16-20    Position/lane on web.
-;  20-24    Velocity 
-;  24-28    Acceleration/Flipper Mode                        XY orientation 
-;  28-30    XZ Orientation  (Roll)                           XZ orientation  
-;  30-32    Y Rotation  (Pitch)
-;  32-34    Z Rotation  (Yaw)
-;  34-36    Draw Type (Index into draw routine in draw_vex)
-;  36-38    Start address of pixel data.                     Delta Z 
-;  38-40    Y                                                Colour change value
-;  40-42    Colour 
-;  42-44    Scale factor 
-;  44-46    0 = climb rail, 1 = cross rail, 2 = blowaway
-;  46-48    Size of Pixel Data/Number of pixels              Duration.
-;  48-50    Fire Timer / Sphere Type 
-;  50-52    Marked for deletion 
-;  52-54    Whether an enemy or not. 
-;  54-56    Object Type  (Index into update routine in run_vex).
-;  56-60    Address of Previous Object 
-;  60-64    Address of Next Object 
-;
-;  Object Type                   run_vex         Draw Type       draw_vex
-;  -----------------------       ----------------------------------------------
-;  0   Exploding Player          rrts            1
-;  1                             player_shot     1
-;  2   Flipper                   run_flipper     3
-;  3   Type of Explosion         run_zap         1                        
-;  4   A shot that kills         kill_shot       1                          
-;  5   Tanker                    run_tanker      1                           
-;  6   Spike                     run_spike       1                          
-;  7   Spiker                    run_spiker      1                           
-;  8   Enemy Bullet              run_ashot       1                          
-;  9   Fuseball                  run_fuseball    1                             
-;  10   Bonus Blowaway           blowaway        1                         
-;  11   Pulsar                   run_pulsar      1                           
-;  12   one up blowaway          oblow           1                      
-;  13   Going-Down Claw          go_downc        1                         
-;  14   Going-Down Flipper       go_downf        1                         
-;  15                            claw_con2       1                          
-;  16                            claw_con1       1                          
-;  17   AI Droid/Rez Claw?       rez_claw        1                         
-;  18                            czoom1          1                       
-;  19                            czoom2          1                       
-;  20   Explosion?               pzap            1                     
-;  21                            rundroid        1                         
-;  22   Pixel Explosion          run_pixex       1                          
-;  23   Pulsar Spark             run_pspark      1                           
-;  24   P Ring Explosion?        run_prex        1                         
-;  25   Power Up                 run_pup         1                        
-;  26   Splatter                 xshot           1                      
-;  27   Run Gate                 run_gate        1
-;  28   XR Pixel Explosion       xr_pixex        1
-;  29   Firework                 run_fw          1
-;  30   Rez Claw                 run_h2hclaw     1
-;  31   Mirror                   run_mirr        1
-;  32   Player bullet            run_h2hshot     1
-;  33   Head to Head Gen         run_h2hgen      1
-;  34   Head to Head Ball        run_h2hball     1
-;  35   Excellent Explosion      oblow2          1
-;  36   Mirror                   rumirr          1
-;  37   Reflected Shot           refsht          1
-;  38   Reflected shot           refsht2         1
-;  39   Type of AI Droid         run_adroid      1
-;  40   Loitering claw           loiter          1
-;
-; Draw Type  draw_vex
-; --------   --------
-;   0       rrts
-;   1       draw
-;   2       draw_z
-;   3       draw_vxc
-;   4       draw_spike
-;   5       draw_pixex
-;   6       draw_mpixex
-;   7       draw_oneup
-;   8       draw_pel
-;   9       changex
-;   10      draw_pring
-;   11      draw_prex
-;   12      dxshot
-;   13      drawsphere
-;   14      draw_fw
-;   15      dmpix
-;   16      dsclaw
-;   17      dsclaw2
 ; *******************************************************************
 inits:
         dc.l make_flipper,make_tanker,make_spiker,make_fuseball,make_pulsar,make_futanker,make_putanker  ;6
@@ -17507,8 +17980,10 @@ showscore:
         tst show_warpy
         beq shoscc
         clr show_warpy
-        cmp #2,warpy
-        beq shoscc
+        cmp #2,warpy ; Do we still need 2 more powerups before we warp?
+        beq shoscc ; If yes, just show score.
+
+        ; Do the warp display.
         move.l gpu_screen,d0
         move.l d0,-(a7) ; Stash some values in the stack so we can restore them later.
         move.l #screen3,gpu_screen
@@ -22789,6 +23264,8 @@ tunlvl8:dc.b 1,2,3,4,-8,-8,4,5
         dc.b 7,0,-7,0,-7,-7,-7,13
         dc.b 13,7,7,-13,0,0,0,0
 
+; These are the start and length of the bonus score graphics
+; in pic3.
 px_bons: dc.l $6e0000,$2c002d,$6e002e,$2c002c,$6e005a,$2c002d
 
 
