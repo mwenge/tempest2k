@@ -1,4 +1,12 @@
 ; vim:ft=asm68k
+; *******************************************************************
+; camel.gas
+; Contains the following routines:
+; poly -
+; pretty_poly - Used to draw the pyramids in head to head mode. 
+; rex - A Robotron style explosion generator.
+; crex - A centred version of the above.
+; *******************************************************************
 
         Base equ $f00000
 
@@ -134,7 +142,13 @@
 ; *******************************************************************
 ; Execution of the module starts here.
 ;
-; Detect the GPU mode selected by the caller.
+; Detect the GPU mode selected by the caller and use that to determine
+; which routine (shader) to run.
+; Mode 1 = poly
+; Mode 2 = pretty_poly
+; Mode 3 = crex
+; Mode 4 = rex
+; Mode 5 = polyo2d (Not used).
 ; *******************************************************************
         movei #gpu_mode,r0
         load (r0),r1            ;get gpu #
@@ -143,25 +157,25 @@
         movei #crex,r4
         movei #rex,r5
         movei #polyo2d+2,r6
-        cmpq #1,r1
-        jump eq,(r2)            ;mode 1 is do poly
+        cmpq #1,r1 ; Mode 1 selected?
+        jump eq,(r2)             ; Jump to poly
         nop
-        cmpq #2,r1
-        jump eq,(r3)            ;mode 3 is do pretty poly
+        cmpq #2,r1 ; Mode 2 selected?
+        jump eq,(r3)            ; Jumpt to pretty_poly
         nop
-        cmpq #3,r1
-        jump eq,(r4)
+        cmpq #3,r1 ; Mode 3 selected?
+        jump eq,(r4) ; Jump to crex
         nop
-        cmpq #4,r1
-        jump eq,(r5)
+        cmpq #4,r1 ; Mode 4 selected?
+        jump eq,(r5) ; Jump to rex.
         nop
-        cmpq #5,r1
-        jump eq,(r6)
+        cmpq #5,r1 ; Mode 5 selected?
+        jump eq,(r6) ; Jump to polyo2d
         nop
 
-
-;*      anything else falls thru here to the c.l.s 
-
+; *******************************************************************
+; poly
+;
 ;*****
 ;*
 ;* POLY: Gouraud-shaded poly renderer. Only for triangular pollies.
@@ -171,6 +185,8 @@
 ;* Poly data structure: <x1_n.w><y1_n.w><i1_n.w><x2_n.w><y2_n.w><i2_n.w><x3_n.w><y3_n.w><i3_n.w>
 ;*
 ;*****
+; *******************************************************************
+poly:
 
         x1_n            REGEQU r3
         y1_n            REGEQU r4
@@ -211,36 +227,6 @@
         move r31,\2
         ENDM
 
-;cls:   movei #A1_BASE,a1_n     ;blitter Base
-;       movei #B_CMD,blit       ;blitter flags/go
-;       xor r0,r0                       ;Blit the screen clear  (hard coded for 384x240, 16bit)
-;       store r0,(a1_n+_pixel)
-;       movei #backg,r1
-;       load (r1),r0
-;       movei #B_PATD,r1
-;       store r0,(r1)
-;       addq #4,r1
-;       store r0,(r1)
-;       movei #gpu_screen,r1
-;       load (r1),r0
-;       movei #dest_flags,r1
-;       store r0,(a1_n+_base)
-;       load (r1),r0
-;       store r0,(a1_n+_flags)
-;       movei #$0001fe80,r0             ;1,-384
-;       store r0,(a1_n+_step)
-;       movei #B_COUNT,r0
-;       movei #$f00180,r1
-;       store r1,(r0)
-;       movei #(UPDA1|PATDSEL),r0
-;       store r0,(blit)
-;       waitblit
-;       movei #StopGPU,r0
-;       jump (r0)
-;       nop
-
-
-poly:
 StopGPU: movei #G_CTRL,r1       ;point at GPU flags
         load (r1),r0
         bclr #0,r0
@@ -249,6 +235,12 @@ stoploop: jr stoploop
         nop
 
 
+; *******************************************************************
+; pretty_poly
+;
+; This is passed a raw polygon data structure in the in_buf. See for
+; example ppyr, which draws the pyramid in head-to-head mode used to 
+; record player hits.. 
 ;*****
 ;*
 ;* PRETTY_POLY: Gouraud-shaded poly renderer. Only for triangular pollies.
@@ -259,30 +251,8 @@ stoploop: jr stoploop
 ;* Poly data structure: <x1_n.w><y1_n.w><i1_n.w><col1.w><x2_n.w><y2_n.w><i2_n.w><col2.w><x3_n.w><y3_n.w><i3_n.w><col3.w>
 ;*
 ;*****
-
-;       x1_n            REGEQU r3
-;       y1_n            REGEQU r4
-;       x2_n            REGEQU r5
-;       y2_n            REGEQU r6
-;       x3_n            REGEQU r7
-;       y3_n            REGEQU r8
-;       i1_n            REGEQU r9
-;       i2_n            REGEQU r10
-;       i3_n            REGEQU r11
-;       xinc1           REGEQU r12
-;       iinc1           REGEQU r15
-;       xinc2           REGEQU r16
-;       iinc2           REGEQU r17
-;       count1          REGEQU r18
-;       count2          REGEQU r19
-;       loop1           REGEQU r20
-;       loop2           REGEQU r21
-;       count3          REGEQU r22
-;       sum1            REGEQU r23
-;       sum2            REGEQU r24
-;       sum3            REGEQU r25
-;       sum4            REGEQU r26
-
+; *******************************************************************
+pretty_poly:
         c1              REGEQU r23
         c2              REGEQU r24
         c3              REGEQU r25
@@ -301,8 +271,7 @@ stoploop: jr stoploop
         ci2             REGEQU r29      
         ii              REGEQU r30      
 
-
-pretty_poly:    movei #in_buf,r20
+        movei #in_buf,r20
         load (r20),r0                   ;get pointer to poly data
         loadw (r0),x1_n         ;get all the bits of poly
         addq #2,r0
@@ -646,22 +615,10 @@ p2_loop3: move sum5,r0
         nop
 
 
-;*****
-;*
-;* TILE16: Tile Fill of 16-bit screen
-;*
-;* Inputs: +4=a2_n Window Mask (tile size)
-;*        +8=a2_n Pixel Offset (to scroll the tile)
-;*        +0=source screen
-;*****
-
-;       blit            REGEQU r13
-;       a1_n            REGEQU r14
-        a2_n            REGEQU r15
-        
-
-
-
+; *******************************************************************
+; crex
+; A centred version of 'rex' below - does some set up and falls through
+; to execute 'rex'.
 ;*****
 ;*
 ;* REX: Robotron explosion generator. Takes an image from the source screen and expands it in X and Y, then
@@ -672,12 +629,9 @@ p2_loop3: move sum5,r0
 ;*      28=Mode (0=Top edge, 1=Centered), 32=Dest X and Y 
 ;*
 ;*****
-
-
-;       blit            REGEQU r13
-;       a1_n            REGEQU r14
-;       a2_n            REGEQU r15
-
+; *******************************************************************
+crex:
+        a2_n            REGEQU r15
         _bass           REGEQU r2       ;Source base address
         spixel          REGEQU r3       ;Source pixel start
         ssize           REGEQU r4       ;Source rectangle size
@@ -704,8 +658,7 @@ p2_loop3: move sum5,r0
         dsty            REGEQU r26
         dstz            REGEQU r1
 
-crex:
-  movei #ycent,r0
+        movei #ycent,r0
         load (r0),r28
         addq #4,r0
         load (r0),r27
@@ -720,6 +673,19 @@ crex:
 ; *******************************************************************
 ; rex
 ; Multiple images stretching towards you in Z.
+; Used to scale and rotate a graphic, such as the rotating yak head
+; in the credits screen. Used a lot elsewhere too such as animating
+; the 'Excellent' message which rotates and moves towards you.
+;*****
+;*
+;* REX: Robotron explosion generator. Takes an image from the source screen and expands it in X and Y, then
+;*      uses a1_n to draw the resultant matrix of single pixels.
+;*
+;*      Provide: dest screen in gpu_screen, in_buf: 0=source image address
+;*      4=source image start pixel address, 8=x and y size of source, 12=X scale (16:16), 16=Y scale (16:16), 20=X shear (16:16), 24=Y shear,
+;*      28=Mode (0=Top edge, 1=Centered), 32=Dest X and Y 
+;*
+;*****
 ; *******************************************************************
 rex:
         movei #$c00000,r27
@@ -852,7 +818,12 @@ shrnk:
 
 
 
-pasthack: move r0,xx
+; *******************************************************************
+; pasthack
+; Helper routine for pasthack.
+; *******************************************************************
+pasthack:
+        move r0,xx
         move r0,yy
         shrq #16,xx
         and lomask,yy           ;X integer parts to xx and fractional to yy
@@ -930,6 +901,8 @@ pasthack: move r0,xx
         jump (r0)
 
 
+; *******************************************************************
+; polyo2d
 ;*****
 ;*
 ;* POLYO2D:  Draw 2D object made of polygons, positioned in Tempest 3D space
@@ -939,42 +912,10 @@ pasthack: move r0,xx
 ;*         +16=X centre; +20=Y centre, as 16:16 fractions; +24=XY Rotation Angle
 ;*
 ;*****
-        
-;       x1_n            REGEQU r3               all these already defined for the poly renderer
-;       y1_n            REGEQU r4
-;       x2_n            REGEQU r5
-;       y2_n            REGEQU r6
-;       x3_n            REGEQU r7
-;       y3_n            REGEQU r8
-;       i1_n            REGEQU r9
-;       i2_n            REGEQU r10
-;       i3_n            REGEQU r11
-;       xinc1           REGEQU r12
-;       iinc1           REGEQU r15
-;       xinc2           REGEQU r16
-;       iinc2           REGEQU r17
-;       count1          REGEQU r18
-;       count2          REGEQU r19
-;       loop1           REGEQU r20
-;       loop2           REGEQU r21
-;       count3          REGEQU r22
-;       sum1            REGEQU r23
-;       sum2            REGEQU r24
-;       sum3            REGEQU r25
-;       sum4            REGEQU r26
+; *******************************************************************
 
-;       xstart          REGEQU r27
-;       istart          REGEQU r28
-;       xsize           REGEQU r29
-;       isize           REGEQU r30
-;       cmd             REGEQU r2
-
-
-;       blit            REGEQU r13
-;       a1_n            REGEQU r14
-
+polyo2d:
 ;*      Definitions for use in the alternate-register bank. Alternate r0 and ISTART are used in the polyrenderer.
-
         sinebase        REGEQU r23
         polypointer     REGEQU r24
         xxx             REGEQU r25
@@ -991,7 +932,6 @@ pasthack: move r0,xx
         colour          REGEQU r21
         vertex          REGEQU r22
 
-polyo2d:
 
 
 

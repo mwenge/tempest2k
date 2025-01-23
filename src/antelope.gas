@@ -1,22 +1,32 @@
 ; vim:ft=asm68k
-; Thang
+; *******************************************************************
+; xcamel.gas
+; Contains the following routines:
+; Mode 1 = poly
+; Mode 2 = pretty_poly
+; Mode 3 = tile16
+; Mode 4 = rex
+; Mode 5 = snglpix
+; Mode 6 = pring
+; Mode 7 = pring2
+; *******************************************************************
 
         Base equ $f00000
 
-  INCLUDE       "jaguar.inc"    ; Jaguar General definitions
-
-        gpu_mode          EQU (G_RAM+$ffc)      ; Number defines which routine the GPU will do
-        gpu_screen        EQU (G_RAM+$ff8)      ; The address of the screen the GPU will draw on
+        INCLUDE "jaguar.inc"                   ; Jaguar General definitions
+        
+        gpu_mode          EQU (G_RAM+$ffc)     ; Number defines which routine the GPU will do
+        gpu_screen        EQU (G_RAM+$ff8)     ; The address of the screen the GPU will draw on
         source_flags        EQU (G_RAM+$ff4)
-        dest_flags        EQU (G_RAM+$ff0)      ; Blitter flags 4 source+dest
-        _sysflags         EQU (G_RAM+$fd0)      ;Thick vector flags etc
-
-        p_sines           EQU $30000            ; 256-byte sine table of unsigned bytes
-        in_buf            EQU (G_RAM+$f60)      ; General space for passing stuff to GPU
+        dest_flags        EQU (G_RAM+$ff0)     ; Blitter flags 4 source+dest
+        _sysflags         EQU (G_RAM+$fd0)     ; Thick vector flags etc
+        
+        p_sines           EQU $30000           ; 256-byte sine table of unsigned bytes
+        in_buf            EQU (G_RAM+$f60)     ; General space for passing stuff to GPU
         ORG               $f03000
         width             EQU 384
         height            EQU 280
-        vxlo              EQU 0                 ; Screen extents for the Cohen-Sutherland clipping algorithm
+        vxlo              EQU 0                ; Screen extents for the Cohen-Sutherland clipping algorithm
         vxhi              EQU ((384*1)-1)
         vylo              EQU 0
         vyhi              EQU ((280*1)-1)
@@ -73,41 +83,46 @@
 ; *******************************************************************
 ; Execution of the module starts here.
 ;
-; Detect the GPU mode selected by the caller.
+; Detect the GPU mode selected by the caller and use that to determine
+; which routine (shader) to run.
+; Mode 0 = mandel
+; Mode 1 = ripplewarp
+; Mode 2 = scar
+; Mode 3 = scarper (Unused.)
+; Mode 4 = voxel (Unused.)
+; Mode 5 = sinethang
+; Mode 6 = rwarp (Unused.)
 ; *******************************************************************
-        movei #gpu_mode,r0              ;Get mode
+        movei #gpu_mode,r0     ; Get mode
         load (r0),r1
         movei #mandel,r2
-        movei #ripplewarp,r3            ;choices
+        movei #ripplewarp,r3   ; choices
         movei #scar,r4
         movei #scarper,r5
         movei #voxel,r6
         movei #v_rwarp,r7
-        cmpq #0,r1
-        jump eq,(r2)                    ;go and Mandel
+        cmpq #0,r1             ; Mode 0 select?
+        jump eq,(r2)           ; Go to mandel
         nop
-        cmpq #1,r1
-        jump eq,(r3)
+        cmpq #1,r1             ; Mode 1 selected?
+        jump eq,(r3)           ; Go to ripplewarp
         nop
-        cmpq #2,r1
-        jump eq,(r4)
+        cmpq #2,r1             ; Mode 2 selected?
+        jump eq,(r4)           ; Go to scar.
         nop
-        cmpq #3,r1
-        jump eq,(r5)
+        cmpq #3,r1             ; Mode 3 selected?
+        jump eq,(r5)           ; Go to scarper
         nop
-        cmpq #4,r1
-        jump eq,(r6)
+        cmpq #4,r1             ; Mode 4 selected?
+        jump eq,(r6)           ; Go to voxel
         nop
-        cmpq #6,r1
-        jump eq,(r7)
+        cmpq #6,r1             ; Mode 6 selected?
+        jump eq,(r7)           ; Go to rwarp
         nop
-
-        movei #sinethang,r3             ;sinewave pattern generator
-        jump (r3)                       ;go
+        
+        movei #sinethang,r3    ; Mode 5 selected.
+        jump (r3)              ; Go to sinethang.
         nop
-
-
-
 
 ; *******************************************************************
 ; mandel

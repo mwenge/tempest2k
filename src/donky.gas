@@ -1,8 +1,13 @@
 ; vim:ft=asm68k
+; *******************************************************************
+; donky.gas
+; Mode 0 = web3d: Draws the solid web in Tempest 2000.
+; Mode 1= starplane: draws the starplane used in bonus rounds.
+; *******************************************************************
 
         Base equ $f00000
 
-  INCLUDE       "jaguar.inc"    ; Jaguar General definitions
+        INCLUDE       "jaguar.inc"    ; Jaguar General definitions
 
         gpu_mode EQU (G_RAM+$ffc)       ; Number defines which routine the GPU will do
         gpu_screen EQU (G_RAM+$ff8)     ; The address of the screen the GPU will draw on
@@ -33,6 +38,9 @@
         _inc EQU 7
         _finc EQU 8
 
+; *******************************************************************
+; sdiv
+; *******************************************************************
         MACRO sdiv      ;Divide, keeping sign of that which is divided, uses r27
         move \2,r31
         abs \2
@@ -43,6 +51,9 @@
         neg \2
 \~sdtt: 
         ENDM
+; *******************************************************************
+; waitblit
+; *******************************************************************
         MACRO waitblit  ; Wait for the Blitter to stop
 \~waitt:        load (blit),r31
         btst #0,r31
@@ -50,6 +61,9 @@
         nop
         ENDM
 
+; *******************************************************************
+; fmult
+; *******************************************************************
         MACRO fmult     ;multiply 2 thangs, uses r2-r4, returns in first reg.
         moveta \2,r31   ;(preserves second Thang)
         moveq #0,r27
@@ -80,6 +94,9 @@
 \~fmptt:
         ENDM
 
+; *******************************************************************
+; bank0
+; *******************************************************************
         MACRO bank0
         movei #G_FLAGS,r0
         load (r0),r31
@@ -97,6 +114,9 @@
         nop
         ENDM
 
+; *******************************************************************
+; bank1
+; *******************************************************************
         MACRO bank1
         movei #G_FLAGS,r0
         load (r0),r31
@@ -114,18 +134,27 @@
         nop
         ENDM
 
+; *******************************************************************
+; swap
+; *******************************************************************
         MACRO swap
         move \1,r31
         move \2,\1
         move r31,\2
         ENDM
 
+; *******************************************************************
+; fjsr
+; *******************************************************************
         MACRO fjsr      ;Fast single-level JSR
         move PC,r30
         jump (\1)
         addq #6,r30     ; Determine Return Address
         ENDM
 
+; *******************************************************************
+; frts
+; *******************************************************************
         MACRO frts
         jump (r30)
         nop
@@ -187,15 +216,19 @@
 
 ; *******************************************************************
 ; Detect the GPU mode selected by the caller.
+; Mode 0 = web3d
+; Mode 1 = starplane
 ; *******************************************************************
         movei #gpu_mode,r0
         load (r0),r1
         movei #starplane,r2
-        cmpq #1,r1
-        jump eq,(r2)
+        cmpq #1,r1 ; Mode 1 selected?
+        jump eq,(r2) ; Go to starplane
         nop
+        ; Mode 0 selected: web3d.
 
 ; *******************************************************************
+; web3d
 ;*
 ;* WEB3D:  Draw 3D Web made of polygons, positioned in Tempest 3D space
 ;*

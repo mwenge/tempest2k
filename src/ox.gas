@@ -1,5 +1,7 @@
 ; vim:ft=asm68k
 ; *******************************************************************
+; ox.gas
+; This module contains GPU routines used mostly in the bonus rounds.
 ; *******************************************************************
         Base equ $f00000
 
@@ -169,34 +171,40 @@
 ; Execution of the module starts here.
 ;
 ; Detect the GPU mode selected by the caller.
+; Mode 0 = fline
+; Mode 1 = mode7
+; Mode 2 = starseg
+; Mode 3 = voo
+; Mode 4 = pshere - draws a sphere.
+
 ; *******************************************************************
-        movei #gpu_mode,r0              ;mode 0 is fline, mode 1 is mode7
-        load (r0),r1
+        movei #gpu_mode,r0   ; Get the mode selected by caller.
+        load (r0),r1         ; Store it in r1.
         movei #mode7,r2
-        cmpq #1,r1
-        jump eq,(r2)
+        cmpq #1,r1           ; Mode 1 selected?
+        jump eq,(r2)         ; If so, jump to mode7.
         nop
         movei #starseg,r2
-        cmpq #2,r1
-        jump eq,(r2)
+        cmpq #2,r1           ; Mode 2 selected?
+        jump eq,(r2)         ; If so, jump to starseg.
         nop
         movei #voo,r2
-        cmpq #3,r1
-        jump eq,(r2)
+        cmpq #3,r1           ; Mode 3 selected?
+        jump eq,(r2)         ; If so, jump to voo.
         nop
         movei #psphere,r2
-        cmpq #4,r1
-        jump eq,(r2)
+        cmpq #4,r1           ; Mode 4 selected?
+        jump eq,(r2)         ; If so, jump to pshere.
         nop
-
+        ; Mode 0 selected, fall through to fline.
 
 ; *******************************************************************
 ; fline
-; draw a 3D line with points on the line _offset by a function (ie line+noise=lightning)
+; Draw a 3D line with points on the line _offset by a function (ie line+noise=lightning)
+; Used for drawing lines in quite a few places, usually where we're drawing solid polygons
+; too, e.g. draw_adroid.
 ; *******************************************************************
 fline:
-
-
         pointer REGEQU r0
         x1_n    REGEQU r15
         y1_n    REGEQU r16
@@ -316,10 +324,10 @@ lin3d:  movefa x1_n,xto
         moveta yto,y1_n
         moveta zto,z1           ;store next base line point for next iteration
 
-; now, x0_n/y0_n/intens_0 are set up already, xto-zto contain the next base line segment end
-; time to apply some function to xto-zto
+	; now, x0_n/y0_n/intens_0 are set up already, xto-zto contain the next base line segment end
+	; time to apply some function to xto-zto
 
-;***** Randomise XYZ function
+	;***** Randomise XYZ function
 
         movei #nofunc,r0
         cmpq #1,segs            ;Do not apply function to last point
@@ -348,9 +356,9 @@ lin3d:  movefa x1_n,xto
 
 nofunc:
 
-;***** End of randomise function
+	;***** End of randomise function
 
-; now, translate the resultant XTO/YTO/ZTO to 2D co-ordinates and an i-value....
+	; now, translate the resultant XTO/YTO/ZTO to 2D co-ordinates and an i-value....
 
         shrq #14,zto            ;calculate initial point transformed x/y and i
         move zmax,intens_1              ;copy of z_max
@@ -368,10 +376,10 @@ gotme1: sdiv zto,xto
         sharq #7,xto
         sharq #7,yto
 
-;       move xmax,r0
-;       move ymax,r1
-;       shrq #1,r0
-;       shrq #1,r1              ;generate xy centre from clippingbounds
+	;       move xmax,r0
+	;       move ymax,r1
+	;       shrq #1,r0
+	;       shrq #1,r1              ;generate xy centre from clippingbounds
 
         movei #ycent,r2
         load (r2),r1
@@ -385,7 +393,7 @@ gotme1: sdiv zto,xto
         moveta xto,xto
         moveta yto,yto          ;move to their alts
 
-; Now XTO/YTO/INTENS_1 are set....
+	; Now XTO/YTO/INTENS_1 are set....
 
         movei #nxtpnt,r0        ;Rough clipping func, discards entire segment if any is off screen
         cmpq #0,x0_n
@@ -413,9 +421,9 @@ gotme1: sdiv zto,xto
         jump pl,(r0)
         nop                     ;End rough clipping
 
-; Now do an unclipped Gouraud linedraw between (x0_n/y0_n/i0_n) and (xto/yto/i1_n)
+	; Now do an unclipped Gouraud linedraw between (x0_n/y0_n/i0_n) and (xto/yto/i1_n)
 
-;***** Linedraw code
+	;***** Linedraw code
 
         sub x0_n,xto
         sub y0_n,yto                    ;get differences
@@ -576,7 +584,7 @@ bstop: load (cmd),r28           ;check for blitter stop
         store r0,(cmd)                  ;start it up
 ldend:
 
-;***** End linedraw code
+	;***** End linedraw code
 
 nxtpnt: movefa xto,x0_n
         movefa yto,y0_n
@@ -594,13 +602,15 @@ stoploop: jr stoploop
         nop
         
 
-;***** MODE7
+; *******************************************************************
 ;*
 ;* Generate a Mode 7 surface (no rotate)
 ;*
 ;* Inputs: 0=Source screen base; 4=Max Z (16:16); 8=Offset (16:16); 12=FE Height, 16=Zmax height (both 16:16)
 ;*
-;*****
+; Used in the bonus round (m7scr).
+; *******************************************************************
+mode7:
 
         blit    REGEQU r13              ;address of Blitter go
         a1_n    REGEQU r14
@@ -630,7 +640,6 @@ stoploop: jr stoploop
         xscale  REGEQU r25
 
 
-mode7:
         movei #B_CMD,blit
         movei #A1_BASE,a1_n
         movei #A2_BASE,a2_n
@@ -854,6 +863,7 @@ nline:  add slstep,sline                ;move to next scanline
 ; starseg
 ;
 ; draw one section of startunnel
+; Used in the bonus round (tundraw).
 ; *******************************************************************
 starseg:
 
@@ -1057,7 +1067,10 @@ nopixel: add r1,segphase                ;rotate to next pixel
 
 ; *******************************************************************
 ; voo
-; Vertex-only object (made of particles). Pass IN_BUF: pointer to object,X,Y,Z,Xscale,Yscale,Zscale,Colour,<XY
+; Vertex-only object (made of particles). 
+; Pass IN_BUF: pointer to object,X,Y,Z,Xscale,Yscale,Zscale,Colour,<XY
+;
+; Used by tundraw for the bonus level.
 ; *******************************************************************
 voo:
 
@@ -1233,7 +1246,12 @@ z_neg:  subq #1,vertices                ;Loop de loop for all vertices..
 ; *******************************************************************
 ; psphere
 ;
-; Generate a sphere of particles. Inputs: x,y,z,xyrad,xyphase,yzphase,xycount,yzcount,xystep,yzstep,col
+; Generate a sphere of particles.
+; Inputs: x,y,z,xyrad,xyphase,yzphase,xycount,yzcount,xystep,yzstep,col
+;
+; Used in the bonus rounds, and also by drawsphere, fw_ex (firework
+; explosion).  
+; Lot of duplication with pshere in horse.gas.
 ; *******************************************************************
 psphere:
         s_base          REGEQU r30

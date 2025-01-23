@@ -1,4 +1,12 @@
-; Thang
+; vim:ft=asm68k
+; *******************************************************************
+; llama.gas
+; Contains three very heavily used routines.
+; starfield1 - which draws all starfields in the game.
+; undraw - which is used to clear the GPU screen.
+; vect3d - which is used to draw all vector based objects, e.g. in Tempest Classic.
+;          But not the web, that's done by vect3d in goat.gas.
+; *******************************************************************
 
         Base equ $f00000
 
@@ -144,7 +152,11 @@
         store r0,(r1)
 
 ; *******************************************************************
-; Detect the GPU mode selected by the caller.
+; Detect the GPU mode selected by the caller and use that to determine
+; which routine (shader) to run.
+; Mode 0 = starfield1
+; Mode 2 = undraw
+; Mode 3 = vect3d
 ; *******************************************************************
         movei #gpu_mode,r0
         load (r0),r1                    ;get GPU mode that was set
@@ -160,10 +172,9 @@
         jump (r0)
         nop                             ;go draw 3d vectors
 
-
-
 ; *******************************************************************
 ; undraw
+; Used a lot - it clears the GPU screen.
 ; *******************************************************************
 undraw:
 
@@ -178,7 +189,6 @@ a1_n    REGEQU r15
         _fpixel EQU 6
         _inc EQU 7
         _finc EQU 8
-
 
         movei #BLIT_A1BASE,a1_n ;blitter Base
         movei #BLIT_CMD,cmd     ;blitter flags/go
@@ -215,20 +225,18 @@ wb:     load (cmd),r0
         jump (r0)
         nop
 
-
-
-
-
-
 vend:   movei #StopGPU,r0               ;go shut off gpu
         jump (r0)
         nop
 
 ; *******************************************************************
 ; Draw a 3D vector. Used for drawing webs for example.
+; Used to draw any vector-based objects such as the claw
+; and all enemies in Tempest Classic mode.
+; Note that the web is drawn by vect3d in goat.gas.
 ; *******************************************************************
 vect3d: 
-  movei #_sysflags,r0
+        movei #_sysflags,r0
         load (r0),r1
         moveta r1,r1                    ;stash sysflags
 
@@ -531,6 +539,10 @@ znext:  movefa x2_n,x2_n
 endconn: movei #nxtvertex,r0
         jump (r0)               ;go and do next vertex
 
+; *******************************************************************
+; transform_3d
+; Helper routine for vect3d.
+; *******************************************************************
 transform_3d:
         moveq #24,r1    ;enters here with r0=vertex number
         movei #(vertex_buffer-16),r2
@@ -555,7 +567,8 @@ rzc:    subq #8,r0              ;cache hit - point to x-data
         load (r0),r7
         frts
  
-cachemiss: neg r1               ;the negative i-data that provoked the miss;
+cachemiss:
+        neg r1               ;the negative i-data that provoked the miss;
         cmpq #1,r1
         jr eq,rzc0              ;return packed XYZ as x1_n:y1_n
         nop
@@ -771,7 +784,8 @@ notpal2:        add r1,y1_n             ;final y1_n
         frts
 
 
-starfield1:
+; *******************************************************************
+; starfield1
 ;
 ; display straightforward 3d starfield, wraps Z-plane automatically
 ;
@@ -780,8 +794,11 @@ starfield1:
 ; +8 = VP_Y
 ; +12 = VP_Z all as 16:16
 ; +16 = Address of a starfield data structure
-
-
+;
+; Used to draw nearly all starfields in the game. Can you think of a
+; screen that doesn't have a starfield in it?
+; *******************************************************************
+starfield1:
         movei #in_buf,r28
         addq #4,r28
         load (r28),r20
@@ -888,13 +905,15 @@ nxtpix: movefa r0,r0
         jump (r28)
         nop
 
-
-
-clip_gouline:
+; *******************************************************************
+; clip_gouline
+; Helper routine for vect3d.
 ;
 ; clip the line (x1_n,y1_n)-(x2_n,y2_n) to the vector viewport
 
 ; calculate the cohen-sutherland outcodes
+; *******************************************************************
+clip_gouline:
 
         movei #xxxit,r0
         cmpq #1,col
@@ -1064,20 +1083,13 @@ do_out3:
         jump (r0)
         nop
 
-
-
-
-
 ; *******************************************************************
 ; gouline
+; Helper routine for clip_gouline.
 ;
 ; line draw with colour graduation. x2_n and y2_n are mashed
 ; *******************************************************************
 gouline:
-
-
-
-
         movei #lineparams,r28
         gjsr r28
 
@@ -1166,10 +1178,7 @@ return: load (r27),r0           ;get return address on the stack
         jump (r0)               ;jump to return address
         nop 
 
-
-
 line:
-
         movei #lineparams,r28
         gjsr r28
 
@@ -1214,6 +1223,10 @@ xxxit:  frts
 
 
 
+; *******************************************************************
+; lineparams
+; Helper routine for gouline.
+; *******************************************************************
 lineparams:
 ;
 ; Get parameters for linedraw (or anything that uses gradients)

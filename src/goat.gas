@@ -1,5 +1,14 @@
 ; vim:ft=asm68k
-; Thang
+; *******************************************************************
+; goat.gas
+; Contains the following routines:
+; starfield1 - Not used, see starfield1 in llama.gas instead.
+; undraw     -  Not used, see undraw in llama.gas instead.
+; vect3d     - which is used to draw all webs in the game. Use a viewer
+;              orientation transformation matrix to move the web according
+;              to the player's viewpoint.
+; view_otm   - Used to transform an object according to viewpoint.
+; *******************************************************************
 
         Base equ $f00000
 
@@ -58,6 +67,9 @@
         sinebase        REGEQU  R26
         RMODE           REGEQU  R29             ;Rotation mode. 0=XY rotate only.
 
+; *******************************************************************
+; fmult
+; *******************************************************************
         MACRO fmult     ;multiply 2 thangs, uses r2-r4, returns in first reg.
         moveq #0,r2
         move r2,r3
@@ -87,6 +99,9 @@
 \~fmptt:
         ENDM
 
+; *******************************************************************
+; sdiv
+; *******************************************************************
         MACRO sdiv      ;Divide, keeping sign of that which is divided, uses r2-r3
         move \2,r2
         abs \2
@@ -98,23 +113,35 @@
 \~sdtt: 
         ENDM
 
+; *******************************************************************
+; fjsr
+; *******************************************************************
         MACRO fjsr      ;Fast single-level JSR
         move PC,r30
         jump (\1)
         addq #6,r30     ; Determine Return Address
         ENDM
 
+; *******************************************************************
+; frts
+; *******************************************************************
         MACRO frts
         jump (r30)
         nop
         ENDM
 
+; *******************************************************************
+; gjsr
+; *******************************************************************
         MACRO gjsr      ;Fast single-level JSR
         move PC,r31
         jump (\1)
         addq #6,r31     ; Determine Return Address
         ENDM
 
+; *******************************************************************
+; grts
+; *******************************************************************
         MACRO grts
         jump (r31)
         nop
@@ -122,9 +149,8 @@
 
 ; *******************************************************************
 ; Execution of the module starts here.
-;
-; Detect the GPU mode selected by the caller.
 ; *******************************************************************
+        ; Set up our GPU flags.
         movei #(GPU_RAM+$f00),r27       ;To use as a stack pointer
         movei #BLIT_CMD,cmd             ;Init register stuff
         movei #BLIT_A1PIXEL,A1PIXEL
@@ -139,6 +165,14 @@
         movei #BLIT_A1BASE,r1
         store r0,(r1)
 
+; *******************************************************************
+; Detect the GPU mode selected by the caller and use that to determine
+; which routine (shader) to run.
+; Mode 0 = undraw (Not Used)
+; Mode 2 = vect3d
+; Mode 3 = starfield1 (Not used)
+; Mode 4 = view_otm
+; *******************************************************************
         movei #gpu_mode,r0
         load (r0),r1                    ;get GPU mode that was set
         movei #undraw,r0
@@ -158,9 +192,12 @@
         nop                             ;go draw 3d vectors
 
 
-view_otm:
+; *******************************************************************
+; view_otm
 ;
 ; prepare the viewer's transformation matrix
+; *******************************************************************
+view_otm:
 
         movei #vpang,r28        ;address of angle x-y in list   ---- getting sines and coses for this object
         movei #$ff,r1
@@ -306,7 +343,12 @@ a1_n    REGEQU r15
         _finc EQU 8
 
 
-undraw: movei #BLIT_A1BASE,a1_n ;blitter Base
+; *******************************************************************
+; undraw
+; Not used. See undraw in llama.gas instead.
+; *******************************************************************
+undraw:
+        movei #BLIT_A1BASE,a1_n ;blitter Base
         movei #BLIT_CMD,cmd     ;blitter flags/go
         xor r0,r0                       ;Blit the screen clear  (hard coded for 384x240, 16bit)
         store r0,(a1_n+_pixel)
@@ -342,6 +384,10 @@ vend:   movei #StopGPU,r0               ;go shut off gpu
         jump (r0)
         nop
 
+; *******************************************************************
+; vect3d
+; Used to draw the web only.
+; *******************************************************************
 vect3d:
 
         movei #_sysflags,r0
@@ -893,6 +939,10 @@ znext:  movefa x2_n,x2_n
 endconn: movei #nxtvertex,r0
         jump (r0)               ;go and do next vertex
 
+; *******************************************************************
+; transform_3d
+; Helper for vect3d.
+; *******************************************************************
 transform_3d: nop               ;movei after jump is fishy 
         movei #(in_buf+(12+16)),r0      ;address of xyz centre
         load (r0),r1
@@ -1015,7 +1065,8 @@ gotme:  move r5,r1
         frts
 
 
-starfield1:
+; *******************************************************************
+; starfield1
 ;
 ; display straightforward 3d starfield, wraps Z-plane automatically
 ;
@@ -1024,8 +1075,10 @@ starfield1:
 ; +8 = VP_Y
 ; +12 = VP_Z all as 16:16
 ; +16 = Address of a starfield data structure
-
-
+;
+; This routine is used. See starfield1 in llama.gas instead.
+; *******************************************************************
+starfield1:
         movei #in_buf+4,r28
         load (r28),r20
         addq #4,r28
@@ -1124,11 +1177,15 @@ nxtpix: movefa r0,r0
 
 
 
-clip_gouline:
+; *******************************************************************
+; clip_gouline
+; Helper routine for vect3d.
 ;
 ; clip the line (x1_n,y1_n)-(x2_n,y2_n) to the vector viewport
 
 ; calculate the cohen-sutherland outcodes
+; *******************************************************************
+clip_gouline:
 
 
 
@@ -1295,14 +1352,13 @@ do_out3:
         jump (r0)
         nop
 
-
-
-
-gouline:
+; *******************************************************************
+; gouline
+; Helper routine for vect3d.
 ;
 ; line draw with colour graduation. x2_n and y2_n are mashed
-
-
+; *******************************************************************
+gouline:
         movei #lineparams,r28
         gjsr r28
 
@@ -1401,7 +1457,6 @@ return: load (r27),r0           ;get return address on the stack
 
 
 line:
-
         movei #lineparams,r28
         gjsr r28
 
@@ -1446,11 +1501,13 @@ lbstop: load (cmd),r28          ;check for blitter stop
 
 
 
-lineparams:
+; *******************************************************************
+; lineparams
+; Helper routine for vect3d.
 ;
 ; Get parameters for linedraw (or anything that uses gradients)
-
-
+; *******************************************************************
+lineparams:
         sub x1_n,x2_n
         sub y1_n,y2_n                   ;get differences
         move y1_n,L_PIX

@@ -1,116 +1,130 @@
-
-  Base equ $f00000
-
-  INCLUDE  "jaguar.inc"  ; Jaguar General definitions
-
-  gpu_mode EQU (G_RAM+$ffc)  ; Number defines which routine the GPU will do
-  gpu_screen EQU (G_RAM+$ff8)  ; The address of the screen the GPU will draw on
-  source_flags  EQU (G_RAM+$ff4)
-  dest_flags EQU (G_RAM+$ff0)  ; Blitter flags 4 source+dest
-  backg  EQU (G_RAM+$fec)
-
-  p_sines EQU $30000    ; 256-byte sine table of unsigned bytes
-  in_buf  EQU (G_RAM+$f60)  ; General space for passing stuff to GPU
-  ORG $f03000
-  width EQU 384
-  mwidth EQU 768
-  height EQU 240
-  diag EQU $4000
-
-;***** EQUATES for Blitter offsets
-
-  _base EQU 0
-  _flags EQU 1
-  _clip EQU 2
-  _mask EQU 2
-  _pixel EQU 3 
-  _step EQU 4
-  _fstep EQU 5
-  _fpixel EQU 6
-  _inc EQU 7
-  _finc EQU 8
-
-  MACRO sdiv  ;Divide, keeping sign of that which is divided, uses r27
-  move \2,r31
-  abs \2
-   div \1,\2
-  btst #31,r31  ;Get sign bit of original thang
-  jr z,\~sdtt
-  nop
-  neg \2
-\~sdtt:  
-  ENDM
-
-  MACRO waitblit  ; Wait for the Blitter to stop
-\~waitt:
-  load (blit),r31
-  btst #0,r31
-  jr z,\~waitt
-  nop
-  ENDM
-
-  MACRO fmult  ;multiply 2 thangs, uses r2-r4, returns in first reg.
-  moveta \2,r0  ;(preserves second Thang)
-  moveq #0,r27
-  move r27,r28
-  abs \1
-  addc r28,r27
-  abs \2
-  addc r28,r27
-  move \2,r28
-  mult \1,r28
-  move \1,r29
-  shrq #16,r28
-  shrq #16,r29
-  mult \2,r29
-  shrq #16,\2
-  add r29,r28
-  move \2,r29
-  mult \1,r29
-  shrq #16,\1
-  add r29,r28
-  mult \2,\1
-  shlq #16,\1
-  add r28,\1
-  btst #0,r27
-  jr z,\~fmptt
-  movefa r0,\2
-  neg \1
-\~fmptt:
-  ENDM
+; vim:ft=asm68k
+; *******************************************************************
+; stoat.gas
+; Contains the texter routine.
+; *******************************************************************
 
 
-  MACRO fjsr  ;Fast single-level JSR
-  move PC,r30
-  jump (\1)
-  addq #6,r30  ; Determine Return Address
-  ENDM
+        Base equ $f00000
 
-  MACRO frts
-  jump (r30)
-  nop
-  ENDM
+        INCLUDE  "jaguar.inc"  ; Jaguar General definitions
 
-  MACRO gjsr  ;Fast single-level JSR
-  move PC,r31
-  jump (\1)
-  addq #6,r31  ; Determine Return Address
-  ENDM
+        gpu_mode EQU (G_RAM+$ffc)  ; Number defines which routine the GPU will do
+        gpu_screen EQU (G_RAM+$ff8)  ; The address of the screen the GPU will draw on
+        source_flags  EQU (G_RAM+$ff4)
+        dest_flags EQU (G_RAM+$ff0)  ; Blitter flags 4 source+dest
+        backg  EQU (G_RAM+$fec)
 
-  MACRO grts
-  jump (r31)
-  nop
-  ENDM
+        p_sines EQU $30000    ; 256-byte sine table of unsigned bytes
+        in_buf  EQU (G_RAM+$f60)  ; General space for passing stuff to GPU
+        ORG $f03000
+        width EQU 384
+        mwidth EQU 768
+        height EQU 240
+        diag EQU $4000
+
+      ;***** EQUATES for Blitter offsets
+
+        _base EQU 0
+        _flags EQU 1
+        _clip EQU 2
+        _mask EQU 2
+        _pixel EQU 3 
+        _step EQU 4
+        _fstep EQU 5
+        _fpixel EQU 6
+        _inc EQU 7
+        _finc EQU 8
+
+; *******************************************************************
+; sdiv
+; *******************************************************************
+        MACRO sdiv  ;Divide, keeping sign of that which is divided, uses r27
+        move \2,r31
+        abs \2
+         div \1,\2
+        btst #31,r31  ;Get sign bit of original thang
+        jr z,\~sdtt
+        nop
+        neg \2
+      \~sdtt:  
+        ENDM
+
+; *******************************************************************
+; waitblit
+; *******************************************************************
+        MACRO waitblit  ; Wait for the Blitter to stop
+      \~waitt:
+        load (blit),r31
+        btst #0,r31
+        jr z,\~waitt
+        nop
+        ENDM
+
+; *******************************************************************
+; fmult
+; *******************************************************************
+        MACRO fmult  ;multiply 2 thangs, uses r2-r4, returns in first reg.
+        moveta \2,r0  ;(preserves second Thang)
+        moveq #0,r27
+        move r27,r28
+        abs \1
+        addc r28,r27
+        abs \2
+        addc r28,r27
+        move \2,r28
+        mult \1,r28
+        move \1,r29
+        shrq #16,r28
+        shrq #16,r29
+        mult \2,r29
+        shrq #16,\2
+        add r29,r28
+        move \2,r29
+        mult \1,r29
+        shrq #16,\1
+        add r29,r28
+        mult \2,\1
+        shlq #16,\1
+        add r28,\1
+        btst #0,r27
+        jr z,\~fmptt
+        movefa r0,\2
+        neg \1
+      \~fmptt:
+        ENDM
 
 
+; *******************************************************************
+; fjsr
+; *******************************************************************
+        MACRO fjsr  ;Fast single-level JSR
+        move PC,r30
+        jump (\1)
+        addq #6,r30  ; Determine Return Address
+        ENDM
 
-texter:
+        MACRO frts
+        jump (r30)
+        nop
+        ENDM
+
+        MACRO gjsr  ;Fast single-level JSR
+        move PC,r31
+        jump (\1)
+        addq #6,r31  ; Determine Return Address
+        ENDM
+
+        MACRO grts
+        jump (r31)
+        nop
+        ENDM
+
+; *******************************************************************
+; texter
 ;
 ; Jaguar texter. Input IN_BUF=address of textstring, +4=address of font structure, +8/+12=dropshadow vector X/Y
 ; +16/+20=XY scale, +24/+28=XY shear, +32=text origin
-
-
-;*****
 ;*
 ;* REX: Robotron explosion generator. Takes an image from the source screen and expands it in X and Y, then
 ;*  uses a1_n to draw the resultant matrix of single pixels.
@@ -120,293 +134,293 @@ texter:
 ;*  28=Mode (0=Top edge, 1=Centered), 32=Dest X and Y 
 ;*
 ;*****
+; *******************************************************************
+texter:
+        blit     REGEQU r13
+        a1_n     REGEQU r14
+        a2_n     REGEQU r15
 
+        _bass    REGEQU r2  ;Source base address
+        spixel   REGEQU r3  ;Source pixel start
+        ssize    REGEQU r4  ;Source rectangle size
+        scalex   REGEQU r5
+        scaley   REGEQU r6  ;Scaling X and Y
+        shearx   REGEQU r7
+        sheary   REGEQU r8  ;Shearing X and Y
+        mode     REGEQU r9  ;Centering mode
 
-  blit     REGEQU r13
-  a1_n     REGEQU r14
-  a2_n     REGEQU r15
+        xinc     REGEQU r10
+        yinc     REGEQU r11
+        xstep    REGEQU r12
+        ystep    REGEQU r16
+        _xstart  REGEQU r17
+        ystart   REGEQU r18
+        himask   REGEQU r19
+        lomask   REGEQU r20
+        dstxy    REGEQU r21
+        axshear  REGEQU r22
+        ayshear  REGEQU r23
 
-  _bass    REGEQU r2  ;Source base address
-  spixel   REGEQU r3  ;Source pixel start
-  ssize    REGEQU r4  ;Source rectangle size
-  scalex   REGEQU r5
-  scaley   REGEQU r6  ;Scaling X and Y
-  shearx   REGEQU r7
-  sheary   REGEQU r8  ;Shearing X and Y
-  mode     REGEQU r9  ;Centering mode
+        xx       REGEQU r24
+        yy       REGEQU r25
+        x_add    REGEQU r26
+        textptr  REGEQU r29
+        fontbase REGEQU r30
 
-  xinc     REGEQU r10
-  yinc     REGEQU r11
-  xstep    REGEQU r12
-  ystep    REGEQU r16
-  _xstart  REGEQU r17
-  ystart   REGEQU r18
-  himask   REGEQU r19
-  lomask   REGEQU r20
-  dstxy    REGEQU r21
-  axshear  REGEQU r22
-  ayshear  REGEQU r23
-
-  xx       REGEQU r24
-  yy       REGEQU r25
-  x_add    REGEQU r26
-  textptr  REGEQU r29
-  fontbase REGEQU r30
-
-  dropx    REGEQU r2
-  dropy    REGEQU r3
+        dropx    REGEQU r2
+        dropy    REGEQU r3
 
 rex:
-  movei #A1_BASE,a1_n
-  movei #A2_BASE,a2_n    ;initialise the usual stuff
-  movei #B_CMD,blit
-  xor r0,r0
-  movei #B_PATD,r1
-  store r0,(r1)
-  addq #4,r1
-  store r0,(r1)
+        movei #A1_BASE,a1_n
+        movei #A2_BASE,a2_n    ;initialise the usual stuff
+        movei #B_CMD,blit
+        xor r0,r0
+        movei #B_PATD,r1
+        store r0,(r1)
+        addq #4,r1
+        store r0,(r1)
 
-  movei #in_buf,r0    ;load the parameters into registers
-  load (r0),textptr    ;point at start of textstring
-  addq #4,r0
-  load (r0),fontbase    ;point to start of font datastructure
-  addq #4,r0
-  load (r0),dropx
-  addq #4,r0
-  load (r0),dropy
-  addq #4,r0
-  moveta dropx,dropx
-  moveta dropy,dropy
-  load (r0),scalex
-  addq #4,r0
-  load (r0),scaley
-  addq #4,r0      ;get text expansion x/y
-  load (r0),shearx
-  addq #4,r0
-  load (r0),sheary
-  addq #4,r0      ;get XY shear
-  load (r0),dstxy      ;get dest XY position
-  addq #4,r0
-  load (r0),mode      ;Mode: 0=straight draw, 1=drop shadow
-  moveta textptr,r6
-  moveta dstxy,r7
+        movei #in_buf,r0    ;load the parameters into registers
+        load (r0),textptr    ;point at start of textstring
+        addq #4,r0
+        load (r0),fontbase    ;point to start of font datastructure
+        addq #4,r0
+        load (r0),dropx
+        addq #4,r0
+        load (r0),dropy
+        addq #4,r0
+        moveta dropx,dropx
+        moveta dropy,dropy
+        load (r0),scalex
+        addq #4,r0
+        load (r0),scaley
+        addq #4,r0      ;get text expansion x/y
+        load (r0),shearx
+        addq #4,r0
+        load (r0),sheary
+        addq #4,r0      ;get XY shear
+        load (r0),dstxy      ;get dest XY position
+        addq #4,r0
+        load (r0),mode      ;Mode: 0=straight draw, 1=drop shadow
+        moveta textptr,r6
+        moveta dstxy,r7
 
-  load (fontbase),_bass
-  addq #4,fontbase    ;got base page address
-  load (fontbase),ssize    ;got the source size..
-  addq #4,fontbase    ;now fontbase is really the fontbase
+        load (fontbase),_bass
+        addq #4,fontbase    ;got base page address
+        load (fontbase),ssize    ;got the source size..
+        addq #4,fontbase    ;now fontbase is really the fontbase
 
-  movei #$ffff0000,himask
-  movei #$ffff,lomask
+        movei #$ffff0000,himask
+        movei #$ffff,lomask
 
-  move ssize,x_add
-  shlq #16,x_add
-  fmult x_add,scalex
-  shrq #16,x_add
-;  and lomask,x_add    ;get X size alone
-  addq #2,x_add      ;make intra-character spacing
-  movefa r6,textptr    ;FMULT mashed it
-  moveta scalex,scalex
-  moveta sheary,sheary    ;these are modified in the charprint loop
+        move ssize,x_add
+        shlq #16,x_add
+        fmult x_add,scalex
+        shrq #16,x_add
+      ;  and lomask,x_add    ;get X size alone
+        addq #2,x_add      ;make intra-character spacing
+        movefa r6,textptr    ;FMULT mashed it
+        moveta scalex,scalex
+        moveta sheary,sheary    ;these are modified in the charprint loop
 
 textloop:
-  loadb (textptr),r0
-  movei #ntxt,r1
-  addq #1,textptr      ;get char
-  cmpq #0,r0      ;is it zero?
-  jump eq,(r1)      ;stop if char 0 was encountered
-  nop
-  subq #32,r0      ;ASCII 0-31 do NOT print
-  shlq #2,r0
-  add fontbase,r0      ;make r0 point to character index
-  load (r0),spixel    ;source-pixel is set
-  
-  moveta textptr,textptr
-  moveta fontbase,fontbase  ;these will be bashed when the char is printed
-  
+        loadb (textptr),r0
+        movei #ntxt,r1
+        addq #1,textptr      ;get char
+        cmpq #0,r0      ;is it zero?
+        jump eq,(r1)      ;stop if char 0 was encountered
+        nop
+        subq #32,r0      ;ASCII 0-31 do NOT print
+        shlq #2,r0
+        add fontbase,r0      ;make r0 point to character index
+        load (r0),spixel    ;source-pixel is set
+        
+        moveta textptr,textptr
+        moveta fontbase,fontbase  ;these will be bashed when the char is printed
+        
 
-  move scalex,_xstart
-  move ssize,r0
-  move scaley,ystart
-  move ssize,r1
-  shlq #16,r0    ;got X size
-  and himask,r1    ;and Y size as 16:16
-  fmult _xstart,r0
-  fmult ystart,r1    ;got (width*scalex) and (height*scaley)
-
-
-  move shearx,axshear
-  move sheary,ayshear
-  fmult axshear,r1  ;height*xshear
-  fmult ayshear,r0  ;width*yshear
-
-  move _xstart,xx    ;Calculation for CENTERED explosion
-  move ystart,yy
-  add axshear,xx
-  add ayshear,yy
-  sharq #1,xx
-  sharq #1,yy    ;XX and YY are vector to start pixel for dest blit
-
-  move dstxy,r0
-  move dstxy,r1
-  shlq #16,r0
-  and himask,r1    ;dest X and Y converted to 16:16 frax
-  sub xx,r0
-  sub yy,r1    ;r0 has x pixel+frac, r1 has y
+        move scalex,_xstart
+        move ssize,r0
+        move scaley,ystart
+        move ssize,r1
+        shlq #16,r0    ;got X size
+        and himask,r1    ;and Y size as 16:16
+        fmult _xstart,r0
+        fmult ystart,r1    ;got (width*scalex) and (height*scaley)
 
 
-  movei #pasthack,r30
-  cmpq #0,r0    ;check for bug condition (LH sprite edge off the screen)
-  nop
-  nop
-  jump pl,(r30)
-  nop
-  nop
+        move shearx,axshear
+        move sheary,ayshear
+        fmult axshear,r1  ;height*xshear
+        fmult ayshear,r0  ;width*yshear
+
+        move _xstart,xx    ;Calculation for CENTERED explosion
+        move ystart,yy
+        add axshear,xx
+        add ayshear,yy
+        sharq #1,xx
+        sharq #1,yy    ;XX and YY are vector to start pixel for dest blit
+
+        move dstxy,r0
+        move dstxy,r1
+        shlq #16,r0
+        and himask,r1    ;dest X and Y converted to 16:16 frax
+        sub xx,r0
+        sub yy,r1    ;r0 has x pixel+frac, r1 has y
+
+
+        movei #pasthack,r30
+        cmpq #0,r0    ;check for bug condition (LH sprite edge off the screen)
+        nop
+        nop
+        jump pl,(r30)
+        nop
+        nop
 shrnk:
-  subq #1,ssize    ;shrink until pixel's on screen
-  addq #1,spixel
-  sub scalex,_xstart
-  add scalex,r0
-  nop  
-  nop
-  jr mi,shrnk
-  nop
-  nop
-  movei #StopGPU,r28
-  move ssize,r27
-  shlq #16,r27
-  nop
-  jump mi,(r28)
-  nop
-  and himask,r27
-  nop
-  jump eq,(r28)
-  nop
+        subq #1,ssize    ;shrink until pixel's on screen
+        addq #1,spixel
+        sub scalex,_xstart
+        add scalex,r0
+        nop  
+        nop
+        jr mi,shrnk
+        nop
+        nop
+        movei #StopGPU,r28
+        move ssize,r27
+        shlq #16,r27
+        nop
+        jump mi,(r28)
+        nop
+        and himask,r27
+        nop
+        jump eq,(r28)
+        nop
 
 pasthack:
-  cmpq #1,mode
-  jr ne,nods1
-  nop
-  movefa dropx,r31
-  movefa dropy,r30
-  add r31,r0
-  add r30,r1    ;do dropshadow positioning
+        cmpq #1,mode
+        jr ne,nods1
+        nop
+        movefa dropx,r31
+        movefa dropy,r30
+        add r31,r0
+        add r30,r1    ;do dropshadow positioning
 
 nods1:
-  move r0,xx
-  move r0,yy
-  shrq #16,xx
-  and lomask,yy    ;X integer parts to xx and fractional to yy
-  move r1,r0
-  shlq #16,r1
-  and himask,r0
-  or r1,yy
-  or r0,xx    ;XX and YY now have a1_pixel and a1_pixelf values
+        move r0,xx
+        move r0,yy
+        shrq #16,xx
+        and lomask,yy    ;X integer parts to xx and fractional to yy
+        move r1,r0
+        shlq #16,r1
+        and himask,r0
+        or r1,yy
+        or r0,xx    ;XX and YY now have a1_pixel and a1_pixelf values
 
-  move _xstart,xstep
-  move ayshear,ystep
-  neg xstep
-  neg ystep
-  add shearx,xstep  ;x step is -(width*scale)-shearx
-  add scaley,ystep  ;y step is -(width*yshear)+scaley
+        move _xstart,xstep
+        move ayshear,ystep
+        neg xstep
+        neg ystep
+        add shearx,xstep  ;x step is -(width*scale)-shearx
+        add scaley,ystep  ;y step is -(width*yshear)+scaley
 
-  move xstep,r0
-  move xstep,r1
-  shrq #16,r0
-  and lomask,r1    ;x components set up
+        move xstep,r0
+        move xstep,r1
+        shrq #16,r0
+        and lomask,r1    ;x components set up
 
-  move ystep,xstep
-  shlq #16,ystep
-  and himask,xstep
-  or ystep,r1
-  or xstep,r0    ;r0/r1 have a1_step and a1_fstep
+        move ystep,xstep
+        shlq #16,ystep
+        and himask,xstep
+        or ystep,r1
+        or xstep,r0    ;r0/r1 have a1_step and a1_fstep
 
-  move scalex,xinc
-  move scalex,yinc
-  shrq #16,xinc
-  and lomask,yinc
-  move sheary,scalex
-  shlq #16,sheary
-  and himask,scalex
-  or sheary,yinc
-  or scalex,xinc    ;xinc/yinc have a1_inc and a1_finc
-  
-  waitblit
+        move scalex,xinc
+        move scalex,yinc
+        shrq #16,xinc
+        and lomask,yinc
+        move sheary,scalex
+        shlq #16,sheary
+        and himask,scalex
+        or sheary,yinc
+        or scalex,xinc    ;xinc/yinc have a1_inc and a1_finc
+        
+        waitblit
 
-  store xx,(a1_n+_pixel)
-  store yy,(a1_n+_fpixel)
-  store r0,(a1_n+_step)
-  store r1,(a1_n+_fstep)
-  store xinc,(a1_n+_inc)
-  store yinc,(a1_n+_finc)
-  movei #gpu_screen,r0
-  movei #(PITCH1|PIXEL16|WID384|XADDINC),r1
-  load (r0),r31
-  store r1,(a1_n+_flags)
-  movei #$1180180,r1
-  store r31,(a1_n)  ;a1_n is now set up...
-  store r1,(a1_n+_clip)
+        store xx,(a1_n+_pixel)
+        store yy,(a1_n+_fpixel)
+        store r0,(a1_n+_step)
+        store r1,(a1_n+_fstep)
+        store xinc,(a1_n+_inc)
+        store yinc,(a1_n+_finc)
+        movei #gpu_screen,r0
+        movei #(PITCH1|PIXEL16|WID384|XADDINC),r1
+        load (r0),r31
+        store r1,(a1_n+_flags)
+        movei #$1180180,r1
+        store r31,(a1_n)  ;a1_n is now set up...
+        store r1,(a1_n+_clip)
 
 
-  store _bass,(a2_n)
-  store spixel,(a2_n+_pixel)
-  move ssize,r0
-  and lomask,r0    ;get width
-  neg r0
-  and lomask,r0
-  bset #16,r0    ;step is (-xsize,1)
-  movei #(PITCH1|PIXEL16|WID320|XADDPIX),r1
-  store r0,(a2_n+_step)
-  store r1,(a2_n+_flags)
+        store _bass,(a2_n)
+        store spixel,(a2_n+_pixel)
+        move ssize,r0
+        and lomask,r0    ;get width
+        neg r0
+        and lomask,r0
+        bset #16,r0    ;step is (-xsize,1)
+        movei #(PITCH1|PIXEL16|WID320|XADDPIX),r1
+        store r0,(a2_n+_step)
+        store r1,(a2_n+_flags)
 
-  movei #B_COUNT,r0
-  store ssize,(r0)  ;count is destination size
+        movei #B_COUNT,r0
+        store ssize,(r0)  ;count is destination size
 
-  movei #$fff000,r0
-  movei #B_IINC,r1
-  store r0,(r1)    ;i-register used in shadowing
+        movei #$fff000,r0
+        movei #B_IINC,r1
+        store r0,(r1)    ;i-register used in shadowing
 
-  movei #(SRCEN|CLIP_A1|UPDA1F|UPDA1|UPDA2|LFU_A|LFU_AN|DCOMPEN),r0
-  movei #(SRCEN|CLIP_A1|UPDA1F|UPDA1|UPDA2|LFU_NA|DCOMPEN|SRCSHADE),r1
-;  movei #(SRCEN|CLIP_A1|UPDA1F|UPDA1|UPDA2|LFU_A|LFU_AN),r0
-  cmpq #1,mode
-  jr ne,nods    ;check for drop shadow
-  nop
-  move r1,r0    ;extra blitter flags if ds selected
+        movei #(SRCEN|CLIP_A1|UPDA1F|UPDA1|UPDA2|LFU_A|LFU_AN|DCOMPEN),r0
+        movei #(SRCEN|CLIP_A1|UPDA1F|UPDA1|UPDA2|LFU_NA|DCOMPEN|SRCSHADE),r1
+      ;  movei #(SRCEN|CLIP_A1|UPDA1F|UPDA1|UPDA2|LFU_A|LFU_AN),r0
+        cmpq #1,mode
+        jr ne,nods    ;check for drop shadow
+        nop
+        move r1,r0    ;extra blitter flags if ds selected
 
 nods:
-  store r0,(blit)    ;draw the sprite
+        store r0,(blit)    ;draw the sprite
 
-  movefa textptr,textptr
-  movefa fontbase,fontbase
-  movefa scalex,scalex
-  movefa sheary,sheary
-  add x_add,dstxy    ;restore pointers and move over one character space
+        movefa textptr,textptr
+        movefa fontbase,fontbase
+        movefa scalex,scalex
+        movefa sheary,sheary
+        add x_add,dstxy    ;restore pointers and move over one character space
 
 
 
-  movei #textloop,r0
-  jump (r0)
-  nop      ;loop back until zero character  
+        movei #textloop,r0
+        jump (r0)
+        nop      ;loop back until zero character  
 
 ntxt:
-  cmpq #1,mode
-  jr ne,StopGPU
-  nop
-  moveq #0,mode
-  movei #textloop,r0
-  movefa r6,textptr
-  movefa r7,dstxy
-  jump (r0)
-  nop
+        cmpq #1,mode
+        jr ne,StopGPU
+        nop
+        moveq #0,mode
+        movei #textloop,r0
+        movefa r6,textptr
+        movefa r7,dstxy
+        jump (r0)
+        nop
 
 
 StopGPU:
-  movei #G_CTRL,r1  ;point at GPU flags
-  load (r1),r0
-  bclr #0,r0
-  store r0,(r1)    ;stop the GPU
+        movei #G_CTRL,r1  ;point at GPU flags
+        load (r1),r0
+        bclr #0,r0
+        store r0,(r1)    ;stop the GPU
 stoploop:
-  jr stoploop
+        jr stoploop
 
 

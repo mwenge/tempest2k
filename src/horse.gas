@@ -1,4 +1,12 @@
-
+; vim:ft=asm68k
+; *******************************************************************
+; horse.gas
+; This module contains the GPU routine use for most drawing of solid
+; polygons (polyo2d). It also contains the routine for drawing power-
+; up explosions (pring2) and a sphere routine that is only used once,
+; in head to head mode (psphere). 'psphere' is a near duplicate of its
+; counterpart in ox.gas.
+; *******************************************************************
         Base equ $f00000
 
   INCLUDE       "jaguar.inc"    ; Jaguar General definitions
@@ -155,6 +163,9 @@
         move r31,\2
         ENDM
 
+; *******************************************************************
+; Not sure what this is for.
+; *******************************************************************
         movei #B_CMD,r0
 waifer: load (r0),r31
         btst #0,r31
@@ -162,21 +173,23 @@ waifer: load (r0),r31
         nop
 
 ; *******************************************************************
-; Detect the GPU mode selected by the caller.
+; Detect the GPU mode selected by the caller and use that to determin
+; which routine (shader) to run.
+; Mode 0 = polyo2d
+; Mode 1 = pring2
+; Mode 2 = psphere
 ; *******************************************************************
         movei #gpu_mode,r0
         movei #pring2,r1
         movei #psphere,r2
         load (r0),r31
-        cmpq #1,r31
-        jump eq,(r1)
+        cmpq #1,r31          ; Mode 1 selected?
+        jump eq,(r1)         ; Jump to pring2.
         nop
-        cmpq #2,r31
-        jump eq,(r2)
+        cmpq #2,r31          ; Mode 2 selected?
+        jump eq,(r2)         ; Jump to psphere.
         nop
-
-
-
+        ; Mode 1 selected. Fall through to polyo2d.
         
 ; *******************************************************************
 ; polyo2d
@@ -187,6 +200,7 @@ waifer: load (r0),r31
 ;*         +4=X +8=Y +12=Z, Tempest world co-ordinates
 ;*         +16=X centre; +20=Y centre, as 16:16 fractions; +24=XY Rotation Angle
 ;*
+; Used by drawsolidxy, one of the main solid polygon drawing routines.
 ; *******************************************************************
 polyo2d:
         x1_n            REGEQU r3       
@@ -933,6 +947,8 @@ stoploop: jr stoploop
 ; +12=Z centre          ;all 16:16 frax
 ; +16=Raw colour        ;0-255
 ; +20=Radius as 16:16 frac
+;
+; Use for all the power-up and power-up explosions.
 ; *******************************************************************
 pring2:
         dstx            REGEQU r21
@@ -1090,6 +1106,8 @@ pixloop2: move phase,r0
 ; psphere
 ; Generate a sphere of particles. Inputs: x,y,z,xyrad,xyphase,yzphase,xycount,yzcount,xystep,yzstep,col
 ;
+; Virtual duplicate of pshere in ox.gas. Used only for drawing a sphere
+; in head-to-head mode.
 ; *******************************************************************
 psphere:
 

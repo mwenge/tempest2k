@@ -32,7 +32,7 @@
 ; This is a cleaned-up and commented version of the main source code
 ; file for Tempest 2000. No code has been changed, so this source file
 ; can be used to create a build of Tempest 2000 that is byte-for-byte
-; identical to the original release.
+; identical to the original 1994 release.
 ;
 ; All original variable and routine names are preserved.
 ; The changes include:
@@ -57,7 +57,6 @@
 ; into some pixel data and including that data in a block of data that represents
 ; either the whole or part of the screen displayed to the player.
 ;
-;
 ; The structure for all members in the activeobjects list is broadly as follows:
 ;
 ;  Bytes    Solid Objects                                    Vector Objects
@@ -79,12 +78,15 @@
 ;  42-44    Scale factor 
 ;  44-46    0 = climb rail, 1 = cross rail, 2 = blowaway
 ;  46-48    Size of Pixel Data/Number of pixels/Duration/Secondary Object Update Routine
+;           Claws: 
 ;  48-50    Fire Timer / Sphere Type 
 ;  50-52    Marked for deletion 
-;  52-54    Whether an enemy or not. 
+;  52-54    0 = not an enemy, 1 = enemy, -1 = vulnerable
 ;  54-56    Object Type  (Index into update routine in run_vex).
 ;  56-60    Address of Previous Object 
 ;  60-64    Address of Next Object 
+;  -----    ---------------------------------------------------------------
+;  Table 1: The structure of an 'activobject' in Tempest 2000.
 ;
 ;
 ; Overview of How Objects Are Created, Updated and Drawn to the Screen
@@ -96,27 +98,27 @@
 ;     that the Atari Jaguar's CPU runs it every time the Graphics Processor has
 ;     finished painting the screen and is about to start painting it again. This
 ;     creates a brief interlude in which game state can be updated and even some
-;     preparation of the next batch of pixels to be drawn to the screen. Very little
-;     pixel preparaion is done in 'Frame': it focuses principally on updating the
+;     preparation performed of the next batch of pixels to be drawn to the screen. Very little
+;     pixel preparation is done in 'Frame': it focuses principally on updating the
 ;     state of all the objects in the game. This routine is called up to 60 times a
 ;     second.
 ;
 ;  - 'mainloop': This routine is the game's main loop. It is responsible for
 ;     nearly all of the 'drawing' in Tempest 2000. By 'drawing' we mean preparing the
 ;     pixel data in RAM that the Jaguar's Graphics Processor will use to paint the
-;     screen after the next vertical sync. It relies on 'Frame' to get the state of
+;     screen after the next vertical sync. It relies on 'Frame' to make the state of
 ;     all objects in the activeobjects list up-to-date so it can iterate through them
 ;     all and convert that state into pixels.
 ;
 ; The mechanism these two routines use to hand off work to each other is the
-; 'sync' variable. When 'Frame' has completed updating all the objects it will
-; reset 'sync' to 0. When 'mainloop' sees that 'sync' is set it will process all
+; 'sync' variable. When 'Frame' has completed updating all the objects, it will
+; reset 'sync' to 0. When 'mainloop' sees that 'sync' is 0 it will process all
 ; the activeobjects and 'draw' them. When it is finished it will set sync to 1,
 ; so that 'Frame' knows it is time to advance the state of all the objects again.
 ; 
 ; 'Frame': Creating Objects 
 ; -------------------------
-;  Most objects are created from an unlikely place: the 'moveclaw' routine. For
+; Most objects are created from an unlikely place: the 'moveclaw' routine. For
 ; most visits to 'Frame' this 'moveclaw' routine will be called (it is possible
 ; that the game enters other states where moveclaw isn't run, such as high score
 ; tables etc.). As the name suggests it will move the player's claw, but it will
@@ -129,7 +131,7 @@
 ;  ------------------------- 
 ; Once we have an 'activeobjects' list with stuff in it, 'Frame' has a list to
 ; process every time it is called by the CPU (in addition to generating new
-; objects). The routine 'run_objects' iterates through every object in the
+; objects). The routine that does this is called 'run_objects' and it iterates through every object in the
 ; activeobjects list and runs the given routine for that object, e.g.
 ; 'run_flipper' for a Flipper object.  Every object points to the routine
 ; responsible for updating its state in Bytes 54-56. It does this using an index
@@ -147,16 +149,16 @@
 ; While all of this is happening mainloop is running in a loop waiting for 'sync'
 ; to be reset to 0.  Once it sees that has happened it can finally start work.
 ; It's main task it run 'draw_objects', which iterates through every object in
-; the activeobjects list and calls its draw_vex routine. Like 'run_vex' this is
+; the activeobjects list and call its draw_vex routine. Like 'run_vex' this is
 ; an index in Bytes 34-36 of the object that it uses to look up the object's draw
 ; routine in the 'draw_vex' array.
 ; 
-; Each object's routine will do one of the following: -  draw the object itself
-; (e.g. ) using the routine pointed to in draw_vex by 'Bytes 34-36'.  -  if we
-; are in Tempest Classic mode, draw the simple vector object pointed to by the
-; address Bytes 0-4.  -  if the value in Bytes 0-4 is negative, treat it as index
-; referencing a solid polygon in the 'solids' list.  In this case drawing is
-; deferred and the object is added to the 'apriority' list.
+; Each object's routine in draw_vex will do one of the following: 
+;  -  draw the object itself (e.g. ). 
+;  -  if we are in Tempest Classic mode, draw the simple vector object pointed to by the
+;     address pointer in Bytes 0-4.  
+;  -  if the value in Bytes 0-4 is negative, treat it as index referencing a solid polygon
+;     in the 'solids' list.  In this case drawing is  deferred and the object is added to the 'apriority' list.
 ; 
 ; Once 'draw_objects' has processed all the objects in activeobjects, it will
 ; have drawn some, but not all. It may have deferred drawing on a few and instead
@@ -164,7 +166,8 @@
 ; polygons that were constructed when the game was initialized. To draw these it
 ; will now call 'drawpolyos' which will iterate through every object in the
 ; 'apriority' list. The routine to draw the polygon for each object is selected
-; by treating the value in Bytes 0-4 as an index into the 'solids' list. 
+; by treating the value in Bytes 0-4 as an index into the 'solids' list, which
+; contains a list of all possible routines for drawing the game's polygon based objects. 
 ; 
 ; So to restate the above slightly differently. Drawing has three orders of
 ; complexity:
@@ -172,22 +175,26 @@
 ;  - The object requires customized drawing, so has its own dedicated
 ;    routine, such as draw_pixex for explosions.
 ;  - The object is a simple vector-based object, such as a claw or enemy in 
-;    Tempest Classic mode.  
-;  - The object is simple polygon-based object, such as a claw or enemy in 
-;    Tempest 2000 mode.  
+;    Tempest Classic mode, e.g '_flipper'.  
+;  - The object is a simple polygon-based object, such as a claw or enemy in 
+;    Tempest 2000 mode, e.g. 'cdraw_sflipper'.  
 ;
 ; Which of these we use is determined by the routine in 'draw_vex' that
-; the object points to in Bytes 34-36. 
+; the object holds an index to in Bytes 34-36. The most commonly used routine
+; is 'draw': this selects between option 2 and 3 above. If Bytes 0-4 contain
+; an address to a vector object it draws that (in 'vector'), otherwise it
+; adds the object to the 'apriority' list so that its solid polygon object
+; can by drawn by the routine Bytes 0-4 point to in the 'solids' list. 
 ; 
 ; In the hope that it will aid understanding, the table below sets out the
 ; routines used for creating, updating, and drawing all player and enemy objects
 ; in the game. For example, you can hopefully see that 'make_tanker' will create
 ; a Tanker object, and 'Frame' will use 'run_tanker' as the routine to update its
-; state, while 'draw_objects' 'draw' to draw it to the screen, which will in turn
+; state, while 'draw_objects' will use 'draw' to draw it to the screen, which will in turn
 ; use either 'draw_sfliptank' to draw it as a solid polygon in Tempest 2000 mode,
 ; or the '_fliptank' vector object if in Tempest Classic mode.
-  
 ;
+;  -----------------------      ----------------------  -------------   -----------       -------------    ------------    
 ;       Description             Creating                Updating        Drawing           Solids            Vectors
 ;                                                       (Bytes 54-56)  (Bytes 34-36)      (Bytes 0-4        Bytes 0-4
 ;                                                       (run_vex)        draw_vex          solids          (Address)          
@@ -200,27 +207,27 @@
 ;       Super Flipper 2         make_sflip3/superflip   run_flipper     draw_vxc          supf2                            
 ;       Beast                   make_beast              run_flipper     draw_vxc          draw_beast          
 ;   3   Type of Explosion       changex                 run_zap         draw                                               
-;   4   A shot that kills       colok                   kill_shot       1                                                  
+;   4   A shot that kills       colok                   kill_shot       draw              draw_pixex       _shot           
 ;   5   Tanker                  make_tanker             run_tanker      draw              draw_sfliptank   _fliptank                
-;       Pulsar Tanker           make_putanker           run_tanker                        draw_spulstank   _pulstank                
-;       Fuse Tanker             make_futanker           run_tanker                        draw_sfusetank   _fusetank                
-;   6   Spike                   make_spike              run_spike       draw_spike                         _spike                
-;   7   Spiker                  make_spiker             run_spiker      draw                               _spiker                
+;       Pulsar Tanker           make_putanker           run_tanker      draw              draw_spulstank   _pulstank                
+;       Fuse Tanker             make_futanker           run_tanker      draw              draw_sfusetank   _fusetank                
+;   6   Spike                   make_spike              run_spike       draw_spike        N/A              _spike                
+;   7   Spiker                  make_spiker             run_spiker      draw              N/A              _spiker                
 ;   8   Enemy Bullet            alienfire               run_ashot       draw              ringbull                         
-;                                                                                         s_shot           _shot
+;                                                                       draw              s_shot           _shot
 ;   9   Fuseball                make_fuseball           run_fuseball    draw              draw_sfuseball   _fuse1/_fuse2
 ;  10   Bonus Blowaway          vecbons                 blowaway        draw                                               
 ;  11   Pulsar                  make_pulsar             run_pulsar      draw              draw_spulsar                     
-;  12   one up blowaway         do_oneup                oblow           draw                               _oneup          
+;  12   one up blowaway         do_oneup                oblow           draw_z            draw_oneup       _oneup          
 ;  13   Going-Down Claw         gotu                    go_downc        draw                                               
 ;  14   Going-Down Flipper      gotu                    go_downf        draw                                               
-;  15                                                   claw_con2                                                    
-;  16                                                   claw_con1                                                    
-;  17   AI Droid (Cube)         mkdroid                 rez_claw        rrts                               _cube           
+;  15   Player 2 Claw           setclaw                 claw_con2       draw/dsclaw       sclaws           _claws    
+;  16   Player 1 Claw           setclaw                 claw_con1       draw/dsclaw       sclaws           _claws    
+;  17   AI Droid (Cube)         rundroid                rez_claw        rrts                               _cube           
 ;  18                                                   czoom1                                      
 ;  19                                                   czoom2                                     
 ;  20   Explosion?              ouch                    pzap            draw                                               
-;  21   AI Droid                rez_claw                rundroid                                           _cube           
+;  21   AI Droid                rez_claw                rundroid        draw_h2hclaw                       _cube           
 ;  22   Pixel Explosion         xpixex                  run_pixex       draw_pixex        draw_pixex       _bons                
 ;  23   Pulsar Spark            run_pulsar->lanetop     run_pspark      draw              draw_spulsar     _pu1/_pu2/_pu3 &c.                
 ;  24   Power Up Explosion      changex                 run_prex        draw_prex                                           
@@ -241,6 +248,15 @@
 ;  38   Reflected shot          beastrail               refsht2         draw                                               
 ;  39   Type of AI Droid        make_adroid             run_adroid      draw              draw_adroid                      
 ;  40   Loitering claw          go_downc/llost          loiter          1                                                  
+;  -----------------------      ----------------------  -------------   -----------       -------------    ------------    
+;  Table 2: The creation, update, and draw routines used by game elements in Tempest 2000.
+;
+; If you look at the above table long enough you may realize that not all objects are created
+; 'de novo'. Some objects 'turn into' other objects rather than get created from scratch by
+; 'run_wave'. For example, an enemy will turn into an explosion.
+; 
+; The management of claw objects is slightly more complex than the table above admits. 
+;       Single Player Claw      setclaw                 srezclaw->claw_con1       dsclaw            sclaws                 
 ;
 ; Solids
 ; -------
@@ -2524,19 +2540,19 @@ draw_sfliptank:
 ; enter with d7=counter, return pulse colour in d6, uses d5-7 and a2
 ; *******************************************************************
 pulser:
-        and #$ff,d7 ; Keep d7 between 0 and 255.
-        lea sines,a2 ; Load the sine table to a2.
-        move.b 0(a2,d7.w),d5 ; Use d7 as an index into the sine table.
-        ext d5 ; Make the result a long.
-        add.b #$40,d7 ; Add $40 to d7.
-        move.b 0(a2,d7.w),d6 ; Use that as an index into the sine table.
-        sub.b #$40,d7 ; Subtract $40 back out again from d7.
-        ext d6 ; Make the value from the sine table a long.
+        and #$ff,d7            ; Keep d7 between 0 and 255.
+        lea sines,a2           ; Load the sine table to a2.
+        move.b 0(a2,d7.w),d5   ; Use d7 as an index into the sine table.
+        ext d5                 ; Make the result a long.
+        add.b #$40,d7          ; Add $40 to d7.
+        move.b 0(a2,d7.w),d6   ; Use that as an index into the sine table.
+        sub.b #$40,d7          ; Subtract $40 back out again from d7.
+        ext d6                 ; Make the value from the sine table a long.
         add #$80,d5
         add #$80,d6
         and #$f0,d5
-        lsr #4,d6 ; Divide by 32.
-        and #$0f,d6 ; Keep it between 0 and 15.
+        lsr #4,d6              ; Divide by 32.
+        and #$0f,d6            ; Keep it between 0 and 15.
         or d5,d6
         rts
 
@@ -2584,32 +2600,32 @@ drawsolidxy:
 ; *******************************************************************
 gameover:
         move.l #rrts,routine
-        clr _pauen ; Disable pausing.
-        clr pauen ; Disable pausing.
-        move #1,modnum ; Request theme tune.
-        tst h2h ; Are we playing a head-to-head game?
+        clr _pauen                    ; Disable pausing.
+        clr pauen                     ; Disable pausing.
+        move #1,modnum                ; Request theme tune.
+        tst h2h                       ; Are we playing a head-to-head game?
         bne ddthis
-        tst auto ; Are we in demo mode?
+        tst auto                      ; Are we in demo mode?
         bne ddthis
-        move cwave,d0  ; Store the achieved level in d0
-        cmp #98,d0     ; Did we exceed the maximum?
-        ble imaxx      ; If not, go to imaxx.
-        move #98,d0    ; 98 is the max possibl saved lvl
-imaxx:  lea t2k_max,a0 ; Put the maximum selectable level in a0
-        tst t2k ; Are we playing Tempest 200?
-        bne yty ; If yes go to yty. 
-        lea trad_max,a0 ; If no, use the maximum selectable level for classic mode.
-yty:    move (a0),d1 ; Store it in d1.
-        cmp d1,d0    ; Compare with the level we achieved.
-        ble ddthat    ;Do not update if this was llarger
-        move d0,(a0)    ;save the highest wave we ever reached
-ddthat: move d0,2(a0)    ;save where we got to this game
+        move cwave,d0                 ; Store the achieved level in d0
+        cmp #98,d0                    ; Did we exceed the maximum?
+        ble imaxx                     ; If not, go to imaxx.
+        move #98,d0                   ; 98 is the max possibl saved lvl
+imaxx:  lea t2k_max,a0                ; Put the maximum selectable level in a0
+        tst t2k                       ; Are we playing Tempest 200?
+        bne yty                       ; If yes go to yty.
+        lea trad_max,a0               ; If no, use the maximum selectable level for classic mode.
+yty:    move (a0),d1                  ; Store it in d1.
+        cmp d1,d0                     ; Compare with the level we achieved.
+        ble ddthat                    ; Do not update if this was llarger
+        move d0,(a0)                  ; save the highest wave we ever reached
+ddthat: move d0,2(a0)                 ; save where we got to this game
 ddthis: move.l #gofeed,demo_routine
         move #0,pongx
         clr.l pongz
-        move #10,timer ; Set the game over timer.
+        move #10,timer                ; Set the game over timer.
         bsr gogame
-        cmp #1,z          ; Has the player done a hard reset?
+        cmp #1,z                      ; Has the player done a hard reset?
         beq rrrts
         jsr dohiscores
         jmp eepromsave
@@ -2899,21 +2915,22 @@ dop:
 
 ; *******************************************************************
 ; ppyr
+; Draw the pyramids for hit points display in head to head mode.
 ; *******************************************************************
 ppyr:
-        move.l #2,gpu_mode ; Select 'pretty_poly' in camel.gas.
+        move.l #2,gpu_mode       ; Select 'pretty_poly' in camel.gas.
         move.l #pypoly1,in_buf
-        lea parrot,a0 ; Load the GPU module in camel.gas.
-        jsr gpurun      ;do clear screen
-        jsr gpuwait ; Wait for the GPU to finish.
+        lea parrot,a0            ; Load the GPU module in camel.gas.
+        jsr gpurun               ; do clear screen
+        jsr gpuwait              ; Wait for the GPU to finish.
         move.l #pypoly2,in_buf
-        lea parrot,a0 ; Load the GPU module in camel.gas.
-        jsr gpurun      ;do clear screen
-        jsr gpuwait ; Wait for the GPU to finish.
+        lea parrot,a0            ; Load the GPU module in camel.gas.
+        jsr gpurun               ; do clear screen
+        jsr gpuwait              ; Wait for the GPU to finish.
         move.l #pypoly3,in_buf
-        lea parrot,a0 ; Load the GPU module in camel.gas.
-        jsr gpurun      ;do clear screen
-        jmp gpuwait ; Wait for the GPU to finish.
+        lea parrot,a0            ; Load the GPU module in camel.gas.
+        jsr gpurun               ; do clear screen
+        jmp gpuwait              ; Wait for the GPU to finish.
 
 
 ; *******************************************************************
@@ -3917,7 +3934,7 @@ stalp:
         add #$08,d4
         move.l a0,-(a7) ; Stash some values in the stack so we can restore them later.
         lea equine2,a0 ; Load the GPU module in donky.gas.
-        jsr gpurun      ;do starplane
+        jsr gpurun      ;1 in gpu_mode means: do starplane
         jsr gpuwait ; Wait for the GPU to finish.
 
         move.l (a7)+,a0 ; Restore stashed values from the stack.
@@ -4098,7 +4115,6 @@ nomo:
         move.l #field1,(a0)    ;circ buffer base
         move.l #0,d0
         move.l d0,4(a0)      ;global Phase
-
 
         move.l pongzv,8(a0)
         move.l vp_x,12(a0)
@@ -5132,6 +5148,7 @@ failfade:
 
 ; *******************************************************************
 ; m7test
+; Used in the bonus round
 ; *******************************************************************
 m7test:
         tst psycho
@@ -5216,10 +5233,7 @@ npsu1:
         jsr gpurun      ;do clear screen
         jsr gpuwait ; Wait for the GPU to finish.
 
-
         move.l #3,gpu_mode  ;mode 3 is starfield1 in llama.gas.
-;  move.l vp_x,in_buf+4
-;  move.l vp_y,in_buf+8
         clr.l in_buf+4
         clr.l in_buf+8
         move.l vp_z,d0
@@ -5232,8 +5246,6 @@ npsu1:
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun    ;do gpu routine
         jsr gpuwait ; Wait for the GPU to finish.
-
-
 
         move.l #1,gpu_mode ; Op1 is 'mode7' in ox.gas.
         lea in_buf,a0 ; Point our GPU RAM input buffer at a0
@@ -6005,7 +6017,7 @@ stlp:
         add #$08,d4
         move.l a0,-(a7) ; Stash some values in the stack so we can restore them later.
         lea equine2,a0 ; Load the GPU module in donky.gas.
-        jsr gpurun      ;do starplane
+        jsr gpurun      ; 1 in gpu_mode means: do starplane
         jsr gpuwait ; Wait for the GPU to finish.
         move.l (a7)+,a0 ; Restore stashed values from the stack.
         dbra d6,stlp
@@ -6810,7 +6822,7 @@ mpixex: lea in_buf,a0         ; Point our GPU RAM input buffer at a0.
 ; gringbull
 ; *******************************************************************
 gringbull:
-        move.l #3,gpu_mode  ; Select 'scar' in camel.gas.. Multiple images stretching towards you in Z
+        move.l #3,gpu_mode  ; Select 'crex' in camel.gas.. Multiple images stretching towards you in Z
         lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
         move.l #pic2,(a0)+  ;srce screen for effect
         move.l #$8300d7,(a0)+  ;srce start pixel address
@@ -6880,13 +6892,12 @@ polyr:
 ; Unused code
 ; *******************************************************************
 polydemo:
-        move.l #0,gpu_mode ; Select 'undraw' in camel.gas.
+        move.l #0,gpu_mode ; Select 'poly' in camel.gas.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
-;  clr.l backg
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
         jsr gpuwait ; Wait for the GPU to finish.
-        move.l #1,gpu_mode    ;mode to draw poly
+        move.l #1,gpu_mode    ; Select 'poly' in xcamel.gas
         move rpcopy,ranptr    ;reset RNG to known value
         move #19,d0
 pollies:
@@ -9193,52 +9204,60 @@ makemirr:
 
 ; *******************************************************************
 ; setclaw
+; Create the player's claw object, the caller adds it to the activeobjects
+; list.
+; Current player number is in d7. Player 1 = 1, Player 2 = 2.
 ; *******************************************************************
 setclaw:
         move.l a6,a0
-        move.l claws,(a6)    ;claw header
-        clr.l 4(a6)
-        clr.l 8(a6)    ;initial X and Y position
-        move.l #webz-80,d0; Store just above the top of the web's Z position in d0.
-        swap d0      ;initial Z position
-        move.l d0,12(a6) ; Set it as our Z position in activobject entry.
-        move.l web_firstseg,16(a6)    ;web position
-        clr.l 20(a6)    ;clear CLAWV
-        move.l #$400,24(a6)  ;clear CLAWA
-        clr.l 28(a6)
-        clr 32(a6)    ;initial X,Y,Z rotation is zero
-        move #0,34(a6)    ;no draw at first, it will be Z-TRAIL...
-        move #255,40(a6)    ;yellow, the proper colour for a Tempest claw
-        move #1,42(a6)    ;scaler value
-        move #$0303,48(a6)  ;fire timer  (0303 std)
-        tst beastly
-        beq knobby
-        move #$0606,48(a6)
-knobby:
-        cmp #2,players
-        beq setdouble
-        move #16,46(a6)
-        bra set_rezclaw    ;Not 2-player simul mode
-setdouble:
-        move d7,d0
-        add #14,d0
-        move d0,46(a0)    ;Select appropriate clawcon routine; save it in 44()
-        cmp #1,d7    ;this routine entered with player claw no. in d7
-        bne set_rezclaw    ;modifications for player 2's claw
-        move #95,40(a0)    ;Colour of second claw
-        add #2,16(a0)    ;Second claw rezzes nearby
+        move.l claws,(a6)            ; Set 'claws' as the array of solids to use for drawing.
+        clr.l 4(a6)                  ; Set X to 0.
+        clr.l 8(a6)                  ; Set Y to 0.
+        move.l #webz-80,d0           ; Store just above the top of the web's Z position in d0.
+        swap d0                      ; initial Z position
+        move.l d0,12(a6)             ; Set it as our Z position in activobject entry.
+        move.l web_firstseg,16(a6)   ; web position
+        clr.l 20(a6)                 ; clear CLAWV
+        move.l #$400,24(a6)          ; clear CLAWA
+        clr.l 28(a6)                 ; Set roll to zero..
+        clr 32(a6)                   ; initial X,Y,Z rotation is zero
+        move #0,34(a6)               ; no draw at first, it will be Z-TRAIL...
+        move #255,40(a6)             ; yellow, the proper colour for a Tempest claw
+        move #1,42(a6)               ; scaler value
+        move #$0303,48(a6)           ; fire timer  (0303 std)
+        tst beastly                  ; Are we in beastly mode?
+        beq knobby                   ; If not, skip.
+        move #$0606,48(a6)           ; If  in beastly mode, make firing less frequent.
 
+knobby: cmp #2,players               ; Are we in 2 player mode?
+        beq setdouble                ; If yes, figure out which player we're setting up.
+
+        ; We're in single player mode, so set up the object update routine and return.
+        move #16,46(a6)              ; Set secondary update routine to 'claw_con1'.
+        bra set_rezclaw              ; Set up the rest of the object and return.
+        ; Returns
+        
+        ; We're in 2 player mode, figure out which player we're creating.
+setdouble:
+        move d7,d0        ; Put the player number in d7.
+        add #14,d0        ; Add 14 to it.
+        move d0,46(a0)    ; Set object update routine for Player1 as claw_con2, for Player 2 as claw_con1.
+        cmp #1,d7         ; Is this for Player 1?
+        bne set_rezclaw   ; If not, skip next bit.
+        move #95,40(a0)   ; Set colour of Player 1 claw.
+        add #2,16(a0)     ; Second claw rezzes nearby
+        
 ; *******************************************************************
 ; set_rezclaw
 ; Set up the activeobject object so that it can be a rezclaw.
 ; *******************************************************************
 set_rezclaw:
         move #$f000,36(a6)
-        move #2,44(a6)
-        move #17,54(a6) ; Object update routine in run_vex is 'rez_claw'. 
-        move #0,34(a6) ; Draw routine in draw_vex is 'rrts', i.e. draw nothing.
+        move #2,44(a6)               ; Set Climb mode to blowaway
+        move #17,54(a6)              ; Object update routine in run_vex is 'rez_claw'.
+        move #0,34(a6)               ; Draw routine in draw_vex is 'rrts', i.e. draw nothing.
         move #-1,38(a6)
-        move #0,52(a6)
+        move #0,52(a6)               ; Set claw to 'not an enemy'.
         rts
 
 ; *******************************************************************
@@ -9410,7 +9429,7 @@ make_claws:
         move.l #0,d5          ; Set z centre.
         clr.l d6              ; Set initial orientation
         
-        move #7,d7            ; We have 7 claws to build.
+        move #7,d7            ; We have 8 claws to build.
 mclaws: move d7,-(a7)         ; Stash some values in the stack so we can restore them later.
         clr d7
         move.l (a6)+,a1       ; Get the next claw data structure from uclaws.
@@ -12995,33 +13014,42 @@ noball:
 ; srezclaw
 ; *******************************************************************
 srezclaw:
-        move #17,34(a6) ; Draw routine in draw_vex is 'dsclaw2'.
-        add #$40,36(a6)  ;close rez spacing
-        bne go_con
-
-        move.l _claw,d0
-        cmp.l (a6),d0
-        bne ncjmp    ;only clear jmp if this is a claw
-
-        clr.l cjump    ;use as jump indicator/velocity
-ncjmp:
-        tst blanka ; Are we drawing solids or vectors?
-        beq vclaw ; If vector, skip to vclaw.
-        cmp #21,46(a6) ; Is it a droid?
-        beq vclaw    ;standard vector rez if a droid
-
-        move #16,34(a6)     ; We're a solid. Draw routine in draw_vex is 'dsclaw'. This is draw solid claw.
-        bra rclaw
-
-vclaw:  move #1,34(a6)     ; Draw routine in draw_vex is 'draw'.
-rclaw:  move 46(a6),54(a6)  ;set clawcon in run_vex as intrinsic routine
-        move #-1,52(a6)    ;set mode to Vuln
-go_con:
-        move 46(a6),d0    ;skip on to clawcon (can move and fire during rezz)
-        asl #2,d0 ; Multiply it by 4.
-        lea run_vex,a0
-        move.l 0(A0,d0.w),a0
-        jmp (a0)
+        ; If we're too close or something use dsclaw2 as the draw routine.
+        move #17,34(a6)        ; Set draw routine in draw_vex as 'dsclaw2'.
+        add #$40,36(a6)        ; Something about close rez spacing?
+        bne go_con             ; If so, nothing further to do except run the object update routine for the claw.
+        
+        ; Otherwise we're drawing as a solid or vector. First check
+        ; if we should jump.
+        move.l _claw,d0        ; Store _claw in d0.
+        cmp.l (a6),d0          ; Check if the current object (a6) is a claw.
+        bne ncjmp              ; If not a claw, don't clear cjump.
+        ; Clear the jump indicator for the claw.
+        clr.l cjump            ; use as jump indicator/velocity
+        
+        ; Are we drawing the claw as a solid or a vector?
+ncjmp:  tst blanka             ; Are we drawing solids or vectors?
+        beq vclaw              ; If vector, skip to vclaw.
+        cmp #21,46(a6)         ; Is it a droid?
+        beq vclaw              ; If so, draw it as a vector.
+        move #16,34(a6)        ; We're a solid. Draw routine in draw_vex is 'dsclaw'. This is draw solid claw.
+        bra rclaw              ; Skip to rclaw.
+vclaw:  move #1,34(a6)         ; Draw routine in draw_vex is 'draw'.
+        
+        ; Get the 'current' update routine from position 46 and use that as
+        ; the object update routine. Can be one of: dsclaw,
+rclaw:  move 46(a6),54(a6)     ; set our obejct update routine
+        move #-1,52(a6)        ; set mode to vulnerable.
+        
+        ; Invoke the object's secondary update routine.
+        ; In single-player games this will be claw_con1.
+        ; In head-to-head, Player 1 is claw_con2, Player 2 is claw_con1.
+go_con: move 46(a6),d0         ; skip on to rez_claw (can move and fire during rezz)
+        asl #2,d0              ; Multiply it by 4.
+        lea run_vex,a0         ; Put run_vex in a0.
+        move.l 0(a0,d0.w),a0   ; Use our secondary update index to get the routine to use.
+        jmp (a0)               ; Execute it.
+        ; Returns
 
 ; *******************************************************************
 ; dsclaw2
@@ -13031,9 +13059,8 @@ go_con:
 dsclaw2:
         cmp #21,46(a6) ;  Is it a droid?
         beq droidyo ; If so, get draw_z to draw it.
-        jsr nutargg ; Otherwise use nutargg.
-droidyo:
-        jmp draw_z
+        jsr nutargg ; Otherwise use nutargg to anmiate the movement.
+droidyo:jmp draw_z
 
 ; *******************************************************************
 ; Despite its name this routine updates the state of most active game
@@ -13433,30 +13460,39 @@ spdone:
 
 ; *******************************************************************
 ; nutargg
-; Draw the claw in a certain way?
+; Animate the movement of the claw by changing the member of 'claws',
+; which is a list of activeobject-type objects, for all 8 claw polygons.
 ; *******************************************************************
 nutargg:
-        move.l 16(a6),d0 ; Put the position on the web in d0.
-        lsl.l #6,d0 ; Multiply it by 64.
-        swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
+        ; Get our position in the web and convert it to a value we can use
+        ; for getting the right polygon for that position in 'claws'.
+        ; First, we convert the position to an index we can use.
+        move.l 16(a6),d0         ; Put the position on the web in d0.
+        lsl.l #6,d0              ; Multiply it by 64.
+        swap d0                  ; Swap position of the first 2 bytes with last 2 bytes.
         move d0,d1
         and #$1c,d0
-        move.l #1,d2      ;h.scale valu
+        move.l #1,d2             ; h.scale valu
         and #$20,d1
         bne noflipme
+        
+        ; Flip the index so that we get a claw for the top of the web.
         neg.l d2
         move #$1c,d1
         sub d0,d1
-        move d1,d0      ;opposite frame
+        move d1,d0               ; opposite frame
+        
+        ; Now we have claw's position as index we can use, so get the appropriate
+        ; claw object from 'claws'.
 noflipme:
-        lea claws,a0 ; Point a0 at claws.
-        move.l 0(a0,d0.w),(a6)    ;anim-frame of claw
-        move 16(a6),d0
-        lsl #1,d0 ; Multiply it by 2.
-        move.l web_otab,a0
-        move 0(a0,d0.w),28(a6)    ;align to web section
-        move.l (a6),a0
-        move.l d2,4(a0)      ;scale (-ve to flip frame)
+        lea claws,a0             ; Point a0 at claws.
+        move.l 0(a0,d0.w),(a6)   ; Use our position in the web to point a6 at the right claw polygon.
+        move 16(a6),d0           ; Put the current position on web in d0.
+        lsl #1,d0                ; Multiply it by 2.
+        move.l web_otab,a0       ; Point a0 at the orientation table.
+        move 0(a0,d0.w),28(a6)   ; Get the orientation value from the table and store it as 'roll' in our new activeobject.
+        move.l (a6),a0           ; Store the new claw to use in Byte 0 of the claw's activobject.
+        move.l d2,4(a0)          ; scale (-ve to flip frame)
         rts
 
 ; *******************************************************************
@@ -15872,7 +15908,7 @@ fw_ex:  lea in_buf,a0         ; Point our GPU RAM input buffer at a0.
         neg.l d0              ; Negate the rad value
         add.l #$ff,d0         ; Add ff, which decreases it by 1.
         move.l d0,44(a0)      ; Update it as our new step count.
-        move.l #4,gpu_mode    ; Op 4 is 'pshere' in ox.gas.
+        move.l #4,gpu_mode    ; Op 4 is 'psphere' in ox.gas.
         lea bovine,a0         ; Load the GPU module in ox.gas.
         jsr gpurun            ; do clear screen
         jmp gpuwait           ; Wait for the GPU to finish.
@@ -15938,11 +15974,11 @@ run_vex:
 ; *******************************************************************
 run_objects:
         move #1,diag
-        sub.b #1,pudel            ;do Pulsar pulses
+        sub.b #1,pudel            ; do Pulsar pulses
         bpl zzonk
         move.b pudel+1,pudel
-        add #1,pucnt ; Increment our pulsar counter.
-        and #$0f,pucnt ; Keep it between 0 and 15.
+        add #1,pucnt              ; Increment our pulsar counter.
+        and #$0f,pucnt            ; Keep it between 0 and 15.
         beq clzd
 zzonk:  cmp #7,pucnt
         bne zonk
@@ -15953,97 +15989,102 @@ zzonk:  cmp #7,pucnt
         bra zonk
 clzd:   clr zapdone
 zonk:   move #2,diag
-        move #0,d7                ;use to check for wave_end
-        move.l #500,d6            ;use to find the nearest enemy, for the Droid's brain
-        move.l activeobjects,a6
-        clr _sz ; Stop superzapper running.
-        tst szap_on ; Is supersapper on?
+        move #0,d7                ; use to check for wave_end
+        move.l #500,d6            ; use to find the nearest enemy, for the Droid's brain
+        move.l activeobjects,a6   ; Point a6 at the activeobjects list.
+        clr _sz                   ; Stop superzapper running.
+        tst szap_on               ; Is supersapper on?
         beq r_obj                 ; If not, process our activeobjects.
-
-        move frames,d0 ; Stash the frame count in d0.
-        and #3,d0 ; Can we enable superzapper?
-        bne r_obj ; If not, skip to rest of objects.
-        move #1,_sz               ;Kill something please... make superzapper active.
-
-        ; Iterate through the activobjects list and run the appropriate routine
+        
+        move frames,d0            ; Stash the frame count in d0.
+        and #3,d0                 ; Can we enable superzapper?
+        bne r_obj                 ; If not, skip to rest of objects.
+        move #1,_sz               ; Kill something please... make superzapper active.
+        
+        ; Iterate through the activobjects list in a6 and run the appropriate routine
         ; in 'run_vex' for each object.
-r_obj:  cmpa.l #-1,a6
-        beq r_end
-        tst 50(a6)
-        bmi r_end1                ;>>>>> KLUDGE to prevent a garbled list being traversed
-
+r_obj:  cmpa.l #-1,a6 ; Have we reached the end of the activeobjects lit?
+        beq r_end ; If so, clean up and exit.
+        tst 50(a6) ; Is the object marked for deletion?
+        bmi r_end1                ; If so, exit and clean up. >>>>> KLUDGE to prevent a garbled list being traversed
+        
         lea run_vex,a0            ; Store run_vex in a0
-        move 34(a6),d0            ; Collapsed to a pixel?
-        bpl notcolap              ; If not, go to notcolap.
+        move 34(a6),d0            ; Do we have a draw routine or are we collapsed to a pixel?
+        bpl notcolap              ; If not collapsed to a pixel yet, go to notcolap.
+
+        ; Object is collapsed to a pixel or doesn't have a draw routine.
         sub #2,12(a6)             ; Yes,
         clr d0
-        cmp #webz+80,12(a6)       ;advance to edge of Web...
-        bgt r_o1                  ;no official action, we already did it
-        cmp #11,54(a6) ; Object update routine in run_vex is 'run_pulsar'. 
+        cmp #webz+80,12(a6)       ; advance to edge of Web...
+        bgt r_o1                  ; no official action, we already did it
+        cmp #11,54(a6)            ; Object update routine in run_vex is 'run_pulsar'.
         bne setxx
-        move pucnt,d1 ; Put our pulsar counter in d1.
-        and #$0f,d1 ; Keep it between 0 and 15.
-        cmp #3,d1                 ;Make sure that a pulsar is not created in a dangerous phase
+        move pucnt,d1             ; Put our pulsar counter in d1.
+        and #$0f,d1               ; Keep it between 0 and 15.
+        cmp #3,d1                 ; Make sure that a pulsar is not created in a dangerous phase
         blt setxx
-        add #2,12(a6) ; Set Z position in activobject entry.
-        bra r_o1                  ;Makes pulsars wait until innocent before touchdown
+        add #2,12(a6)             ; Set Z position in activobject entry.
+        bra r_o1                  ; Makes pulsars wait until innocent before touchdown, go to next object in list.
+        
+setxx:  neg 34(a6)                ; Negate the index, so that it is positive again and points to a draw routine.
 
-setxx:  neg 34(a6)                ;make it real now
-
+       ; Update the object.
 notcolap:
-        move 54(a6),d0 ; Put the object type in d0.
-        bpl r_o1                  ;-ve treated as no action
+        move 54(a6),d0            ; Put the object type in d0.
+        bpl r_o1                  ; -ve treated as no action
         clr d0
-r_o1:   asl #2,d0 ; Multiply it by 4.
+
+r_o1:   asl #2,d0                 ; Multiply it by 4.
         move.l 60(a6),-(a7)       ; Put address of next object in stack in case this object is unlinked
-        move.l 0(a0,d0.w),a0 ; Use d0 as an index into run_vex to get the motion routine.
-        tst 52(a6)                ;'Enemy' flag
-        beq zokk                  ;(don't count player bulls)
-        bmi zokk                  ;(or claw VULNERABLE flags)
-        cmp 12(a6),d6             ;check against previous nearest
+        move.l 0(a0,d0.w),a0      ; Use d0 as an index into run_vex to get the motion routine.
+        tst 52(a6)                ; 'Enemy' flag
+        beq zokk                  ; (don't count player bulls)
+        bmi zokk                  ; (or claw VULNERABLE flags)
+        cmp 12(a6),d6             ; check against previous nearest
         blt gokk
-        swap d6 ; Swap position of the first 2 bytes with last 2 bytes.
-        move 16(a6),d6            ;get nearest one's Lane #
-        swap d6 ; Swap position of the first 2 bytes with last 2 bytes.
-        move 12(a6),d6            ;make this z nearest
+        swap d6                   ; Swap position of the first 2 bytes with last 2 bytes.
+        move 16(a6),d6            ; get nearest one's Lane #
+        swap d6                   ; Swap position of the first 2 bytes with last 2 bytes.
+        move 12(a6),d6            ; make this z nearest
 gokk:   cmp 12(a6),d7
         bgt zokk
         move 12(a6),d7
-zokk:   movem.l d6-d7,-(a7) ; Stash some values in the stack so we can restore them later.
+zokk:   movem.l d6-d7,-(a7)       ; Stash some values in the stack so we can restore them later.
         move #3,diag
         move.l a0,diag+4
         move.l a6,diag+8
-        tst locked      ; Are we in the middle of adding stuff to activeobjects? ;>>>>> A nasty hack.
-        bne hack
-        jsr (a0)                  ; Run the motion routine selected from run_vex.
-hack:   movem.l (a7)+,d6-d7       ;retrieve furthest-z
-        move.l (a7)+,a6           ;Next
+        tst locked                ; Are we in the middle of adding stuff to activeobjects?
+        bne hack ; If so, don't run the object update routine.
+        jsr (a0)                  ; Run the object update routine selected from run_vex.
+hack:   movem.l (a7)+,d6-d7       ; retrieve furthest-z
+        move.l (a7)+,a6           ; Next
         move #4,diag
         move.l a6,diag+12
         bra r_obj                 ; Move to the next object in activeobjects.
-
-        ; Finished iterating through activeobjects.
+        
+        ; Finished iterating through activeobjects. Do some cleanups and other
+        ; updates.
 r_end:  move.l d6,droid_data
         move #5,diag
-        tst wave_tim              ;has E been done?
-        bpl r_end1                ;Nope
-        cmp #-2,wave_tim          ;total end
+        tst wave_tim              ; has E been done?
+        bpl r_end1                ; Nope
+        cmp #-2,wave_tim          ; total end
         beq rrts
-        cmp #webz-80,d7           ;furthest NME at top of the web?
+        cmp #webz-80,d7           ; furthest NME at top of the web?
         bgt r_end1
 szoom:  move #-2,wave_tim
-
+        
         tst dnt
         bpl skagi
         clr dnt
-skagi:  clr szap_on ; Turn off superzapper.
+skagi:  clr szap_on               ; Turn off superzapper.
         bsr clzapa
-zagga:  move.l #zoom1,routine     ;fly off the web
+        move.l #zoom1,routine     ; fly off the web
         clr l_soltarg
         move #18,d0
-        bsr sclawt                ;any claws to Zoom Mode
+        bsr sclawt                ; any claws to Zoom Mode
         lea _web,a0
-        clr.l 20(a0)              ;zoom velocity
+        clr.l 20(a0)              ; zoom velocity
         clr.l 24(a0)
         move.l #10,zoopitch
         bsr zoomon
@@ -16051,14 +16092,14 @@ banana: cmp #3,cwave
         blt rrts
         cmp #15,cwave
         bgt rrts
-        tst outah ; Have we used the cheat?
-        bne rrts ; If so, return now.
-
-        lea wmes1,a0 ; Set message to "avoid the spikes".
-        clr.l d0 ; Set X position as 0.
-        move.l #$8000,d1 ; Set Y position.
-        bsr setmsg ; Set the message to display.
-        move #250,msgtim1 ; Set a slightly longer time for it to display.
+        tst outah                 ; Have we used the cheat?
+        bne rrts                  ; If so, return now.
+        
+        lea wmes1,a0              ; Set message to "avoid the spikes".
+        clr.l d0                  ; Set X position as 0.
+        move.l #$8000,d1          ; Set Y position.
+        bsr setmsg                ; Set the message to display.
+        move #250,msgtim1         ; Set a slightly longer time for it to display.
         rts
 
 ; *******************************************************************
@@ -16878,7 +16919,7 @@ swebbo:
         move.l d0,(a0)+ ; Add it to our GPU RAM input buffer.
         tst h2h ; Are we playing a head-to-head game?
         beq dragg
-        lea xvector,a2      ; Load the GPU shader in llama.gas.
+        lea xvector,a2      ; Load the GPU shader in goat.gas.
         bra draaa
 
 ; *******************************************************************
@@ -17035,7 +17076,7 @@ snopp2:
         move.l d3,(a0)+ ; Add it to our GPU RAM input buffer.
         move.l d1,(a0)+ ; Add it to our GPU RAM input buffer.
         move.l 36(a6),a1
-        lea xvector,a2 ; Load the GPU shader in llama.gas.
+        lea xvector,a2 ; Load the GPU shader in goat.gas.
         bra draaa
 
 ; *******************************************************************
@@ -17100,7 +17141,7 @@ onlyball:
         move.l d3,(a0)+ ; Add it to our GPU RAM input buffer.
         move.l d1,(a0)+ ; Add it to our GPU RAM input buffer.
         move.l _cube,a1; Set address of the vector object to draw: _cube.
-        lea xvector,a2 ; Load the GPU shader in llama.gas.
+        lea xvector,a2 ; Load the GPU shader in goat.gas.
         move 28(a6),d0
         and.l #$ff,d0 ; Keep it between 0 and 255
         move.l d0,24(a1)  ;XY orientation
@@ -17140,7 +17181,7 @@ draw_pel:
         move.b 0(a4,d0.w),d0   ; Get the color and put it in d0.
         and.l #$ff,d0          ; Keep it between 0 and 255
         move.l d0,(a0)+        ; Add it to our GPU RAM input buffer.
-        move.l #5,gpu_mode     ; Select 'rex' from 'xcamel.gas'.
+        move.l #5,gpu_mode     ; Select 'snglpix' from 'xcamel.gas'.
         lea xparrot,a0         ; Load the GPU module in 'xcamel.gas'.
         jsr gpurun             ; do gpu routine
         jsr gpuwait            ; Wait for the GPU to finish.

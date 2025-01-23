@@ -177,7 +177,7 @@ fastvector:
         .incbin "bin/llama.o"
 xvector:
   DC.L $00f03000 , $00000c46
-        .incbin         "bin/goat.o"
+        .incbin  "bin/goat.o"
 demons:
   DC.L $00f03000 , $00000e48
         .incbin "bin/antelope.o"
@@ -189,16 +189,16 @@ xparrot:
         .incbin "bin/xcamel.o"
 texter:
   DC.L $00f03000 , $000002f6
-        .incbin         "bin/stoat.o"
+        .incbin "bin/stoat.o"
 bovine:
   DC.L $00f03000 , $00000a3c
         .incbin "bin/ox.o"
 equine:
   DC.L $00f03000 , $00000b4a
-        .incbin         "bin/horse.o"
+        .incbin "bin/horse.o"
 equine2:
   DC.L $00f03000 , $000009e0
-        .incbin         "bin/donky.o"
+        .incbin "bin/donky.o"
 
 .data
 
