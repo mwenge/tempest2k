@@ -697,6 +697,10 @@ rex:
         nop
         movei #$8c0000,r28      
 
+; *******************************************************************
+; orex
+; The common base for both crex and rex.
+; *******************************************************************
 orex:   movei #A1_BASE,a1_n
         movei #A2_BASE,a2_n             ;initialise the usual stuff
         movei #B_CMD,blit
@@ -776,17 +780,7 @@ orex:   movei #A1_BASE,a1_n
         sub xx,r0
         sub yy,r1               ;r0 has x pixel+frac, r1 has y
 
-;       move _xstart,xstep
-;       move ayshear,ystep
-;       neg xstep
-;       neg ystep
-;       add shearx,xstep        ;x step is -(width*scale)-shearx
-;       add scaley,ystep        ;y step is -(width*yshear)+scaley
-
-
-
-;*** HACK to prevent a1_n clipping bug. Brute force but who gives a shit.
-
+        ;*** HACK to prevent a1_n clipping bug. Brute force but who gives a shit.
         movei #pasthack,r30
         cmpq #0,r0              ;check for bug condition (LH sprite edge off the screen)
         nop
@@ -815,12 +809,9 @@ shrnk:
         jump eq,(r28)
         nop
 
-
-
-
 ; *******************************************************************
 ; pasthack
-; Helper routine for pasthack.
+; Helper routine for rex.
 ; *******************************************************************
 pasthack:
         move r0,xx

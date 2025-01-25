@@ -131,14 +131,14 @@
 ;  ------------------------- 
 ; Once we have an 'activeobjects' list with stuff in it, 'Frame' has a list to
 ; process every time it is called by the CPU (in addition to generating new
-; objects). The routine that does this is called 'run_objects' and it iterates through every object in the
-; activeobjects list and runs the given routine for that object, e.g.
-; 'run_flipper' for a Flipper object.  Every object points to the routine
-; responsible for updating its state in Bytes 54-56. It does this using an index
-; into the 'run_vex' array. So for example, a flipper object will have a value of
-; 2 in Bytes 54-56 as this points to the third element in run_vex: 'run_flipper',
-; a Tanker object will have a value of 5 as this points to the sixth element in
-; run_vex: 'run_tanker', and so on.
+; objects). The routine that does this is called 'run_objects' and it iterates
+; through every object in the activeobjects list and runs the given routine for
+; that object, e.g.  'run_flipper' for a Flipper object.  Every object points
+; to the routine responsible for updating its state in Bytes 54-56. It does
+; this using an index into the 'run_vex' array. So for example, a flipper
+; object will have a value of 2 in Bytes 54-56 as this points to the third
+; element in run_vex: 'run_flipper', a Tanker object will have a value of 5 as
+; this points to the sixth element in run_vex: 'run_tanker', and so on.
 ; 
 ; Once all the objects in activeobjects have had their 'run_vex' routine
 ; executed, 'Frame' can reset 'sync' to 0, indicating to 'mainloop' that it's
@@ -251,63 +251,63 @@
 ;  -----------------------      ----------------------  -------------   -----------       -------------    ------------    
 ;  Table 2: The creation, update, and draw routines used by game elements in Tempest 2000.
 ;
-; If you look at the above table long enough you may realize that not all objects are created
-; 'de novo'. Some objects 'turn into' other objects rather than get created from scratch by
-; 'run_wave'. For example, an enemy will turn into an explosion.
+; If you look at the above table long enough you may realize that not all
+; objects are created 'de novo'. Some objects 'turn into' other objects rather
+; than get created from scratch by 'run_wave'. For example, an enemy will turn
+; into an explosion.
 ; 
-; The management of claw objects is slightly more complex than the table above admits. 
+; The management of claw objects is slightly more complex than the table above
+; admits. 
 ;       Single Player Claw      setclaw                 srezclaw->claw_con1       dsclaw            sclaws                 
 ;
-; Solids
-; -------
-; 00 rrts
-; 01 cdraw_sflipper
-; 02 draw_sfliptank
-; 03 s_shot
-; 04 draw_sfuseball
-; 05 draw_spulsar
-; 06 draw_sfusetank
-; 07 ringbull
-; 08 draw_spulstank
-; 09 draw_pixex
-; 10 draw_pup1
-; 11 draw_gate
-; 12 draw_h2hclaw
-; 13 draw_mirr
-; 14 draw_h2hshot
-; 15 draw_h2hgen
-; 16 dxshot
-; 17 draw_pprex
-; 18 draw_h2hball
-; 19 draw_blueflip
-; 20 ringbull
-; 21 supf1
-; 22 supf2
-; 23 draw_beast
-; 24 dr_beast3
-; 25 dr_beast2
-; 26 draw_adroid
-
-; Draw Type  draw_vex
-; --------   --------
-;   0       rrts
-;   1       draw
-;   2       draw_z
-;   3       draw_vxc
-;   4       draw_spike
-;   5       draw_pixex
-;   6       draw_mpixex
-;   7       draw_oneup
-;   8       draw_pel
-;   9       changex
-;   10      draw_pring
-;   11      draw_prex
-;   12      dxshot
-;   13      drawsphere
-;   14      draw_fw
-;   15      dmpix
-;   16      dsclaw
-;   17      dsclaw2
+;
+; Drawing Things to the Screen
+; ----------------------------
+; When we describe 'drawing' to a screen above, what we actually mean is
+; filling a region in RAM with data that can be used by the Jaguar's Graphics
+; Processor to fill a physical screen that is 384 pixels wide and 280 pixels
+; high with the objects that we have drawn. Since each pixel is represented by
+; 2 bytes of RAM, this means the region of RAM containing the data necessary to
+; draw a full screen is 215040 bytes long (384*280*2). With the width and
+; height of the screen fixed in this way, we know that the first 768 bytes in
+; this region contain the pixel data for the first line of the screen, the next
+; 768 bytes the pixel data for the second line, and so on.
+;
+; So when we describe the GPU or Blitter drawing to the screen what we mean is
+; that they are filling this region of RAM with the necessary pixel data for
+; each screen line. 
+;
+; The GPU's speciality is performing the very fast trigonometric operations
+; necessary to calculate the co-ordinates of a 3d object in 3d space and
+; mapping these to the two-dimensional screen. 
+; 
+; The Blitter's speciality is performing bulk copy and move operations of the
+; pixel data in the region of RAM.
+;
+; Neither have any concept of a physical screen or the hardware operations
+; necessary to turn our 215040 long region of RAM into light on a physical
+; screen. This specialty is performed by the Graphics Processor - it takes the
+; region of RAM filled out by the GPU and Blitter and turns it into images on a
+; physical screen.
+;
+; So at its simplest, getting our screens physically drawn is as easy as
+; handing a pointer to the region of RAM we've populated using the GPU/Blitter
+; and telling the Graphics Processor to paint it to the physical screen. In
+; Tempest 2000 this region of RAM is whatever the address in 'gpu_screen' is
+; pointing to. All drawing by the GPU and the Blitter is done to whatever this
+; address is. This creates flexibility because we can change the address and
+; thus draw to more than one region of RAM, in other words we can draw multiple
+; different screens and decide which one to get the Graphics Processor to
+; paint!
+;
+; For Tempest 2000, 'gpu_screen' usually contains a pointer to the region of
+; RAM referenced by 'dscreen'.  This is a 215040 byte region of RAM at address
+; $10034800. So for the most part this is the data we want the Graphics Processor
+; to turn into images on a screen.
+;
+; Display Lists
+; ------------
+; The actual mechanics of this are surprisingly involved. 
 ;
 ; A Short Primer on 68K Motorola Assembly
 ; ---------------------------------------
@@ -754,7 +754,7 @@ cram:   clr.l (a0)+
         
         ; Set up interupts
         jsr scint                      ; set intmask according to controller prefs
-        move.l #Frame,$100
+        move.l #Frame,$100 ; Make 'Frame' the interrupt routine.
         move.w n_vde,d0
         or #1,d0
         move d0,VI
@@ -864,7 +864,7 @@ brdb:   move.l pad_now,d0
         move.l d0,d1
         and.l #bigreset|optionbutton,d1
         cmp.l #bigreset|optionbutton,d1
-        beq clearee                       ; Clear the eeprom.
+        beq clearee                       ; Get the player to confirm we can clear the eeprom.
         and.l #bigreset,d0                ; Check the reset button again.
         bne brdb                          ; Debounce any 'big' reset
         
@@ -1076,6 +1076,8 @@ z2:
         clr z                         ; Clear hard reset signal.
         tst rounds
         bmi rreset                    ; Return to the title screen.
+
+        ; Start the head-to-head game.
         jsr initobjects               ; Initialize the activeobjects list.
         add #1,cwave                  ; Increment level
         and #$0f,cwave                ; Modulus 15
@@ -1097,18 +1099,17 @@ dobeastly:
         move #20,d0 ; Set Y position of text.
         jsr centext ; Display horizontally centred text.
 
-        lea victpage,a5 ; Point a5 at victpage.
-        tst beastly
-        beq stvpa
-        lea victpage2,a5
-stvpa:
-        move #40,d0
-        move #40,d1
-        jsr pager
-        jsr premess
+        lea victpage,a5 ; Point a5 at victpage: messages when you beat game in normal mode.
+        tst beastly ; Did we beat the game in beastly mode?
+        beq stvpa ; If not, skip to next line. 
+        lea victpage2,a5 ; Point a5 victpage2: messages when you beat the game in beastly mode.
+stvpa:  move #40,d0 ; Set X pos of message text.
+        move #40,d1 ; Set Y pos of message text.
+        jsr pager ; Display the messages.
+        jsr premess ; Display 'fire to quit'.
         jsr settrue3
         move.l #$ff0000,delta_i
-        move.l #glocube,demo_routine
+        move.l #glocube,demo_routine ; Turn on the pulsing cube background.
         move.l #rrts,routine
         move.l #rrts,fx
         move #$20,polspd1
@@ -1128,35 +1129,37 @@ certnotpal:
         bset.b #2,sysflags ; Enable Beastly mode in the flags.
         move #-1,lives
         move #8000,attime
-        jsr attr
+        jsr attr ; Wait for player to press fire.
         jsr fade ; Do a melto-vision transition.
         clr gb
-        bra dloop
+        bra dloop ; Back to the top-level title screen loop.
 
 ; *******************************************************************
 ; glocube
 ; A 'demo_routine' routine
+; Uses 'scar' in antelope.gas to draw a glowing pulsating cube in the
+; beastly mode congratulations screen.
 ; *******************************************************************
 glocube:
-        move #7000,attime
+        move #7000,attime ; Set the duration of this screen in attract mode.
         move.l #(PITCH1|PIXEL16|WID384),d0
         move.l d0,source_flags
         move.l d0,dest_flags
         lea in_buf,a0                        ; Point our GPU RAM input buffer at a0.
-        move.l cscreen,(a0)                  ; source screen is already-displayed screen
-        move.l #384,4(a0)                    ; Put full screen width in GPU input buffer.
-        move.l #240,d0                       ; Full screen height.
+        move.l cscreen,(a0)                  ; scar->a1_n: source screen is already-displayed screen
+        move.l #384,4(a0)                    ; scar->d_width: Put full screen width in GPU input buffer.
+        move.l #240,d0                       ; Set full screen height.
         add palfix1,d0                       ; Adjust for PAL
-        move.l d0,8(a0)                      ; Put width in input buffer.
-        move.l #$1ec,12(a0)                  ; Put X scale in GPU input buffer.
-        move.l #$1ec,16(a0)                  ; Put Y scale in GPU inputbuffer.
-        move.l #0,20(a0)                     ; Put initial angle in brads in GPU input buffer.
-        move.l #$c00000,24(a0)               ; Put x centre  postion in GPU input buffer.
+        move.l d0,8(a0)                      ; scar->d_height:  Put height in input buffer.
+        move.l #$1ec,12(a0)                  ; scar->x_scale:  Put X scale in GPU input buffer.
+        move.l #$1ec,16(a0)                  ; scar->y_scale:  Put Y scale in GPU inputbuffer.
+        move.l #0,20(a0)                     ; scar->angle:  Put initial angle in brads in GPU input buffer.
+        move.l #$c00000,24(a0)               ; scar->x1_n:  Put x centre  postion in GPU input buffer.
         move.l #$780000,d0                   ; Set Y centre.
         add.l palfix3,d0                     ; Adjust for PAL
-        move.l d0,28(a0)                     ; Add y centre  to CPU input buffer.
-        move.l #$0,32(a0)                    ; offset of dest rectangle in input buffer
-        move.l delta_i,36(a0)                ; change of i per increment in input buffer
+        move.l d0,28(a0)                     ; scar->y1_n:  Add y centre  to CPU input buffer.
+        move.l #$0,32(a0)                    ; scar->x2_n,y2_n:  offset of dest rectangle in input buffer
+        move.l delta_i,36(a0)                ; scar->delta:  change of i per increment in input buffer
         move.l #2,gpu_mode                   ; Select 'scar' in antelope.gas. op 2 of this module is Scale and Rotate
         move.l #demons,a0                    ; Load the GPU module in antelope.gas.
         jsr gpurun                           ; Run the selected GPU module.
@@ -1234,13 +1237,13 @@ echck:
         move.l pad_now+4,d2
         and.l #allbutts,d2
         beq dop
-        move #-1,attime
+        move #-1,attime ; Clear the countdown clock for this screen in attract mode.
         bra dop
 
 ; *******************************************************************
 ; clearee
-; Clear the EEPROM
-; This contains saved high scores and other settings.
+; Display the 'Clear Cartridge Memory?' screen to the user.
+; Clear the EEPROM which contains saved high scores and other settings.
 ; *******************************************************************
 clearee:
         move.l #rrts,routine
@@ -1248,36 +1251,41 @@ dbonce:
         move.l pad_now,d0
         and.l #bigreset,d0
         bne dbonce
-        clr z ; Clear hard reset signal.
-        move.l #optiondraw,demo_routine
+        clr z                             ; Clear hard reset signal.
+        move.l #optiondraw,demo_routine   ; Turn on the riplling atari logo in the background.
         clr.l pongx
         clr.l pongy
         clr.l pongz
         clr.l pc_1
         clr.l pc_2
-        move.l #option11,the_option
-        clr selected
-        move #1,selectable
-        jsr do_choose
-        tst selected ; Are we playing Tempest Classic?
-        beq rreset ; If so, return to the title screen.
-        lea defaults,a0    ; Point default hiscores to a0
-        lea hscom1,a1      ; Point stored hiscores to a1
 
+        ; Display the 'Clear Cartridge Memory?' confirmation screen.
+        move.l #option11,the_option       ; Display options as 'No no no!' and 'Absolutely!'
+        clr selected                      ; Make 'No no no' the default selection.
+        move #1,selectable                ; Two options to select from.
+        jsr do_choose                     ; Ask the player to choose.
+        
+        tst selected                      ; Did the confirm to delete the settings?
+        beq rreset                        ; If not, return to the title screen.
+        
+        ; Otherwise clear the EEPROM settings.
+        lea defaults,a0                   ; Point default hiscores to a0
+        lea hscom1,a1                     ; Point stored hiscores to a1
+        
         ; Copy the default hiscores to hiscore storage
         move #57,d0
-crset:  move (a0)+,(a1)+    ;copy var defaults to ram
+crset:  move (a0)+,(a1)+                  ; copy var defaults to ram
         dbra d0,crset
-
-        jsr spall           ; (makesure PAL bit is set)
-        jsr eepromsave      ; Save the defaults back to eeprom
-        lea hscom1,a0       ; and expand both score tables
-        jsr xscoretab       ; Initialize the high score table
-        jsr xkeys           ; Load the default player keys
-        jsr setfires        ; Load the default fire button settings
-        jsr scint           ; actually reset stuff that changed
-        jsr intune          ; Reset the tunes.
-        bra rreset      ;go away
+        
+        jsr spall                         ; (makesure PAL bit is set)
+        jsr eepromsave                    ; Save the defaults back to eeprom
+        lea hscom1,a0                     ; and expand both score tables
+        jsr xscoretab                     ; Initialize the high score table
+        jsr xkeys                         ; Load the default player keys
+        jsr setfires                      ; Load the default fire button settings
+        jsr scint                         ; actually reset stuff that changed
+        jsr intune                        ; Reset the tunes.
+        bra rreset                        ; Go back to the title screen.
 
 ; *******************************************************************
 ; treset
@@ -1905,7 +1913,7 @@ sthang: bsr settrue
 sthiing: 
         move.l #0,gpu_mode ; Select 'undraw' in antelope.gas.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
-        move.l #$0,backg
+        move.l #$0,backg ; Value in GPU RAM not actually used for anything.
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
         jsr gpuwait ; Wait for the GPU to finish.
@@ -1969,7 +1977,7 @@ stunnel:
 stunl:
         move.l #0,gpu_mode ; Select 'undraw' in antelope.gas.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
-        move.l #$0,backg
+        move.l #$0,backg ; Value in GPU Internal RAM: not actually used for anything?
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
         jsr gpuwait ; Wait for the GPU to finish.
@@ -2663,6 +2671,7 @@ gofeed:
         jsr gpurun                           ; Run the selected GPU module.
         jsr gpuwait                          ; Wait for the GPU to finish.
         
+        ; Calculate the new X and Y scale for the 'Game Over' graphic.
         move.l #4,gpu_mode                   ; Select 'rex' in camel.gas. Multiple images stretching towards you in Z
         lea p_sines,a0                       ; Load the positive sine table to a0.
         move pongx,d0
@@ -2680,21 +2689,21 @@ gofeed:
         add.l #$8000,d1
         add.l #$8000,d2
         
-        ; Game Over
+        ; Draw the Game Over graphic.
         lea in_buf,a0                        ; Point our GPU RAM input buffer at a0.
-        move.l #pic2,(a0)+                   ; srce screen for effect
-        move.l #$150094,(a0)+                ; srce start pixel address
-        move.l #$440091,(a0)+                ; srce size
-        move.l d1,(a0)+                      ; x-scale
-        move.l d2,(a0)+                      ; y-scale
-        move.l #0,(a0)+                      ; shearx
-        move.l #0,(a0)+                      ; sheary
-        move.l #1,(a0)+                      ; Mode 1 = Centered
-        move.l #0,d0
-        move.l d0,(a0)+                      ; Add it to our GPU RAM input buffer.
-        move.l d0,(a0)+                      ; Add it to our GPU RAM input buffer.
-        move.l #$600000,d0
-        move.l d0,(a0)+                      ; Dest x,y,z
+        move.l #pic2,(a0)+                   ; crex->_bass: srce screen for Game Over graphics is pic2
+        move.l #$150094,(a0)+                ; crex-> spixel: srce start pixel address for 'Game Over'
+        move.l #$440091,(a0)+                ; crex-> ssize: srce size for 'Game Over'
+        move.l d1,(a0)+                      ; crex-> scalex: x-scale calculated above
+        move.l d2,(a0)+                      ; crex-> scaley: y-scale calculated above
+        move.l #0,(a0)+                      ; crex-> shearx: shearx
+        move.l #0,(a0)+                      ; crex-> sheary: sheary
+        move.l #1,(a0)+                      ; crex-> mode: Mode 1 = Centered
+        move.l #0,d0 ; Store 0 in d0 for X and Y destination position..
+        move.l d0,(a0)+                      ; crex-> dstx: Destination X position.
+        move.l d0,(a0)+                      ; crex-> dsty: Destination Y position.
+        move.l #$600000,d0 ; Store Z in d0.
+        move.l d0,(a0)+                      ; crex-> dstz: 
         lea parrot,a0                        ; Load the GPU module in camel.gas.
         jsr gpurun                           ; do clear screen
         jsr gpuwait                          ; Wait for the GPU to finish.
@@ -2829,7 +2838,7 @@ mypal:  move.l #pic5,a0                 ; Load pic5(beasty7.cry) to the source m
         move #1,v_on
         move #1,l_on
         clr.l d7
-        move #250,attime
+        move #250,attime; Set the duration of this screen in attract mode.
         bsr attr
         bra fade                        ; Do a melto-vision transition.
         
@@ -2897,7 +2906,7 @@ versiondraw:
         tst v_on
         beq dopyr      ;allows Excellent voctory thang to get @ it
 
-        bsr ssys
+        bsr ssys; Copy sysflags to _sysflags so that the GPU can use it.
         jmp rexfb
 
 dopyr:
@@ -3086,21 +3095,24 @@ scono2:
 
 ; *******************************************************************
 ; scint
-; Set the interrupts according to the controller.
+; Set the interrupts according to the controller, particularly if
+; there's a rotary controller available.
 ; *******************************************************************
-scint:  move.b sysflags,d0
-        and #$18,d0
-        beq sintoff
+scint:  move.b sysflags,d0   ; Get the sysflags
+        and #$18,d0          ; Check if rotary controller enabled on system.
+        beq sintoff          ; If not, set it disabled.
+        ; Enable rotary controller as an option
         move pit1,d0
         lsr #3,d0
         move d0,PIT1
         move d0,ppit1
-        move #1,roconon
+        move #1,roconon      ; Set rotary controller enabled.
         rts
-sintoff:
-        move pit1,PIT1
+        
+        ; No rotary controller available, disable it.
+sintoff:move pit1,PIT1
         move pit1,ppit1
-        clr roconon
+        clr roconon          ; Set rotary controller disabled.
         rts
 
 ; *******************************************************************
@@ -3111,7 +3123,7 @@ sintoff:
 ; *******************************************************************
 optionscreen:
         move.l #rrts,routine
-        move.l #optiondraw,demo_routine
+        move.l #optiondraw,demo_routine ; Turn on the riplling atari logo in the background.
         clr.l pongx
         clr.l pongy
         clr.l pongz
@@ -3415,9 +3427,12 @@ do_choose:
 ; A 'routine' routine.
 ; *******************************************************************
 oselector:
-        cmp.l #option1,the_option
-        bne selector      ;from the main game screen you get to the options screen..
+        ; Are we on the 'Select Game to Play' screen?
+        cmp.l #option1,the_option ; Are we on 'Select Game to Play?'
+        bne selector      ; If not, check if we're on the 'Options' screen itself.
 
+        ; We're on the 'Select Game to Play' screen, so
+        ; check if the cheat combination of 'a147' has been pressed!
         move.l pad_now,d0 ; Get pressed buttons.
         and.l #a147,d0    ; Check for cheat combo.
         cmp.l #a147,d0    ; Cheat combo selected?
@@ -3427,15 +3442,18 @@ oselector:
         move #1,chenable  ; Enable cheating!
         jsr sayex    ;say Excellent for cheat-enable
 
-nchen:  btst.b #1,pad_now+2  ;loop for Option pressed
-        beq selector
-        move #1,optpress
-        move.l #rrts,routine
+        ; Still on the 'Game to Play' screen, check if the player has
+        ; pressed the 'Option' Button.
+nchen:  btst.b #1,pad_now+2  ; Was the option button pressed?
+        beq selector ; If not, check if we're on the 'Options' screen already.
+        move #1,optpress ; Signal option button was pressed.
+        move.l #rrts,routine ; And exit now.
         rts
 
+        ; Are we on the 'Options' screen?
 selector:
-        cmp.l #option2,the_option
-        bne selector2
+        cmp.l #option2,the_option   ; Are we on the 'Options' screen?
+        bne selector2 ; If not, skip.
         btst.b #6,sysflags ; Are controllers enabled?
         bne sopt2
         btst.b #4,pad_now
@@ -3443,26 +3461,30 @@ selector:
         btst.b #4,pad_now+4
         beq selector2
         bset.b #6,sysflags ; Enable controllers.
-        jsr sayex
-sopt2:
-        move.l #o2s3,option2+16
+        jsr sayex ; Say 'Excellent!'.
+
+        ;  Controllers are enabled, make them selectable.
+sopt2:  move.l #o2s3,option2+16
         move #2,selectable
+
 selector2:
-        move #1000,attime
+        move #1000,attime; Set the duration of this screen in attract mode.
 
         move.b pad_now+1,d0
         or.b pad_now+5,d0
-        tst roconon
-        beq jcononly
+        tst roconon   ; Is Rotary Controller enabled?
+        beq jcononly ; If not, set up joystick.
+        ; Rotary controller enabled.
         tst.l rot_cum
         beq jcononly
         bpl stup
         bset #4,d0
         clr.l rot_cum
         bra jcononly
-stup:
-        bset #5,d0
+stup:   bset #5,d0
         clr.l rot_cum
+
+        ; Normal controller setup.
 jcononly:
         and #$30,d0
         beq rrrts
@@ -3474,16 +3496,15 @@ jcononly:
         bne incsel
         clr selected
         bra selend
-incsel:
-        add #1,selected ; Add 1 to current selection
-selend:
-        move.l #seldb,routine
+incsel: add #1,selected ; Add 1 to current selection
+
+selend: move.l #seldb,routine
         move #21,sfx ; Select the 'Excellent' sound effect.
         move #101,sfx_pri ; Set the sound's priority compared to others.
         jsr fox ; Play selected sound effect.
         rts
-decsel:
-        tst d1
+
+decsel: tst d1
         bne decsel1
         move d2,selected
         bra selend
@@ -3520,28 +3541,30 @@ ssys:
         rts
 ; *******************************************************************
 ; optiondraw
+; This display the rippling atari logo in the background during option
+; selection.
 ; *******************************************************************
 optiondraw:
-        move.l #1,gpu_mode ; Select ripplewarp routine in antelope.gas
-        bsr ssys ; Copy GPU flags.
+        move.l #1,gpu_mode                   ; Select ripplewarp routine in antelope.gas
+        bsr ssys                             ; Copy GPU flags.
         move.l #(PITCH1|PIXEL16|WID320),d0
         move.l d0,source_flags
         move.l #(PITCH1|PIXEL16|WID384),d0
-        move.l d0,dest_flags    ;inform GPU of source/dest screentypes
-        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
-        move.l pongx,4(a0)      ;L Phase init 0
-        move.l #$4000,8(a0)    ;L Amp
-        move.l pongy,12(a0)      ;R Phase
-        move.l #$4000,16(a0)    ;R Amp
-        move.l #$10000,20(a0)    ;L step
-        move.l #$10000,24(a0)    ;R step
-        move.l #pic3+(640*11),(a0)    ;Input from pic buffer 3
+        move.l d0,dest_flags                 ; inform GPU of source/dest screentypes
+        lea in_buf,a0                        ; Point our GPU RAM input buffer at a0.
+        move.l pongx,4(a0)                   ; L Phase init 0
+        move.l #$4000,8(a0)                  ; L Amp
+        move.l pongy,12(a0)                  ; R Phase
+        move.l #$4000,16(a0)                 ; R Amp
+        move.l #$10000,20(a0)                ; L step
+        move.l #$10000,24(a0)                ; R step
+        move.l #pic3+(640*11),(a0)           ; Select the atari logo in pic3 for display.
         add.l #$10000,pongx
         add.l #$12000,pongy
-        jsr WaitBlit ; Wait for the blitter to finish.
-        lea demons,a0 ; Load the GPU module in antelope.gas.
-        jsr gpurun      ;do horizontal ripple warp
-        jsr gpuwait ; Wait for the GPU to finish.
+        jsr WaitBlit                         ; Wait for the blitter to finish.
+        lea demons,a0                        ; Load the GPU module in antelope.gas.
+        jsr gpurun                           ; do horizontal ripple warp
+        jsr gpuwait                          ; Wait for the GPU to finish.
 
 ; *******************************************************************
 ; opts
@@ -3892,7 +3915,7 @@ nbnc2:
 tundraw:
         move.l #0,gpu_mode ; Select 'undraw' in llama.gas.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
-        move.l #$0,backg
+        move.l #$0,backg ; Value in GPU Internal RAM: not actually used for anything?
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
         jsr gpuwait ; Wait for the GPU to finish.
@@ -4120,7 +4143,7 @@ nomo:
         move.l vp_x,12(a0)
         move.l vp_y,16(a0)
         move.l #2,gpu_mode ; Select 'starseg' in ox.gas
-        jsr ssys
+        jsr ssys; Copy sysflags to _sysflags so that the GPU can use it.
         lea bovine,a0 ; Load the GPU module in ox.gas.
         jsr gpurun      ;do star tunnel
         jsr gpuwait ; Wait for the GPU to finish.
@@ -4304,6 +4327,7 @@ nxtpage:
 
 ; *******************************************************************
 ; premess
+; Display the 'fire to quit' message.
 ; *******************************************************************
 premess:
         lea premes1,a0 ; "PRESS c FOR MORE, a TO QUIT"
@@ -4342,7 +4366,7 @@ text_o_run:
 text_o_draw:
         move.l #0,gpu_mode ; Select 'undraw' in llama.gas.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
-        move.l #$0,backg
+        move.l #$0,backg ; Value in GPU Internal RAM: not actually used for anything?
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
         jsr gpuwait ; Wait for the GPU to finish.
@@ -5041,30 +5065,30 @@ noicon:
 
         move.l #$130000,d4
         move.l #128,d3
-        move.l #6,gpu_mode ; Select 'pring' in xcamel.gas.
-        lea in_buf,a0  ; Point our GPU RAM input buffer at a0.
-        move.l d3,(a0)+    ;# pixels per ring
-        move.l 4(a6),d0 ; Get the source X position.
-        sub.l vp_x,d0 ; Subtract the player/camera viewpoint X position.
-        move.l d0,(a0)+ ; Add it to our GPU RAM input buffer.
-        move.l 8(a6),d0 ; Get the object's Y position.
-        sub.l vp_y,d0 ; Subtract the player/camera viewpoint Y position.
-        move.l d0,(a0)+ ; Add it to our GPU RAM input buffer.
-        move.l 12(a6),d0 ; Get the object's Z position.
-        sub.l vp_z,d0 ; Subtract the player/camera viewpoint Z position.
-        move.l d0,(a0)+  ;XYZ position
-        move frames,d7 ; Store frames in d7.
-        asl #1,d7 ; Multiply it by 2.
-        bsr pulser ; Calculate a pulse colour.
-        and.l #$0f,d6 ; Keep it between 0 and 15
-        move.l d6,(a0)+  ;colour
-        move.l d4,(a0)+  ;radius 16:16
+        move.l #6,gpu_mode   ; Select 'pring' in xcamel.gas.
+        lea in_buf,a0        ; Point our GPU RAM input buffer at a0.
+        move.l d3,(a0)+      ; # pixels per ring
+        move.l 4(a6),d0      ; Get the source X position.
+        sub.l vp_x,d0        ; Subtract the player/camera viewpoint X position.
+        move.l d0,(a0)+      ; Add it to our GPU RAM input buffer.
+        move.l 8(a6),d0      ; Get the object's Y position.
+        sub.l vp_y,d0        ; Subtract the player/camera viewpoint Y position.
+        move.l d0,(a0)+      ; Add it to our GPU RAM input buffer.
+        move.l 12(a6),d0     ; Get the object's Z position.
+        sub.l vp_z,d0        ; Subtract the player/camera viewpoint Z position.
+        move.l d0,(a0)+      ; XYZ position
+        move frames,d7       ; Store frames in d7.
+        asl #1,d7            ; Multiply it by 2.
+        bsr pulser           ; Calculate a pulse colour.
+        and.l #$0f,d6        ; Keep it between 0 and 15
+        move.l d6,(a0)+      ; colour
+        move.l d4,(a0)+      ; radius 16:16
         clr d0
-        swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
-        move.l d0,(a0)+    ;phase
-        lea xparrot,a0 ; Load the GPU module in 'xcamel.gas'.
-        jsr gpurun      ;do clear screen
-        jmp gpuwait ; Wait for the GPU to finish.
+        swap d0              ; Swap position of the first 2 bytes with last 2 bytes.
+        move.l d0,(a0)+      ; phase
+        lea xparrot,a0       ; Load the GPU module in 'xcamel.gas'.
+        jsr gpurun           ; do clear screen
+        jmp gpuwait          ; Wait for the GPU to finish.
 
 polygate:
         move.l #18,d4
@@ -5228,7 +5252,7 @@ wwear:  and.l #$ff,d0 ; Keep it between 0 and 255
 npsu1:
         move.l #0,gpu_mode ; Select 'undraw' in llama.gas.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
-        move.l #$0,backg
+        move.l #$0,backg ; Value in GPU Internal RAM: not actually used for anything?
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
         jsr gpuwait ; Wait for the GPU to finish.
@@ -5777,7 +5801,7 @@ tgoto:
 txendraw:
         move.l #0,gpu_mode ; Select 'undraw' in llama.gas.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
-        move.l #$0,backg
+        move.l #$0,backg ; Value in GPU Internal RAM: not actually used for anything?
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
         jsr gpuwait ; Wait for the GPU to finish.
@@ -5955,7 +5979,7 @@ ctl:
         move #1,34(a0) ; Draw routine in draw_vex is 'draw'.
         jsr hisettrue3
         move.l #swebby,demo_routine
-        move #800,attime
+        move #800,attime; Set the duration of this screen in attract mode.
         clr modnum ; Clear tune selection.
         clr auto ; Ensure demo mode turned off.
         bsr attr
@@ -5972,7 +5996,7 @@ swebby:
         ; This just clears the screen I think.
         move.l #0,gpu_mode ; Select 'undraw' in llama.gas.
         move.l #(PITCH1|PIXEL16|WID384|XADDPHR),dest_flags  ;screen details for CLS
-        move.l #$0,backg
+        move.l #$0,backg ; Value in GPU Internal RAM: not actually used for anything?
         lea fastvector,a0 ; Load the GPU module in 'llama.gas'.
         jsr gpurun      ;do clear screen
         jsr gpuwait ; Wait for the GPU to finish.
@@ -6168,44 +6192,53 @@ notatari:
 
         ; Loop to stretch and rotate the selected graphic in the background.
 dyakhead:
-        lea in_buf,a0          ;Point our GPU RAM input buffer at a0
-        move.l a2,(a0)+        ;srce screen for effect
-        move.l d0,(a0)+        ;srce start pixel address
-        move.l d1,(a0)+        ;srce size
-        movem.l d0-d1,-(a7) ; Stash some values in the stack so we can restore them later.
+        lea in_buf,a0          ; Point our GPU RAM input buffer at a0
+        move.l a2,(a0)+        ; rex->_bass: srce screen for effect
+        move.l d0,(a0)+        ; rex->spixel: srce start pixel address
+        move.l d1,(a0)+        ; rex->ssize: srce size
+        movem.l d0-d1,-(a7)    ; Stash some values in the stack so we can restore them later.
         move.l d5,d0
-        asr.l #2,d0 ; Divide by 4.
-        move.l d0,(a0)+        ;x-scale
-        move.l d0,(a0)+        ;y-scale
-        lea sines,a4           ;Load the sine table to a4.
-        move.b pongxv,d1
-        and #$ff,d1 ; Keep d1 between 0 and 255.
-        move.b 0(a4,d1.w),d0
-        ext d0
-        swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
-        clr d0
-        asr.l #6,d0
-        move.l d0,(a0)+        ;shearx
+        asr.l #2,d0            ; Divide by 4.
+        move.l d0,(a0)+        ; rex->scalex: x-scale
+        move.l d0,(a0)+        ; rex->scaley: y-scale
+
+        ; Calculate a 'shear' value for the X co-ordinate.
+        lea sines,a4           ; Load the sine table to a4.
+        move.b pongxv,d1       ; Put our 'roll' offset in d1.
+        and #$ff,d1            ; Keep d1 between 0 and 255.
+        move.b 0(a4,d1.w),d0   ; Use it as an index into the sine table.
+        ext d0                 ; Make the result a long.
+        swap d0                ; Swap position of the first 2 bytes with last 2 bytes.
+        clr d0                 ; Clear the lowest byte.
+        asr.l #6,d0            ; Shift right.
+        move.l d0,(a0)+        ; rex->shearx: Store the result as shearx for 'rex'.
+
+        ; Calculate a 'shear' value for the Y co-ordinate.
         move.b pongxv+1,d1
         move.b 0(a4,d1.w),d0
         ext d0
-        swap d0 ; Swap position of the first 2 bytes with last 2 bytes.
+        swap d0                ; Swap position of the first 2 bytes with last 2 bytes.
         clr d0
         asr.l #6,d0
-        move.l d0,(a0)+ ; Add it to our GPU RAM input buffer.
-        move.l #1,(a0)+        ;Mode 1 = Centered
-        move.l #0,(a0)+
-        move.l #0,(a0)+
+        move.l d0,(a0)+        ; rex->sheary: Store the result as sheary for 'rex'.
+
+        move.l #1,(a0)+        ; rex->mode: Mode 1 = Centered
+        move.l #0,(a0)+        ; rex->dstx:
+        move.l #0,(a0)+        ; rex->dsty:
+
+        ; Calculate the Z position.
         move.l d6,d0
         add.l #$200000,d6
         tst.l d0
-        bmi xane               ;no point in drawing -ves
-        move.l d0,(a0)+        ;Dest x,y,z
-        lea parrot,a0          ;Load the GPU module in camel.gas.
+        bmi xane               ; no point in drawing -ves
+        move.l d0,(a0)+        ; rex->dstz 
+
+        ; GPU buffer is ready now - so run 'rex'.
+        lea parrot,a0          ; Load the GPU module in camel.gas.
         jsr gpurun             ; Run the GPU module.
-        jsr gpuwait            ;Wait for the GPU to finish.
-xane:   movem.l (a7)+,d0-d1 ; Restore stashed values from the stack.
-        dbra d7,dyakhead       ;Keep looping until d7 is zero.
+        jsr gpuwait            ; Wait for the GPU to finish.
+xane:   movem.l (a7)+,d0-d1    ; Restore stashed values from the stack.
+        dbra d7,dyakhead       ; Keep looping until d7 is zero.
         rts
 
 ; *******************************************************************
@@ -7958,42 +7991,46 @@ mp_scapa:
 ; specified by demo_routine.
 ; *******************************************************************
 attract:
-        move #500,attime
+        move #500,attime       ; Set the duration of this screen in attract mode.
 attr:
         clr ud_score
-        move #1,screen_ready    ;as above, attract mode version
+        move #1,screen_ready   ; as above, attract mode version
         clr db_on
-        clr e_attract
+        clr e_attract          ; Not used!
         clr optpress
-timr:
-        bsr thang
-        tst e_attract
-        bne arts
-        move.l pad_now,d0
-        and.l #allbutts,d0
-        bne timr    ;wait for no buttons
-dbnce:
-        bsr thang
-        tst pawsed
-        bne dbnce
-        sub #1,attime
-        bpl intime
-        move #-1,z
+        
+        ; Loop until we're sure no button has been pressed. THis is a
+        ; 'debounce' that ensures we're not picking up on any previous
+        ; button press inadvertently.
+timr:   bsr thang              ; Run the background routine, one of yakhead, glopyr.
+        tst e_attract          ; Not used!
+        bne arts               ; Not used!
+        move.l pad_now,d0      ; Get pressed buttons.
+        and.l #allbutts,d0     ; Filter to the ones we're interested in.
+        bne timr               ; Keep looping until no buttons pressed.
+        
+        ; Loop 500 times waiting for the player to press a button.
+dbnce:  bsr thang              ; Run the background routine, one of yakhead, glopyr.
+        tst pawsed             ; Has the player paused?
+        bne dbnce              ; If so, keep looping until unpaused.
+        sub #1,attime          ; Decrement the display duration counter.
+        bpl intime             ; If timer not yet expired, skip next line.
+        move #-1,z             ; Timer expired: signal that attract mode has timed out.
 intime:
-        tst optpress
-        bne gogx
-        tst z          ; Has the player done a hard reset?
-        bne gogx
-        tst e_attract
-        bne arts
-        move.l pad_now,d0
+        tst optpress           ; Has the player pressed the 'Option' button?
+        bne gogx               ; If so, get out of here.
+        tst z                  ; Have we timed out?
+        bne gogx               ; If so, get out of here.
+        tst e_attract          ; Not used!
+        bne arts               ; Not used.
+        move.l pad_now,d0      ; Get any buttons pressed.
         or.l pad_now+4,d0
-        and.l #allbutts,d0
-        beq dbnce    ;wait for any buttons
+        and.l #allbutts,d0     ; Filter to the ones we're interested in.
+        beq dbnce              ; If nothing pressed, keep looping.
 arts:
-        clr _pauen ; Disable pausing.
+        clr _pauen             ; Disable pausing.
         move.l #rrts,routine
-        move.l d0,selbutt
+        move.l d0,selbutt      ; Store the button press.
         rts
 
 ; *******************************************************************
@@ -9451,7 +9488,7 @@ make_webs:
         lea webs,a5 ; Point a5 at webs, which we will use to store the constructed webs.
 mk_webs:
         movem.l a5-a6/d7,-(a7) ; Stash some values in the stack so we can restore them later.
-        move.l (a6),a1
+        move.l (a6),a1 ; Point a1 at current entry in 'raw_webs'.
         move.l #40,a2
         move.l #1,d0    ;RMODE. 0=only XY rotate
         move.l #1,d1
@@ -9463,7 +9500,7 @@ mk_webs:
         bsr extrude
         movem.l (a7)+,a5-a6/d7 ; Restore stashed values from the stack.
         lea 4(a6),a6
-        move.l a0,(a5)
+        move.l a0,(a5) ; Put address of the constructed vectors at the start of the web object.
         move.l web_otab,4(a5)
         move.l web_ptab,8(a5)
         move web_max,12(a5) ; Store the number of lanes int he web.
@@ -9471,9 +9508,9 @@ mk_webs:
         move web_x,18(a5)
         move web_z,20(a5)
         move connect,22(a5)
-        lea 128(a5),a5
+        lea 128(a5),a5 ; Advance pointer to the next slot for the next web.
         move.l (a6),d7
-        bne mk_webs
+        bne mk_webs ; Keep going until we reached the end of raw_webs.
         rts
 
 ; *******************************************************************
@@ -14085,7 +14122,7 @@ main:   tst sync                   ; loop waiting for another sync
         bne main                   ; from the interrupt in 'Frame'
 
         move #1,sync               ; reset the sync so that we wait for a new frame next time around.
-        move.l dscreen,gpu_screen
+        move.l dscreen,gpu_screen ; Use dscreen as the screen that GPU will draw everything to.
 
         move.l mainloop_routine,a0 ; do the actual mainloop work, mainloop_routine
         jsr (a0)                   ; is usually a reference to the 'draw_objects' routine.
@@ -15288,6 +15325,7 @@ MakeScaledObject:
 ; *******************************************************************
 ; MakeUnScaledObject
 ; Make an Object List item in 'blist', pointed at by a0.
+; dlist is a4
 ;
 ; Make an OL entry for an object. a0 --> current pos in OL being built
 ; (assumes a0 is already phrase aligned)
@@ -15739,9 +15777,13 @@ initvo: move.l a0,a2
 ;
 ; extrude a web from a list of 16 pairs of XY coordinates addressed by (a1)
 ;
-; a0 = vector ram space; a2.l = z depth to extrude to; d0-d7 as above
+; a0 = vector ram space; a2.l = z depth to extrude to;
+; d0.l=x scale, d1.l=y scale, d2.l=z scale, d3.l=x centre, d4.l=y centre,
+; d5.l=z centre, d6=angle (xy)/angle (xz), d7=angle (yz)
+;
 ; *******************************************************************
-extrude:move.l vadd,a0
+extrude:
+        move.l vadd,a0
         movem.l d0-d7/a0/a2,-(a7)   ;save so routine can return address
         clr connect
         move.l a2,-(a7)             ;save z depth
@@ -15760,8 +15802,7 @@ extrude:move.l vadd,a0
         move.l a1,web_ptab          ;Third byte: start of x/y pairs, the position table
         move.l a3,(a5)+             ;first vertex to lanes list
 
-                                    ;Read in the x/y pairs
-                                    ;Get the current x and y pair
+        ;Read in the x/y pairs
 xweb:   move (a1)+,d0
         move (a1)+,d1               ;get X and Y
         ext.l d0
@@ -15769,12 +15810,13 @@ xweb:   move (a1)+,d0
         cmp d5,d1                   ;Check if this is the large X value so far
         blt xweb2                   ;As above.
         move d1,d5                  ;It's bigger, so save it in d5.
-                                    ;Store the x,y,z value for the near point in the web
+
+        ;Store the x,y,z value for the near point in the web
 xweb2:  move.l d0,(a2)+             ;x value
         move.l d1,(a2)+             ;y value
         clr.l (a2)+                 ;z value for near point (always 0)
 
-                                    ;Store the x,y,z value for the far point in the web
+        ;Store the x,y,z value for the far point in the web
         move.l d0,(a2)+             ;x value
         move.l d1,(a2)+             ;y value
         move.l d7,(a2)+             ;z value for far point (calculated by initvo).
@@ -15783,7 +15825,7 @@ xweb2:  move.l d0,(a2)+             ;x value
         tst d6
         beq lastpoint               ;special case for last point!
 
-                                    ;Connect the vertices
+        ;Connect the vertices
         move d3,d4                  ;copy vertex #
         addq #1,d4
         move d4,(a3)+               ;connect to n+1
@@ -15816,14 +15858,16 @@ nconn1: move.l #0,(a3)+
         and.l #$ffff,d3
         move.l d3,(a0)+             ;pass # of vertices in header
         lea 6(a1),a1
+
         move.l a1,web_otab
         move.l a3,connect_ptr
         move.l a2,vertex_ptr
-        move.l a0,vadd
+        move.l a0,vadd ; Set current position of a0 in vadd, for the next web.
         move.l a4,(a5)+             ;repeat first vertex addr.
         asr #1,d5 ; Divide by 2.
         add #1,d5
         move #8,web_x
+
         movem.l (a7)+,d0-d7/a0/a2   ;return with stuff intact and handle in a0
         move web_x,d5
         and.l #$ffff,d5
@@ -17202,7 +17246,7 @@ clearscreen:
 ; read joypad keys
 ; Unused function for reading the rotary controller before the pad.
 ; *******************************************************************
-readpad:tst roconon
+readpad:tst roconon    ; Is Rotary Controller enabled?
         bne rrts      ;Pad read is done by rocon routine, if enabled
 
 ; *******************************************************************
@@ -18667,7 +18711,8 @@ ccrset:
 ; *******************************************************************
 ; pager
 ;
-; use text thang to do a page of txt. Pass d0,d1=start pos of first line. Returns 0=text done, 1=more text waiting (a0 poised)
+; use text thang to do a page of txt.
+; Pass d0,d1=start pos of first line. Returns 0=text done, 1=more text waiting (a0 poised)
 ; *******************************************************************
 pager:
         lea in_buf,a0 ; Point a0 to the in_buf buffer.
@@ -24044,7 +24089,7 @@ demobank:         dc.l 0
 fxnum:            dc.b 0,0,0,0,0,0,0,0
 numin:            dc.l 0
 blanka:           dc.w -1
-e_attract:        dc.w 0
+e_attract:        dc.w 0 ; Not used!
 wave_speed:       dc.w 1
 
 laser_type:       dc.w 0

@@ -1,3 +1,8 @@
+; vim:ft=asm68k
+; *******************************************************************
+; vidinit.s
+; Routines to set up video, e.g. NTSC/PAL.
+; *******************************************************************
 .include        'jaguar.inc'
 
         .globl  VideoIni

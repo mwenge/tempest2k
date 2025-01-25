@@ -620,29 +620,23 @@ v_rippleloop: move lphase,r0
 ; *******************************************************************
 scar:   
 
-        d_width REGEQU r1               ;Destination width
-        d_height REGEQU r2
-        x1_n    REGEQU r3
-        y1_n    REGEQU r4
-        x2_n    REGEQU r5
-        y2_n    REGEQU r6               ;Useful co-ordinate registers
+        d_width   REGEQU r1               ;Destination width
+        d_height  REGEQU r2
+        x1_n      REGEQU r3
+        y1_n      REGEQU r4
+        x2_n      REGEQU r5
+        y2_n      REGEQU r6               ;Useful co-ordinate registers
         
-        grad_int REGEQU r7
+        grad_int  REGEQU r7
         grad_frac REGEQU r8
-        lo_mask REGEQU r9
-        hi_mask REGEQU r10
-        _byte   REGEQU r18
+        lo_mask   REGEQU r9
+        hi_mask   REGEQU r10
+        _byte     REGEQU r18
         _sinebase REGEQU r19
-        _cmd    REGEQU r26
+        _cmd      REGEQU r26
 
-;       blit    REGEQU r13              ;address of Blitter go
-;       a1_n    REGEQU r14
-;       a2_n    REGEQU r15              ;Blitter base addresses
-
-        sin     REGEQU r16
-        cos     REGEQU r17
-;       temp1   REGEQU r11
-;       temp2   REGEQU r12
+        sin       REGEQU r16
+        cos       REGEQU r17
 
         movei #B_CMD,blit               ;Init blitter regs
         movei #(SRCEN|DSTA2|CLIP_A1|UPDA1F|UPDA1|UPDA2|LFU_A|LFU_AN|SRCSHADE|ZBUFF),_cmd        ;blitter Go cmd
@@ -691,13 +685,13 @@ axa:    store r0,(r1)
         store r21,(a2_n+_flags)
 
         movei #in_buf,r0
-        load (r0),r20   
-        addq #4,r0      
-        store r20,(a1_n)                        ;set source screenbase  
-        load (r0),d_width       
-        addq #4,r0              
-        load (r0),d_height      
-        addq #4,r0                      ;get X- and Y-height    
+        load (r0),r20  ; Get source screen passed by caller. 
+        addq #4,r0     ; Advance 4 bytes in in_buf. 
+        store r20,(a1_n)                        ;Store source screenbase passed by caller in a1_n
+        load (r0),d_width      ; Store width passed by caller in d_width.
+        addq #4,r0             ; Advance 4 bytes in in_buf. 
+        load (r0),d_height      ; Store width passed by caller in d_height.
+        addq #4,r0                     ; Advance 4 bytes in in_buf. 
 
         move d_height,r20
         shlq #16,r20
@@ -707,10 +701,10 @@ axa:    store r0,(r1)
         move d_width,temp1      
         move d_height,temp2     
         load (r0),r20                   ;get x-scale
-        addq #4,r0
+        addq #4,r0 ; Advance 4 bytes in in_buf.
         mult r20,temp1                  ;temp1 is now ?:8 scaled
         load (r0),r20
-        addq #4,r0                      ;y-scale...
+        addq #4,r0                    ; Advance 4 bytes in in_buf.   ;y-scale...
         mult r20,temp2                  ;is now ?:8 scaled
 
         load (r0),r20
@@ -755,7 +749,7 @@ axa:    store r0,(r1)
         shrq #16,grad_int               ;grad_int has int X inc in low word             
         and lo_mask,grad_frac           ;The X components are now complete
 
-        move y1_n,temp1
+        move y1_n,temp1 ; dsjkl 
         move temp1,r22                  ;save this for creating the step
         sdiv d_width,temp1              ;Got y-gradient in temp
 
@@ -788,10 +782,10 @@ axa:    store r0,(r1)
         or temp2,grad_frac              ;These now contain the Step.
 
         load (r0),temp1                 ;Source X centre point in 16:16 format
-        addq #4,r0
+        addq #4,r0 ; Advance 4 bytes in buffer.
         sharq #1,x1_n
         load (r0),temp2                 ;Source Y centre in 16:16
-        addq #4,r0
+        addq #4,r0 ; Advance 4 bytes in buffer.
         sharq #1,y1_n
         sub x1_n,temp1                  ;TEMP1 and TEMP2 now contain the start point for the blit as 16:16 frac values.
         sharq #1,x2_n

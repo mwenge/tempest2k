@@ -1,10 +1,14 @@
+; vim:ft=asm68k
+; *******************************************************************
+; yakgpu.s
+; Routines to load and run the GPU modules.
+; *******************************************************************
 
         include "jaguar.inc"
 
 ;
 ;       PUBLIC SYMBOLS
 ;
-
         .globl  gpuload
         .globl  gpurun
         .globl  gpuwait
@@ -32,7 +36,6 @@
 gpuload:
         
         movem.l d0-d2/a0-a1,-(sp)               ; save GPU address for restore
-
 
         move.l lastloaded,d0
         move.l a0,d1
@@ -130,15 +133,11 @@ qrts:   movem.l (sp)+,d0-d2/a0-a1
 ;*              a0
 ;*======================================================================*
 gpurun:
-        bsr gpuload                     ;load if not already loaded
-
-        movem.l d0-d1/a0,-(sp)          ; save GPU address for restore
-
-        move.l  (a0)+,G_PC              ; load GPU PC
-
-        move.l  #$11,G_CTRL             ; Turn on the GPU
-
-        movem.l (sp)+,a0/d0-d1          ; restore GPU address
+        bsr gpuload              ; load if not already loaded
+        movem.l d0-d1/a0,-(sp)   ; save GPU address for restore
+        move.l  (a0)+,G_PC       ; load GPU PC
+        move.l  #$11,G_CTRL      ; Turn on the GPU
+        movem.l (sp)+,a0/d0-d1   ; restore GPU address
         rts
 
 ;*======================================================================*
@@ -152,7 +151,7 @@ gpurun:
 ;*              a0
 ;*======================================================================*
 gpuwait:
-  movem.l       a0/d0,-(sp)
+        movem.l       a0/d0,-(sp)
 
         lea     G_CTRL,a0
 .gpuwt:                         ; wait for GPU to finish
@@ -163,8 +162,7 @@ gpuwait:
         movem.l (sp)+,a0/d0
         rts
 
-
-
+; *******************************************************************
 ;
 ;       CONSTANT DATA (GPU PROGRAMS)
 ;
@@ -172,6 +170,7 @@ gpuwait:
 ; assembler would have produced for each. Unfortunately neither rmac nor
 ; vasm support this output format, so we have to use vasm to create an 
 ; absolute binary and append the headers here.
+; *******************************************************************
 fastvector:
   DC.L $00f03000 , $00000a82
         .incbin "bin/llama.o"
