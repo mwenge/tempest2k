@@ -306,8 +306,82 @@
 ;
 ; Object Lists (aka Display Lists)
 ; ------------
-; The actual mechanics of this are surprisingly involved. 
+; The actual mechanics of this are surprisingly involved. We are better to start
+; at the end rather than the beginning.
 ;
+; The data structure that the Jaguar hardware uses to write graphics to the screen
+; is called an 'Object List'. This is also referred to as a 'Display List'. It is 
+; a list of display objects, each of which contains enough information for the
+; graphics processor to do something meaningful with. From first principles, you 
+; can imagine that this must at least include information about position, dimensions,
+; and the actual pixel data to be written. You would be correct. Here is an actual
+; example of an object list used to draw a frame of the 'Game Over' screen in 
+; Tempest 2000. There are five objects given in total below, only two of them draw
+; to the screen: these are the 'Bit Mapped Object' entries. The first draws the
+; 'Game Over' graphic, the second draws the player score at the top of the screen.
+;
+; Pages 18-20 of the Jaguar Reference manual provide more detail on each field:
+;   https://github.com/mwenge/TempestVsTempest/blob/master/material/jag_v8.pdf
+;
+;  Bit Mapped Object
+; 		 Name     Value       Description
+;      ------   ----------  -----------
+;      Type     0           Bit Mapped Object
+;      YPOS     44          Y Position
+;      HEIGHT   279
+;      LINK     0xeb70      Address of next object in list.
+;      DATA     0x134800    Address of data, e.g. dscreen.
+;      XPOS     4088
+;      DEPTH    4           4 bytes per pixel
+;      PITCH    1
+;      DWIDTH   96
+;      IWIDTH   96
+;      INDEX    0
+;      REFLECT  0
+;      RMW      0
+;      TRANS    1
+;      RELEASE  0
+;      FIRSTPIX 0
+; 
+;  Stop Object
+; 		 Name     Value       Description
+;      ------   ----------  -----------
+;      Type     4
+;      DATA     0x0
+; 
+;  Stop Object
+; 		 Name     Value       Description
+;      ------   ----------  -----------
+;      Type     4
+;      DATA     0x0
+; 
+;  Bit Mapped Object
+; 		 Name     Value       Description
+;      ------   ----------  -----------
+;      Type     0
+;      YPOS     60          Y position
+;      HEIGHT   48
+;      LINK     0xeb90
+;      DATA     0x50000    Address of data, e.g. dscreen.
+;      XPOS     4088
+;      DEPTH    4          4 bytes per pixel.
+;      PITCH    1
+;      DWIDTH   96
+;      IWIDTH   96
+;      INDEX    0
+;      REFLECT  0
+;      RMW      0
+;      TRANS    1
+;      RELEASE  0
+;      FIRSTPIX 0
+; 
+;  Stop Object
+; 		 Name     Value       Description
+;      ------   ----------  -----------
+;      Type     4
+;      DATA     0x0
+;
+;  
 ; A Short Primer on 68K Motorola Assembly
 ; ---------------------------------------
 ; TODO
