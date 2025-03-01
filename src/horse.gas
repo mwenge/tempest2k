@@ -78,12 +78,15 @@
 ; waitblit
 ; *******************************************************************
         MACRO waitblit  ; Wait for the Blitter to stop
-\~waitt:        load (blit),r31
+\~waitt:load (blit),r31
         btst #0,r31
         jr z,\~waitt
         nop
         ENDM
 
+; *******************************************************************
+; fmult
+; *******************************************************************
         MACRO fmult     ;multiply 2 thangs, uses r2-r4, returns in first reg.
         moveta \2,r31   ;(preserves second Thang)
         moveq #0,r27

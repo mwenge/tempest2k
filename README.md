@@ -9,19 +9,25 @@ The source code can be compiled into an executable that you can run in `virtual-
 
 ### Build Requirements
 ```sh
-sudo apt install build-essentials wine virtual-jaguar
+sudo apt install build-essentials wine python3
 ```
 
 ### Build the assembler toolchain
 
 We use two tools to build the source code: `rmac` and `rln`. If you already have these installed you may have some
-luck using them, if not you can build the versions included in this repository as they are known to work. 
+luck using them, if not you can build the versions suggested below as they are known to work. 
 
-First you must run the following to set up the git submodules containing the assembler toolchain:
+First clone the vlm repository:
 
 ```sh
-git submodule init
-git submodule update
+git clone https://github.com/mwenge/vlm.git
+```
+Next run the following commands to enter the vlm repository and downoad the assembler toolchain:
+
+```sh
+cd vlm
+git clone git@github.com:mwenge/rmac.git
+git clone http://tiddly.mooo.com:5000/rln/rln.git
 ```
 
 Now you can build the toolchain, as follows:
@@ -36,15 +42,21 @@ cd ..
 
 ### Build Tempest 2000
 
-To build an executable file `t2000.abs`:
+To build the game:
 ```sh
-make t2000.abs
+make 
 ```
-You can run this as follows using `virtual-jaguar`:
+
+### Play Tempest 2000
+Your best option is using [BigPEmu](https://www.richwhitehouse.com/jaguar/index.php?content=download).
+
 ```sh
-virtual-jaguar t2000.abs
+wget https://www.richwhitehouse.com/jaguar/builds/BigPEmu_Linux64_v118.tar.gz
+tar zxvf BigPEmu_Linux64_v118.tar.gz
+bigpemu/bigpemu t2000.abs
 ```
-Note that you may need to explicitly load the file from within `virtual-jaguar` for this to work.
+
+### Other Build and Play Options
 
 To build a cartridge file that is byte-for-byte identical to the rom commonly circulated in forums:
 ```sh
@@ -56,7 +68,12 @@ This will create a file `t2k.rom`. You can run this as follows using `virtual-ja
 virtual-jaguar t2k.rom
 ```
 
-For an optimal Tempest 2000 experience you should run the game in 'Tempest
+or bigpemu:
+```sh
+bigpemu t2k.rom
+```
+
+You can also run the game in 'Tempest
 2k' a Jaguar emulator specifically optimized for Tempest 2000. 
 Tempest 2K is available in the `utils` folder as `t2k.exe`. To use it run the
 following at the command line:

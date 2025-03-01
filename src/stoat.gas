@@ -42,7 +42,7 @@
         MACRO sdiv  ;Divide, keeping sign of that which is divided, uses r27
         move \2,r31
         abs \2
-         div \1,\2
+        div \1,\2
         btst #31,r31  ;Get sign bit of original thang
         jr z,\~sdtt
         nop

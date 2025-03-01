@@ -1,4 +1,3 @@
-; vim:ft=asm68k ts=2
 ; *******************************************************************
 ; Welcome to the source code for 'Tempest 2000' by Jeff Minter.
 ;                                                                                                                 
@@ -30,7 +29,7 @@
 ; Fig 1. Ascii rendering of the 'sine wave' web used in level 12 of Tempest 2000.
 ;                                                                                                                 
 ; This is a cleaned-up and commented version of the main source code
-; file for Tempest 2000. No code has been changed, so this source file
+; file 'yak.s' for Tempest 2000. No code has been changed, so this source file
 ; can be used to create a build of Tempest 2000 that is byte-for-byte
 ; identical to the original 1994 release.
 ;
@@ -50,7 +49,7 @@
 ;
 ; As enemies are created and killed they are moved in and out of the activeobjects
 ; list. Likewise for the player's claw and all the bullets the enemies and the player
-; fire. Once every frame, we need to take the state of all these objects and draw
+; fire at each other. Once every frame, we need to take the state of all these objects and draw
 ; them on the screen. While the state of every object is updated in the 'Frame'
 ; routine, they are drawn to the screen by draw_objects in the game's 'mainloop'. 
 ; 'Drawing' here means using the GPU or the Blitter to convert each object's state
@@ -95,7 +94,7 @@
 ; 2000 while a game is in progress. These are:
 ; 
 ;  - 'Frame': This routine is a 'vertical sync interrupt handler'. This means
-;     that the Atari Jaguar's CPU runs it every time the Graphics Processor has
+;     that the Atari Jaguar's CPU runs it every time the Object Processor has
 ;     finished painting the screen and is about to start painting it again. This
 ;     creates a brief interlude in which game state can be updated and even some
 ;     preparation performed of the next batch of pixels to be drawn to the screen. Very little
@@ -105,7 +104,7 @@
 ;
 ;  - 'mainloop': This routine is the game's main loop. It is responsible for
 ;     nearly all of the 'drawing' in Tempest 2000. By 'drawing' we mean preparing the
-;     pixel data in RAM that the Jaguar's Graphics Processor will use to paint the
+;     pixel data in RAM that the Jaguar's Object Processor will use to paint the
 ;     screen after the next vertical sync. It relies on 'Frame' to make the state of
 ;     all objects in the activeobjects list up-to-date so it can iterate through them
 ;     all and convert that state into pixels.
@@ -264,7 +263,7 @@
 ; Drawing Things to the Screen
 ; ----------------------------
 ; When we describe 'drawing' to a screen above, what we actually mean is
-; filling a region in RAM with data that can be used by the Jaguar's Graphics
+; filling a region in RAM with data that can be used by the Jaguar's Object
 ; Processor to fill a physical screen that is 384 pixels wide and 280 pixels
 ; high with the objects that we have drawn. Since each pixel is represented by
 ; 2 bytes of RAM, this means the region of RAM containing the data necessary to
@@ -277,7 +276,7 @@
 ; that they are filling this region of RAM with the necessary pixel data for
 ; each screen line. 
 ;
-; The GPU's speciality is performing the very fast trigonometric operations
+; The Graphics Processor (GPU)'s speciality is performing the very fast trigonometric operations
 ; necessary to calculate the co-ordinates of a 3d object in 3d space and
 ; mapping these to the two-dimensional screen. 
 ; 
@@ -286,32 +285,33 @@
 ;
 ; Neither have any concept of a physical screen or the hardware operations
 ; necessary to turn our 215040 long region of RAM into light on a physical
-; screen. This specialty is performed by the Graphics Processor - it takes the
+; screen. This specialty is performed by the Object Processor - it takes the
 ; region of RAM filled out by the GPU and Blitter and turns it into images on a
 ; physical screen.
 ;
 ; So at its simplest, getting our screens physically drawn is as easy as
 ; handing a pointer to the region of RAM we've populated using the GPU/Blitter
-; and telling the Graphics Processor to paint it to the physical screen. In
+; and telling the Object Processor to paint it to the physical screen. In
 ; Tempest 2000 this region of RAM is whatever the address in 'gpu_screen' is
 ; pointing to. All drawing by the GPU and the Blitter is done to whatever this
 ; address is. This creates flexibility because we can change the address and
 ; thus draw to more than one region of RAM, in other words we can draw multiple
-; different screens and decide which one to get the Graphics Processor to
+; different screens and decide which one to get the Object Processor to
 ; paint!
 ;
 ; For Tempest 2000, 'gpu_screen' usually contains a pointer to the region of
 ; RAM referenced by 'dscreen'.  This is a 215040 byte region of RAM at address
-; $10034800. So for the most part this is the data we want the Graphics Processor
+; $10034800. So for the most part this is the data we want the Object Processor
 ; to turn into images on a screen.
 ;
-; Display Lists
+; Object Lists (aka Display Lists)
 ; ------------
 ; The actual mechanics of this are surprisingly involved. 
 ;
 ; A Short Primer on 68K Motorola Assembly
 ; ---------------------------------------
-; 
+; TODO
+;
 ; Interesting Search Keywords for the Impatient
 ; -------------------------------------------
 ; 'Frame:' - Responsible for updating the internal state of all the objects
@@ -326,15 +326,6 @@
 ; *******************************************************************
         .include  'jaguar.inc'
         .extern  VideoIni
-
-;  .extern GPUSTART  ;From the ALLSYNT object code
-;  .extern GPUEND
-;  .extern DSPORG
-
-
-
-;  .globl ENABLETIMER
-;  .globl DISABLETIMER
 
 ; *******************************************************************
 ; Jump table for the SFX/Tunes module
@@ -430,15 +421,19 @@
         centy        EQU height/2
 
 ; *******************************************************************
-; References to the sprite maps stored in RAM.
+; References to the sprite sheets stored in RAM.
 ;
 ; OK! OK! I'm probably going way too far with this ascii art thing here, but they at
-; least give you a sense of what each sprite map contains.
+; least give you a sense of what each sprite sheet contains.
 ; *******************************************************************
 
-; 'pic' references the contents of the beasty3.cry file. It contains the 'Tempest' logo, the 'Excellent' message,
-; bonus scores, and the small font reference as 'cfont'.
+; *******************************************************************
+; 'pic' references the contents of the beasty3.cry file. It contains the
+; 'Tempest' logo, the 'Excellent' message, bonus scores, and the small font
+; reference as 'cfont'.
+; *******************************************************************
 ;
+; ----------------------------------------------------------------------------------------------------------------------
 ; !===="<===============================================================================================\|====s|          
 ; l    ,\                                                                                               /=    >|          
 ; *_'=|!n\/=;:.           .                                                                       .';=+)za|+'_%|          
@@ -473,13 +468,18 @@
 ; JVF\j#,  -CI}_#n?_ee{'[L!={fl;v#/:"w]i^Ci*-iC)`|c!'7t}'11/_{L}\iwIi=w!%^y{)_JIr_#o{_}C!:;nI_sos\/t})"C}c'zev_e!I_If{_   
 ; cll;':   -}v)_}{\-xs<-%*)'>?>,|I"'^I%^,*^|_>}+_,<>_r>\_%),_\*>;|*"+;I%=:!)^_*%|_*c)_vI>_/*)_>v|;/v/;=s"/'s>/_r))_%I<'.  
 ;        ..'[|<'[}>_{r<_r}i:v[\:<}--/[%+^]/<'\!^_>i>'}x>'r{"'%c|=<?i"+[v/^[+::]i|'!v)_%?i''*<-i})^;xi:+[x/:}c/'{r<_c]\_.. 
+; ----------------------------------------------------------------------------------------------------------------------
 ; 
 
         pic          EQU $820000              ;beasty3.cry
 
-; 'pic2' references the contents of the beasty4.cry file. It contains  the 'GAME OVER' message, the crosshair for the
-; bonuslevel, the Yak head used in level selection and elsewhere, and the 'bfont' character map.
+; *******************************************************************
+; 'pic2' references the contents of the beasty4.cry file. It contains  the
+; 'GAME OVER' message, the crosshair for the bonuslevel, the Yak head used in
+; level selection and elsewhere, and the 'bfont' character map.
+; *******************************************************************
 ;
+; ----------------------------------------------------------------------------------------------------------------------
 ; !=================^^^^=+")\\\)|/=^^^^^================|[z1oe;*##*;eo1zlw[Li%?*`                                         
 ; l                .;<l?ojTCTTTJJuz1*v/_                _c%!1<  ee  <1!})o}]+)wu-                                         
 ; r             'ctT52u[r</^,::;="vIoC5f7r+.            'r)oar'=e*  )oec_``  cgS=                                         
@@ -514,11 +514,16 @@
 ; ;}eoo{ ;oeo1) `stae%..?ze7[_ Io;Io; lz%?7+ %o_,7> "e?Ie< "7{\7s ,to7a*          >o%    =1%          .```.               
 ; ^c*?c% ;lsI{v -{I][s. `<li- .xl\cr; ;sI*%. >svv{)  /rs). ;*aecv `<l*c/   :)'    "[<    ^[v    :?%   ">%v\=              
 ;  .`^v) 'v<^v> .>}?l).  =%/   /xIr<-  =v)_  ^%cc%, ;l|"l+ _xI}%= ,*v%*c   \?"    /I\    ,c)    `|/   . ....              
+; ----------------------------------------------------------------------------------------------------------------------
 
         pic2         EQU pic+$1f400           ;beasty4.cry
 
-; 'pic3' references the contents of the beasty5.cry file. It contains  the Atari logo background using during option selection.
+; *******************************************************************
+; 'pic3' references the contents of the beasty5.cry file. It contains  the
+; Atari logo background using during option selection.
+; *******************************************************************
 ;
+; ----------------------------------------------------------------------------------------------------------------------
 ; ^^;;^^=^^=^^=^^^^^^/)<)i)>i%rss?!?]?srsrs*I}}{sss{{rlllx%v>>)v%%clc%i<\<)i>\iviv>"=,_____'''__',,:';^==^^==+=+/|\)/==//"
 ; ^^^^===^^^^^=====^+<i)ivivlr*!![!???*}?!!te1?rl{}???I{lc%v)>ixclr*sx)/"\<<><i)>><"/=:_',:'''':,::':',^/+=/""/|\)))/+////
 ; ^^^=====^^^^^^^=//))iicc%%ls?1t[?I***I[ttoa?{>{[a7uoIc?jzjj7ttzLuj!c/c?1oLzx>\\))|/=,:,;''::::::,;;:,+///")\\\)"\\"////"
@@ -559,11 +564,16 @@
 ; lccr{rsrs{ss*{{{lllrli><\\)))>>ii))>)\><\>%v>><\>i>)>)%cxv";^=^,+":____''''_'''''__''_:^;:''':,:,^/|)>%"=+/++|)"//++""//
 ; {srsss{*{lr{![Isl%%cv>vi))i))ii)<>>)>>vvvcciiv)))i)iii<)|";__:':;:_''''''''''_''''';;;==,:;::,::;^===+///"|||\)/""""""""
 ; llls{{rlccrs{rci)<)ii)><<>i>\)||<<))<i)|<iii>><<)ii)>\\\/^'''__''''____''''_______:'_':::::'':,:::':=+==/"=+""""//+/"""/
+; ----------------------------------------------------------------------------------------------------------------------
 
         pic3         EQU pic2+$1f400          ;beasty5.cry
 
-; 'pic4' references the contents of the beasty6.cry file. It contains the swirly background used in bonus levels. 
+; *******************************************************************
+; 'pic4' references the contents of the beasty6.cry file. It contains the
+; swirly background used in bonus levels. 
+; *******************************************************************
 ;
+; ----------------------------------------------------------------------------------------------------------------------
 ; %iiv{[7Jyymn!Ix<)iviv%r?[!][!}slrrllllllclx%c{}?[[?}I11[7uTT#nj1]1!*I]1]}{lxxcxccclllllrr{I]]?![Ic%iivi>>l?!T6ff#7[rviv%
 ; /""/"|v{I1unT#jer\\<><>vls{}II{lxii>><>>>)><))||)<>>\\)c?oe]to[ri<)\>>\||)|\<>>)<<<)iivcr*II*sslv<<<\<>*oLJTuj1}{v|//""/
 ; "=====/<%cc}175m6[<||)<<>))vrI!I*lv><\))\\)||"//++====+<xI111!l>"=====+/"""|)|\\|\\>i%s}?!}ci))><\|||)omF3o1*xcv</=+==="
@@ -585,12 +595,17 @@
 ; "||v<)iclr<"|\<\\\\\iclv)<vi{J#LjuTujet[a!jjvrc{si<Inu1|''____'=rLTov<c*xrvI#1!11eoLTTujuJz%vi\\vlc)\\\\<>\|"isrc)\)%||"
 ; \vv)%/">r{li)"|)>><>icc<|>??aTn#?}L#ottaa1TJ[ss>vlvv7L7s/:''''=%tjL*>r%>c{*uJ7[eetauJe{oJnn!!{)|)l%i<<<<)|"|ir*r>""rivi\
 ; <v%)<+"/=vrx%>)||)<>vi>)"<c*Jgwn7vsa![aooea77l%i\i"<tuu7{+:''^xaLLzc">i\x%tLooooa1]11i{TuFmor%|"\)vv><\||)>%x{v+"/"<|%i<
+; ----------------------------------------------------------------------------------------------------------------------
 
         pic4         EQU pic3+$25800          ;beasty6.cry
 
-; 'pic5' references the contents of the beasty7.cry file. It contains the '2000' title logo, the 'TOP GUNS' title,
-; a small Atari logo, and the 'Joby' logo.
+; *******************************************************************
+; 'pic5' references the contents of the beasty7.cry file. It contains the
+; '2000' title logo, the 'TOP GUNS' title, a small Atari logo, and the 'Joby'
+; logo.
+; *******************************************************************
 ;
+; ----------------------------------------------------------------------------------------------------------------------
 ; {!"||\)"|")L/>I?rixI}if7))||>rI}i__''__>I*xix*I{nn)\#w\I3*){Fl){a+cJ7)i3ec?*i>lI})_;+            'rv+)<+_<^             
 ; Je%x| 's%c!Tei^>c%i,=t11 :vv%l\,!{    r!;/csc/^}[7,-yc'/?j lF{ `>]c>J'+T[l:/r*s<"}{_=            =J]<*1l:l|             
 ; ttrI1;}n{r1w*;77l)}7^vnt=)t?!z[;rJ-   o)<f[{1#zLuus=j;'"xj+vu[=//"1tuc+Lf%;}z?ayTj{_=            /Cl%?{c^[|             
@@ -625,10 +640,15 @@
 ;                                                                                           _T44h6E$[^EU4VdP4}           \
 ;                                                                                             .;){!r_`?a?{i^`            \
 ;                                                                               .'''''''''''''_-`..`_'`...`-_'''''''''''_i
+; ----------------------------------------------------------------------------------------------------------------------
         pic5         EQU pic4+(640*128)       ;beasty7.cry
 
-; 'pic6' references the contents of the beasty8.cry file. It contains the character map for the 'bfont' character set.
+; *******************************************************************
+; 'pic6' references the contents of the beasty8.cry file. It contains the
+; character map for the 'bfont' character set.
+; *******************************************************************
 ;
+; ----------------------------------------------------------------------------------------------------------------------
 ; >**rs??*II=`,?[rrs??*I?"`;|s}ss?!}![!`:xerrrI]}I!)`:/cIsr}!*?!a:_+%Isr*!}?!e^-=iI{r*]II?{:`=eIx```.=![<`^)1srrI?}][;`;  
 ; I%x)|)|><r{ ,{%x)|)|>i%! :xri<=++^^=" _v{i>++=/))o.-<})c)))"=^|``|I)c\))"=^|-./I)v/=+/\)I+ =?)%'__-+<rx ^=/="r\x^^/- ,  
 ; x\cri)>)\x? ,i<%l)><>"xx :>>{+        '\)l)    *"z`_|i>sv><%+   `"v\{xi>%\   `/%>{  i\>it" =v\llvi>i"*l ^'   *|<     ,  
@@ -659,6 +679,7 @@
 ; !t1ccv)l)>v ;,"vv=       ,;   i}r`    :=''_______' '_   /%)\/,     ,<cc\)                                               
 ; \>\<i>><)i, ;,lcc>       ,;   \v}_    :=           '_   =i|""=.     .;iv\+"`                                            
 ; '':'''::,'-_::'':'-_____-::__-'':_-__-':__________-'`   -:. _;.      `:'::^`                                            
+; ----------------------------------------------------------------------------------------------------------------------
 ;                                                                                                                      
         pic6         EQU pic5+(640*200)       ;beasty8.cry
 
@@ -708,11 +729,12 @@
         ; Notice that we use a7 as our stack.
         move.l #stack,a7               ; Set up our stack on the a7 register.
         jsr VideoIni                   ; Video initialisation.
-        jsr InitLists
-        move.l ddlist,d0               ; put a list on the OLP
-        move.w #0,ODP
+
+        jsr InitLists ; Initialize blist, dlist and ddlist.
+        move.l ddlist,d0               ; Put ddlist(which points to dlist) on the OLP
+        move.w #0,ODP ; The ODP is not used.
         swap d0                        ; Swap position of the first 2 bytes with last 2 bytes.
-        move.l d0,OLP
+        move.l d0,OLP                  ; Point the Jaguar's object list at our ddlist.
         
         lea romstart,a0                ; clear RAM
         lea copstart,a1 ; Point a1 at copstart.
@@ -743,10 +765,10 @@ cram:   clr.l (a0)+
         move #0,d1
         jsr SET_VOLUME
         jsr InitBeasties               ; list of active windows
-        move #-1,db_on                 ; double buffering flag - not on
+        move #-1,db_on                 ; Disable double-buffering.
         clr modnum                     ; set no tune pending
         clr lastmod
-        clr screen_ready
+        clr screen_ready               ; Signal to 'Frame' that we don't have a screen ready for display yet.
         move.l #-1,gpu_sem             ; GPU idle semaphore
         move.l #$03e70213,pit0
         move.l #rrts,routine
@@ -1406,7 +1428,7 @@ getlvl:
         clr noxtra
         move.l #rrts,routine
         clr sync                           ; Signal to mainloop it can draw a new screen.
-        move #1,screen_ready
+        move #1,screen_ready ; Signal to 'Frame' that we have a screen ready for display.
         
         move t2k_max,d0                    ; Put the maximum selectable level in d0
         and #$fe,d0                        ; Keep it between 0 and 254.
@@ -1503,9 +1525,9 @@ alrzero:
         move.l #draw_oo,mainloop_routine
         move.l #zoomto,routine
         move.l #gamefx,fx
-        clr db_on
+        clr db_on ; Enable double-buffering.
         clr sync                           ; Signal to mainloop it can draw a new screen.
-        move #1,screen_ready
+        move #1,screen_ready ; Signal to 'Frame' that we have a screen ready for display.
         jsr mainloop                       ; Run the mainloop while the user selects the level.
         ; Once they've finished we can do a fade transition and start the game.
         jmp fade                           ; Do a melto-vision transition.
@@ -5113,7 +5135,7 @@ viccount:
         sub #1,pongx
         bpl rrrts
         move #1,x_end
-        move #1,screen_ready
+        move #1,screen_ready ; Signal to 'Frame' that we have a screen ready for display.
         rts
 
 ; *******************************************************************
@@ -5124,7 +5146,7 @@ failcount:
         sub #1,pongx
         bpl rrrts
         move #-1,x_end
-        move #1,screen_ready
+        move #1,screen_ready ; Signal to 'Frame' that we have a screen ready for display.
         rts
 
 ; *******************************************************************
@@ -5654,7 +5676,6 @@ getbrag:
 ; *******************************************************************
 txenter:
         move.l #rrts,routine
-;  move #-1,db_on
         clr sync ; Signal to mainloop it can draw a new screen.
         bsr wnb
         jsr initobjects ; Initialize the activeobjects list.
@@ -7948,7 +7969,7 @@ demorun:
         move.l #demons,demobank
 drun:
         move #1,screen_ready    ;tell DB to start up sync with foreground
-        clr db_on      ;enable doublebuffer
+        clr db_on      ; Enable double buffering.
 scapa:
         movem.l d0-d4,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr db        ;sync with frame int, receive new drawscreen base
@@ -7956,12 +7977,11 @@ scapa:
         move.l demobank,a0
         jsr gpurun      ; Run the selected GPU module.
         jsr gpuwait ; Wait for the GPU to finish.
-        move #1,screen_ready
+        move #1,screen_ready ; Signal to 'Frame' that we have a screen ready for display.
         movem.l (a7)+,d0-d4 ; Restore stashed values from the stack.
         move.l demo_routine,a0
         jsr (a0)
         btst.b #0,pad_now+1
-;  bne fxsel      ;go select a new effect if player hits option
         bne mandy
         bra scapa
 
@@ -7969,17 +7989,17 @@ scapa:
 ; mp_demorun
 ; *******************************************************************
 mp_demorun:
-        move #1,screen_ready    ;as above, but a multi-pass-capable version that lets you start
-        clr db_on                ;the gpu in demo_routine
+        ;as above, but a multi-pass-capable version that lets you start
+        move #1,screen_ready    ; Signal to 'Frame' that we have a screen ready for display.
+        clr db_on    ; Enable double-buffering. 
 mp_scapa:
         movem.l d0-d4,-(a7) ; Stash some values in the stack so we can restore them later.
         bsr db        ;sync with frame int, receive new drawscreen base
         movem.l (a7)+,d0-d4 ; Restore stashed values from the stack.
         move.l demo_routine,a0
         jsr (a0)
-        move #1,screen_ready
+        move #1,screen_ready ; Signal to 'Frame' that we have a screen ready for display.
         btst.b #0,pad_now+1
-;  bne fxsel      ;go select a new effect if player hits option
         bne mandy
         bra mp_scapa
 
@@ -7994,8 +8014,9 @@ attract:
         move #500,attime       ; Set the duration of this screen in attract mode.
 attr:
         clr ud_score
-        move #1,screen_ready   ; as above, attract mode version
-        clr db_on
+        ; as above, attract mode version
+        move #1,screen_ready ; Signal to 'Frame' that we have a screen ready for display.
+        clr db_on ; Enable double-buffering.
         clr e_attract          ; Not used!
         clr optpress
         
@@ -8049,15 +8070,16 @@ mooocow:tst unpaused
         jsr eepromsave
         clr unpaused
 nunpa:
-        move #1,screen_ready
+        move #1,screen_ready ; Signal to 'Frame' that we have a screen ready for display.
         rts
 
 ; *******************************************************************
 ; gogame
 ; *******************************************************************
-gogame:
-        move #1,screen_ready    ;as above, attract mode version
-        clr db_on
+gogame:    
+        ;as above, attract mode version
+        move #1,screen_ready ; Signal to 'Frame' that we have a screen ready for display.
+        clr db_on ; Enable double-buffering.
         clr x_end
 gog:
         bsr thang
@@ -8393,7 +8415,7 @@ go_in:  move.l #rotate_web,routine
         move.l #0,warp_count
         move.l #draw_objects,mainloop_routine
         move pauen,_pauen
-        clr db_on
+        clr db_on ; Enable double-buffering.
         bra mainloop               ; Enter the mainloop until we lose a life.
         ; Returns
 
@@ -14017,7 +14039,7 @@ camel:  add #1,d0
         move d0,BORD1
         bra camel
 
-nothing:move #1,screen_ready
+nothing:move #1,screen_ready ; Signal to 'Frame' that we have a screen ready for display.
         rts
 
 wsync:  move frames,d7 ; Store frames in d7.
@@ -14115,7 +14137,7 @@ wd:     tst frames
 ; ***************************************************************
 mainloop:
         move #1,sync               ; Reset the sync
-        move #1,screen_ready       ; Reset the screen ready.
+        move #1,screen_ready  ; Signal to 'Frame' that we have a screen ready for display
         move pauen,_pauen          ; Reset the pause indicator.
 
 main:   tst sync                   ; loop waiting for another sync
@@ -14157,8 +14179,8 @@ mlooo:  tst unpaused               ; Did we just unpause?
         jsr eepromsave             ; Save the current settings to EEPROM, not sure why.
         clr unpaused               ; We're fully unpaused now.
 
-nunpa2: ; We've finished preparing dscreen, so we can set screen_ready.
-        move #1,screen_ready       ; Set screen_ready so 'Frame' can use it at the next vsync interrupt.
+        ; We've finished preparing dscreen, so we can set screen_ready.
+nunpa2: move #1,screen_ready       ; Set screen_ready so 'Frame' can use it at the next vsync interrupt.
         tst term                   ; Have we lost a life or completed the game?
         beq main                   ; If not, continue looping.
 
@@ -14222,7 +14244,6 @@ fr:     move INT1,d0
         movem.l d6-d7/a3-a6,-(a7) ; Stash data and address registers.
         move.l blist,a0     ; Stash blist in a0.
         move.l dlist,a1     ; Stash dlist in a1.
-
         ; Copy all bytes in blist to dlist.
         move.l #$30,d0      ; 0x30 units of 4 bytes each to be copied.
 xlst:   move.l (a0)+,(a1)+  ; Copy 4 bytes from blist to dlist.
@@ -14236,24 +14257,24 @@ xlst:   move.l (a0)+,(a1)+  ; Copy 4 bytes from blist to dlist.
         ; we set screen_ready. Here we check if screen_ready is set and if so, we swap dscreen into
         ; 'cscreen' (current screen). We will then update the main screen object in the Display List to
         ;  reference this new address.
-setdb:  ; Check if we can swap in the new screen prepared in 'mainloop'.
-        tst screen_ready   ; has 'mainloop' finished preparing a new screen?
-        beq no_new_screen  ; If no, got to no_new_screen.
+        ; Check if we can swap in the new screen prepared in 'mainloop'.
+setdb:  tst screen_ready   ; has 'mainloop' finished preparing a new screen?
+        beq no_new_screen  ; If no, go to no_new_screen.
         tst sync           ; Has mainloop signalled it safe to swap screens?
         beq no_new_screen  ; If no, go to new_screen.
 
         ; Swap dscreen into cscreen so that the new screen can be used in the Object List.
-        move.l cscreen,d1  ; Stash cscreen in d1.
-        move.l dscreen,cscreen  ; Overwrite cscreen with dscreen.
-        move.l d1,dscreen  ; Overwrite dscreen with stashed cscreen.
-        clr screen_ready   ; Signal that a new screen is required before we come here again.
-        clr sync           ; Signal to mainloop it can build a new screen.
+        move.l cscreen,d1        ; Stash cscreen in d1.                                           
+        move.l dscreen,cscreen   ; Overwrite cscreen with dscreen.
+        move.l d1,dscreen        ; Overwrite dscreen with stashed cscreen.
+        clr screen_ready         ; Signal that a new screen is required before we come here again.
+        clr sync                 ; Signal to mainloop it can build a new screen.
 
         ; Check if we have a new screen to display.
 no_new_screen:
         move.l dlist,a0    ; Point a0 at the display list.
-        move db_on,d7      ; Store the number of double-buffered screens in d7.
-        bmi no_db          ; If we don't have any, skip to warp flash.
+        move db_on,d7      ;  Is double-buffering enabled?
+        bmi no_db          ; If not, skip to warp flash.
 
         ; Update the main screen item in the Object List with the address of the new screen contained
         ; in cscreen. This has the effect of ensuring all the objects we drew with the GPU
@@ -15039,7 +15060,7 @@ still_running:
         tst.l gpu_sem
         bmi still_running  ;wait for GPU stop
         bsr WaitBlit    ;wait for Blitter stop
-        move #1,screen_ready  ;tell int routine the screen is ready        ;for display
+        move #1,screen_ready  ; Signal to 'Frame' that dscreen is ready for display.
         rts
 
 ; *******************************************************************
@@ -15177,6 +15198,16 @@ ModeVex: dc.l rrts
 
 ; *******************************************************************
 ; InitLists
+; Set up our dlist and blist object list pointers.
+; Our end result is that we point ddlist at dlist. ddlist will be stored
+; in the OLP (Object List Pointer), which is what the Graphics Processor
+; will use as the address of the object list to use for all objects to be
+; painted to the screen.
+;
+; We also set up blist, which is where all our objects will actually get
+; stored. When ready to be drawn we will copy blist into dlist so that it
+; can be processed by the Object Processor. It's InitBeasties and RunBeasties
+; that create all the items in blist.
 ;
 ; Align object list buffers and initialise them with some
 ; data, set one of them to be displayed
@@ -17255,6 +17286,7 @@ readpad:tst roconon    ; Is Rotary Controller enabled?
 ; *******************************************************************
 dopad:
         movem.l  d0-d2,-(sp)
+
         ;scan for player 1
         move.l  #$f0fffffc,d1    ; d1 = Joypad data mask
         moveq.l  #-1,d2          ; d2 = Cumulative joypad reading
@@ -17290,7 +17322,7 @@ dopad:
         and.l  d1,d0
         move.l  d0,pad_shot      ;joypad, buttons, keys that were just pressed
 
-;scan for player 2
+        ;scan for player 2
         move.l  #$0ffffff3,d1    ; d1 = Joypad data mask
         moveq.l  #-1,d2          ; d2 = Cumulative joypad reading
 
@@ -23493,7 +23525,7 @@ pixcols: dc.b 0,0,$f0,0,0,$0f,0,0,0,$80,0,$ff  ;11
 ; - Offset to Colour Lookup Table (CLUT).
 ; *******************************************************************
 ObTypes:
-        dc.w $60,279,4,0   ; 384x280, 16bit
+        dc.w 96,279,4,0   ; 384x280, 16bit
         dc.w $28,99,4,0    ; 160x100
         dc.w $10,99,4,0    ; 64x100, robot object
         dc.w 32,18,4,0     ; score object, truecolour
@@ -24305,3 +24337,4 @@ linebuff:         ds.b 64
 
 epromcopy:        ds.b 128
 
+; vim:ft=asm68k ts=2
