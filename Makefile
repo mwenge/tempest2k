@@ -19,7 +19,7 @@ t2000.abs: sources
 	./rmac/rmac -fb -isrc src/yakgpu.s -o src/bin/yakgpu.cof
 	./rmac/rmac -fb -isrc src/vidinit.s -o src/bin/vidinit.cof
 	./rmac/rmac -fb -Isrc src/images_sounds.s -o src/bin/images_sounds.o
-	./rln/rln -e -a 802000 4000 efa8 src/bin/yak.cof src/bin/vidinit.cof src/bin/yakgpu.cof src/bin/images_sounds.o -o t2000.abs
+	./rln/rln -z -e -a 802000 4000 efa8 src/bin/yak.cof src/bin/vidinit.cof src/bin/yakgpu.cof src/bin/images_sounds.o -o t2000.abs
 	echo "44e71799ee06615a59ff57b2c8a1ef52  t2000.abs" | md5sum -c
 
 clean_build: t2000.abs 

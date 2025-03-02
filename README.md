@@ -80,3 +80,7 @@ following at the command line:
 ```sh
 wine ./utils/t2k.exe t2k.rom
 ```
+
+### Reading the source code.
+
+The place to start is in [yak.s](src/yak.s).

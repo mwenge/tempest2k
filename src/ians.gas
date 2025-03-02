@@ -1,106 +1,151 @@
-
-	Base equ $f00000
-
-		INCLUDE	"jaguar.inc"	; Jaguar General definitions
-
-	in_buf	EQU (D_ENDRAM-128)	;Room tp pass params to DSP 
-
-
-
-
-starplane:
+; **************************************************************************************
+; Welcome to the Motorola 68K Assembler source code for 'Tempest 2000' by Jeff Minter.
 ;
-; draw a single plane of random field; inputs Nstars,Col,Xdisp,Ydisp,Rseed
-; Uses the pseudorandom sequence generator Thang out of Graphix Gems
+;                                  ;\=                      
+;                             .=ru27<`                      
+;                         '<!wg8bu"                         
+;                     'lz6Z$$$E]:                           
+;                     =k$$$8Fl`                             
+;                      }@@@&r                               
+;                       2@@@8!                           ,% 
+;                       ^b@@@@7                         >Pl 
+;                        *@@@@@#.                      [Ub` 
+;                         y@@@@@2_                   :yHDj  
+;                         ;b@@@@@S;                 )XHH@|  
+;                          s$@@@@@E\;;;;;;;;;;;;;;;1UHHHh   
+;                           f@@@@@@$&&&&&&&&&&88U$@HHHHH?   
+;                           ,G@@@KKKKKKKKKKKK$AZEq3naIc<`   
+;                            r@@K$&YXhpwL1*%\=:`            
+;                             }Ix\=:`                       
+;                                                                                                                                   
+;                     Fig 1. Ascii rendering of the 'claw'.
+;                                                                                                                 
+; This source code was originally 'leaked' by 'JaySmith2000' in August 2008,
+; who sold it on CD as part of a release entitled the 'Jaguar Sector II Source Code
+; Collection':
+;  https://web.archive.org/web/20131117222232/http://www.jaysmith2000.com/Jagpriceguide.htm
+;
+; This is a cleaned-up and commented version of the source code file 'ians.gas'.
+;
+; No code has been changed, so this source file can be used to create a build
+; of Tempest 2000 that is byte-for-byte identical to the original 1994 release.
+;
+; All original variable and routine names are preserved.
+; The changes include:
+;   - Fixed up indentation.
+;   - Added comments and routine headers.
+;
+; The home of this file and the rest of the Tempest 2000 source code is:
+;    https://github.com/mwenge/tempest2k 
+;
+; ians.gas draws a single plane of random field; inputs Nstars,Col,Xdisp,Ydisp,Rseed
+; Uses the pseudorandom sequence generator Thang out of Graphix Gems.
+;
+; This file is not used.
+; **************************************************************************************
 
-	nstars		REGEQU r4
-	starcol		REGEQU r5
-	xdisp		REGEQU r6
-	ydisp		REGEQU r7
-	xseed		REGEQU r8
-	xmask		REGEQU r9
-	linesize	REGEQU r10
-	andlim		REGEQU r11
-	himask		REGEQU r12
-	lomask		REGEQU r13
-	scrbase		REGEQU r14
-	maxx		REGEQU r15
-	maxy		REGEQU r16
-	px		REGEQU r17
-	py		REGEQU r18
-	nopixl		REGEQU r19
-	starloop	REGEQU r20
-	yseed 		REGEQU r21
-	ymask		REGEQU r22
+        Base equ $f00000
 
-	MACRO ran			;Sequence generator out of Graphics Gems	
-	btst #0,\1
-	jr z,\~noxortt
- 	shrq #1,\1		;branch optimisation - the SHRQ is always done
-	xor \2,\1
-\~noxortt:
-  nop
-	ENDM
+        INCLUDE "jaguar.inc"    ; Jaguar General definitions
 
-	movei #in_buf,r0
-	load (r0),nstars
-	addq #4,r0
-	load (r0),starcol
-	addq #4,r0
-	load (r0),xdisp
-	addq #4,r0
-	load (r0),ydisp
-	addq #4,r0
-	load (r0),xseed		;get parameters
-	addq #4,r0
-	load (r0),yseed
-	addq #4,r0
-	load (r0),scrbase
-	movei #768,linesize	;size in bytes of a scanline
-	movei #$ff,lomask	;for chopping out bytes
-	movei #384,maxx
-	movei #240,maxy		;clipping boundaries
-	movei #no_pixl,nopixl	;loop address - faster than using MOVEI each time
-	movei #star_loop,starloop	;another loop address
-	movei #$110,xmask	;init constants
-	movei #$b8,ymask
-	movei #$1ff,andlim
+        in_buf  EQU (D_ENDRAM-128)      ;Room tp pass params to DSP 
 
-		
-star_loop: 
-  ran xseed,xmask
-	move xseed,px
-	ran yseed,ymask
-	move yseed,py		;"random" XY star position
-	add xdisp,px
-	add ydisp,py		;add XY offset passed in
-	and andlim,px		
-	and lomask,py		;wrap to 0-255
-	cmp maxx,px
-	jump pl,(nopixl)	;clip max X
-	cmp maxy,py		;no harm if this is done whatever
-	jump pl,(nopixl)
-	shlq #1,px		;x to point at words
-	mult linesize,py	;offset in lines to bytes
-	add px,py
-	add scrbase,py		;py now points at pixel
-	storew starcol,(py)	;plot the star
-no_pixl: subq #1,nstars
-	jump ne,(starloop)	;loop until nstars is 0
-	nop
-StopDSP: movei #D_CTRL,r1	;point at DSP flags
-	load (r1),r0
-	bclr #0,r0
-	store r0,(r1)		;stop the DSP
-stoploop: jr stoploop
-	nop
+; *******************************************************************
+; starplane
+; *******************************************************************
+starplane:
 
-
-
-
-	movei #stopgpu,r0
-	jump (r0)
-	nop
-
-
-
+        nstars   REGEQU r4
+        starcol  REGEQU r5
+        xdisp    REGEQU r6
+        ydisp    REGEQU r7
+        xseed    REGEQU r8
+        xmask    REGEQU r9
+        linesize REGEQU r10
+        andlim   REGEQU r11
+        himask   REGEQU r12
+        lomask   REGEQU r13
+        scrbase  REGEQU r14
+        maxx     REGEQU r15
+        maxy     REGEQU r16
+        px       REGEQU r17
+        py       REGEQU r18
+        nopixl   REGEQU r19
+        starloop REGEQU r20
+        yseed    REGEQU r21
+        ymask    REGEQU r22
+    
+        MACRO ran                  ; Sequence generator out of Graphics Gems
+        btst #0,\1
+        jr z,\~noxortt
+        shrq #1,\1                 ; branch optimisation - the SHRQ is always done
+        xor \2,\1
+      \~noxortt:
+        nop
+        ENDM
+    
+        movei #in_buf,r0
+        load (r0),nstars
+        addq #4,r0
+        load (r0),starcol
+        addq #4,r0
+        load (r0),xdisp
+        addq #4,r0
+        load (r0),ydisp
+        addq #4,r0
+        load (r0),xseed            ; get parameters
+        addq #4,r0
+        load (r0),yseed
+        addq #4,r0
+        load (r0),scrbase
+        movei #768,linesize        ; size in bytes of a scanline
+        movei #$ff,lomask          ; for chopping out bytes
+        movei #384,maxx
+        movei #240,maxy            ; clipping boundaries
+        movei #no_pixl,nopixl      ; loop address - faster than using MOVEI each time
+        movei #star_loop,starloop   ; another loop address
+        movei #$110,xmask          ; init constants
+        movei #$b8,ymask
+        movei #$1ff,andlim
+    
+    
+star_loop:
+        ran xseed,xmask
+        move xseed,px
+        ran yseed,ymask
+        move yseed,py              ; "random" XY star position
+        add xdisp,px
+        add ydisp,py               ; add XY offset passed in
+        and andlim,px
+        and lomask,py              ; wrap to 0-255
+        cmp maxx,px
+        jump pl,(nopixl)           ; clip max X
+        cmp maxy,py                ; no harm if this is done whatever
+        jump pl,(nopixl)
+        shlq #1,px                 ; x to point at words
+        mult linesize,py           ; offset in lines to bytes
+        add px,py
+        add scrbase,py             ; py now points at pixel
+        storew starcol,(py)        ; plot the star
+no_pixl:
+        subq #1,nstars
+        jump ne,(starloop)         ; loop until nstars is 0
+        nop
+StopDSP: movei #D_CTRL,r1          ; point at DSP flags
+        load (r1),r0
+        bclr #0,r0
+        store r0,(r1)              ; stop the DSP
+stoploop:
+        jr stoploop
+        nop
+    
+    
+    
+    
+        movei #stopgpu,r0
+        jump (r0)
+        nop
+    
+    
+    
+; vim:ft=asm68k ts=8

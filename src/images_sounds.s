@@ -1,3 +1,56 @@
+; ***********************************************************************************
+; Welcome to the Motorola 68K Assembler source code for 'Tempest 2000' by Jeff Minter.
+;
+;                                                                                                                 
+;                                       =====                                                                     
+;                                    ===========                                                                  
+;                                 ====== ==  ======                                                               
+;                              ======    ==     ======                                                            
+;                           ======       ==        ======                                                         
+;                        =========       ==       ==========                                                      
+;                     ======    ====     ==      ===    =======                                                   
+;                  ======         ===    ===   ====         ======                                                
+;               ===========        ==============         ===========                                             
+;            ======  ============  ======   ======  ===========  ======                                           
+;          =====           ===========         ===========          ======                                        
+;       ===========================               ===========================                                     
+;       =========================                   =========================                                     
+;        ===              ========                 ========              ===                                      
+;         ====    ============= ====             ==== =============    ===                                        
+;           =============     =========================     =============                                         
+;            ====         ======= ================  ======          ===                                           
+;              ===      ======   ===   ==   ==   ===   ======      ===                                            
+;               ==== ======    ====   ==    ===   ====    ====== ====                                             
+;                 ======      ===     ==     ==    ====      ======                                               
+;                  ====     ====     ==      ===     ===      ====                                                
+;                    ===   ===       ==       ==      ====   ===                                                  
+;                     =======       ==        ===       =======                                                   
+;                       =====================================                                                     
+;                         =================================                                                       
+;                                                                                                                 
+;                                                                                                                 
+; Fig 1. Ascii rendering of the 'pentagon' web used in level 27 of Tempest 2000.
+;                                                                                                                 
+; This source code was originally 'leaked' by 'JaySmith2000' in August 2008,
+; who solid it on CD as part of a release entitled the 'Jaguar Sector II Source Code
+; Collection':
+;  https://web.archive.org/web/20131117222232/http://www.jaysmith2000.com/Jagpriceguide.htm
+;
+; This is a cleaned-up and commented version of the source code file 'images_sounds.s'.
+;
+; No code has been changed, so this source file can be used to create a build
+; of Tempest 2000 that is byte-for-byte identical to the original 1994 release.
+;
+; All original variable and routine names are preserved.
+; The changes include:
+;   - Fixed up indentation.
+;   - Added comments and routine headers.
+;
+; The home of this file and the rest of the Tempest 2000 source code is:
+;    https://github.com/mwenge/tempest2k 
+;
+; images_sounds.s contains image and sound data.
+; ***********************************************************************************
 .incbin "images/beasty3-trunc.cry"
 .incbin "images/beasty4.cry"
 .incbin "images/beasty5.cry"
@@ -64,7 +117,7 @@ modtable:
 .DC.L $0000
 
 ; This contains fragments of tune12.mod, tune7.mod, and tune6.mod.
-; The data is the 'sample' date from each mod file since that tends to take
+; The data is the 'sample' data from each mod file since that tends to take
 ; up most of each file and appear towards the end. It tells us that at one
 ; time tune6.mod was included in the build.
 ; Bytes 0     - 3192   tune12.mod

@@ -1,75 +1,120 @@
-; vim:ft=asm68k
-; *******************************************************************
-; camel.gas
-; Contains the following routines:
-; poly -
-; pretty_poly - Used to draw the pyramids in head to head mode. 
-; rex - A Robotron style explosion generator.
-; crex - A centred version of the above.
-; *******************************************************************
+; **************************************************************************************
+; Welcome to the Motorola 68K Assembler source code for 'Tempest 2000' by Jeff Minter.
+;
+;                 ===============                   ===============                                               
+;              =====================             =====================                                            
+;            =====   =====      ======         ======      ====    =====                                          
+;         ======       =====     == =====   ===== ==     ====        =====                                        
+;       =====            =====    ==  =========  ==    =====            =====                                     
+;       =======            =====  ===   ====    ==   =====            =======                                     
+;       ============         =====  ==   ==    ==  =====         ============                                     
+;        ==    ==========      ========= ==  =========      ==========    ==                                      
+;        ===        ========== ======================= ==========        ==                                       
+;         ===           =========      ======      =========            ===                                       
+;          ==                ===                     ==                 ==                                        
+;          ===                ===                   ==                 ===                                        
+;           ==            ========                 ========           ===                                         
+;            =======================             =======================                                          
+;            =============        =====       =====        =============                                          
+;             =====             =====================            =====                                            
+;                =====       =====    ========    ======       =====                                              
+;                  =====   =====       ==   ==       =====  ======                                                
+;                     =======         ==    ===        ========                                                   
+;                       =====         ==     ==         =====                                                     
+;                          =====     ==      ===     =====                                                        
+;                            =====   ==       ==   =====                                                          
+;                              =======        =======                                                             
+;                                 =================                                                               
+;                                    ===========                                                                  
+;                                                                                                                                                   
+;                   Fig 1. Ascii rendering of the 'kiss of death' web.
+;                                                                                                                 
+; This source code was originally 'leaked' by 'JaySmith2000' in August 2008,
+; who sold it on CD as part of a release entitled the 'Jaguar Sector II Source Code
+; Collection':
+;     https://web.archive.org/web/20131117222232/http://www.jaysmith2000.com/Jagpriceguide.htm
+;
+; This is a cleaned-up and commented version of the source code file 'camel.gas'.
+;
+; No code has been changed, so this source file can be used to create a build
+; of Tempest 2000 that is byte-for-byte identical to the original 1994 release.
+;
+; All original variable and routine names are preserved. The changes include:
+;   - Fixed up indentation.
+;   - Added comments and routine headers.
+;
+; The home of this file and the rest of the Tempest 2000 source code is:
+;     https://github.com/mwenge/tempest2k 
+;
+; camel.gas contains the following routines:
+;     poly -
+;     pretty_poly - Used to draw the pyramids in head to head mode. 
+;     rex         - A Robotron style explosion generator.
+;     crex        - A centred version of the above.
+; **************************************************************************************
 
         Base equ $f00000
 
-        INCLUDE "jaguar.inc"    ; Jaguar General definitions
-
-        gpu_mode EQU (G_RAM+$ffc)       ; Number defines which routine the GPU will do
-        gpu_screen EQU (G_RAM+$ff8)     ; The address of the screen the GPU will draw on
+        INCLUDE "jaguar.inc"          ; Jaguar General definitions
+    
+        gpu_mode EQU (G_RAM+$ffc)     ; Number defines which routine the GPU will do
+        gpu_screen EQU (G_RAM+$ff8)   ; The address of the screen the GPU will draw on
         source_flags    EQU (G_RAM+$ff4)
-        dest_flags EQU (G_RAM+$ff0)     ; Blitter flags 4 source+dest
+        dest_flags EQU (G_RAM+$ff0)   ; Blitter flags 4 source+dest
         backg   EQU (G_RAM+$fec)
-
-        p_sines EQU $30000              ; 256-byte sine table of unsigned bytes
-        in_buf  EQU (G_RAM+$f60)        ; General space for passing stuff to GPU
-        _sysflags EQU (G_RAM+$fd0)      ;Thick vector flags etc
+    
+        p_sines EQU $30000            ; 256-byte sine table of unsigned bytes
+        in_buf  EQU (G_RAM+$f60)      ; General space for passing stuff to GPU
+        _sysflags EQU (G_RAM+$fd0)    ; Thick vector flags etc
         ORG $f03000
         width EQU 384
         mwidth EQU 768
         height EQU 240
         diag EQU $4000
         ycent   EQU (G_RAM+$ef8)
-
+    
 ;***** EQUATES for Blitter offsets
-
+    
         _base EQU 0
         _flags EQU 1
         _clip EQU 2
         _mask EQU 2
-        _pixel EQU 3 
+        _pixel EQU 3
         _step EQU 4
         _fstep EQU 5
         _fpixel EQU 6
         _inc EQU 7
         _finc EQU 8
-
+    
 ; *******************************************************************
 ; sdiv
 ; *******************************************************************
-        MACRO sdiv      ;Divide, keeping sign of that which is divided, uses r27
+        MACRO sdiv                 ; Divide, keeping sign of that which is divided, uses r27
         move \2,r31
         abs \2
         div \1,\2
-        btst #31,r31    ;Get sign bit of original thang
+        btst #31,r31               ; Get sign bit of original thang
         jr z,\~sdtt
         nop
         neg \2
-\~sdtt: 
+\~sdtt:
         ENDM
-
+    
 ; *******************************************************************
 ; waitblit
 ; *******************************************************************
-        MACRO waitblit  ; Wait for the Blitter to stop
+        MACRO waitblit             ; Wait for the Blitter to stop
 \~waitt:        load (blit),r31
         btst #0,r31
         jr z,\~waitt
         nop
         ENDM
-
+    
 ; *******************************************************************
 ; fmult
 ; *******************************************************************
-        MACRO fmult     ;multiply 2 thangs, uses r2-r4, returns in first reg.
-        moveta \2,r31   ;(preserves second Thang)
+        MACRO fmult                ; multiply 2 thangs, uses r2-r4, returns in first reg.
+        moveta \2,r31              ; (preserves second Thang)
         moveq #0,r27
         move r27,r28
         abs \1
@@ -97,7 +142,7 @@
         neg \1
 \~fmptt:
         ENDM
-
+    
 ; *******************************************************************
 ; bank0
 ; *******************************************************************
@@ -105,7 +150,7 @@
         movei #G_FLAGS,r0
         load (r0),r1
         bclr #14,r1
-        store r1,(r0)                   ;Switch to Register Bank #0
+        store r1,(r0)              ; Switch to Register Bank #0
         nop
         nop
         nop
@@ -117,7 +162,7 @@
         jr nz,\~bnk0tt
         nop
         ENDM
-
+    
 ; *******************************************************************
 ; bank1
 ; *******************************************************************
@@ -125,7 +170,7 @@
         movei #G_FLAGS,r0
         load (r0),r1
         bset #14,r1
-        store r1,(r0)                   ;Switch to Register Bank #1
+        store r1,(r0)              ; Switch to Register Bank #1
         nop
         nop
         nop
@@ -137,8 +182,8 @@
         jr z,\~bnk1tt
         nop
         ENDM
-
-
+    
+    
 ; *******************************************************************
 ; Execution of the module starts here.
 ;
@@ -151,28 +196,28 @@
 ; Mode 5 = polyo2d (Not used).
 ; *******************************************************************
         movei #gpu_mode,r0
-        load (r0),r1            ;get gpu #
+        load (r0),r1               ; get gpu #
         movei #poly,r2
         movei #pretty_poly,r3
         movei #crex,r4
         movei #rex,r5
         movei #polyo2d+2,r6
-        cmpq #1,r1 ; Mode 1 selected?
-        jump eq,(r2)             ; Jump to poly
+        cmpq #1,r1                 ; Mode 1 selected?
+        jump eq,(r2)               ; Jump to poly
         nop
-        cmpq #2,r1 ; Mode 2 selected?
-        jump eq,(r3)            ; Jumpt to pretty_poly
+        cmpq #2,r1                 ; Mode 2 selected?
+        jump eq,(r3)               ; Jumpt to pretty_poly
         nop
-        cmpq #3,r1 ; Mode 3 selected?
-        jump eq,(r4) ; Jump to crex
+        cmpq #3,r1                 ; Mode 3 selected?
+        jump eq,(r4)               ; Jump to crex
         nop
-        cmpq #4,r1 ; Mode 4 selected?
-        jump eq,(r5) ; Jump to rex.
+        cmpq #4,r1                 ; Mode 4 selected?
+        jump eq,(r5)               ; Jump to rex.
         nop
-        cmpq #5,r1 ; Mode 5 selected?
-        jump eq,(r6) ; Jump to polyo2d
+        cmpq #5,r1                 ; Mode 5 selected?
+        jump eq,(r6)               ; Jump to polyo2d
         nop
-
+    
 ; *******************************************************************
 ; poly
 ;
@@ -187,7 +232,7 @@
 ;*****
 ; *******************************************************************
 poly:
-
+    
         x1_n            REGEQU r3
         y1_n            REGEQU r4
         x2_n            REGEQU r5
@@ -210,37 +255,37 @@ poly:
         sum2            REGEQU r24
         sum3            REGEQU r25
         sum4            REGEQU r26
-
+    
         xstart          REGEQU r27
         istart          REGEQU r28
         xsize           REGEQU r29
         isize           REGEQU r30
         cmd             REGEQU r2
-
-
+    
+    
         blit            REGEQU r13
         a1_n            REGEQU r14
-
+    
         MACRO swap
         move \1,r31
         move \2,\1
         move r31,\2
         ENDM
-
-StopGPU: movei #G_CTRL,r1       ;point at GPU flags
+    
+StopGPU: movei #G_CTRL,r1          ; point at GPU flags
         load (r1),r0
         bclr #0,r0
-        store r0,(r1)           ;stop the GPU
+        store r0,(r1)              ; stop the GPU
 stoploop: jr stoploop
         nop
-
-
+    
+    
 ; *******************************************************************
 ; pretty_poly
 ;
 ; This is passed a raw polygon data structure in the in_buf. See for
-; example ppyr, which draws the pyramid in head-to-head mode used to 
-; record player hits.. 
+; example ppyr, which draws the pyramid in head-to-head mode used to
+; record player hits..
 ;*****
 ;*
 ;* PRETTY_POLY: Gouraud-shaded poly renderer. Only for triangular pollies.
@@ -256,7 +301,7 @@ pretty_poly:
         c1              REGEQU r23
         c2              REGEQU r24
         c3              REGEQU r25
-
+    
         sum5            REGEQU r5
         sum6            REGEQU r6
         sum7            REGEQU r7
@@ -265,15 +310,15 @@ pretty_poly:
         cinc2           REGEQU r13
         cinc3           REGEQU r14
         cinc4           REGEQU r3
-
+    
         base            REGEQU r27
-        ci1             REGEQU r28      
-        ci2             REGEQU r29      
-        ii              REGEQU r30      
-
+        ci1             REGEQU r28
+        ci2             REGEQU r29
+        ii              REGEQU r30
+    
         movei #in_buf,r20
-        load (r20),r0                   ;get pointer to poly data
-        loadw (r0),x1_n         ;get all the bits of poly
+        load (r20),r0              ; get pointer to poly data
+        loadw (r0),x1_n            ; get all the bits of poly
         addq #2,r0
         loadw (r0),y1_n
         addq #2,r0
@@ -293,15 +338,15 @@ pretty_poly:
         addq #2,r0
         loadw (r0),y3_n
         addq #2,r0
-        loadw (r0),i3_n         ;all poly details got
+        loadw (r0),i3_n            ; all poly details got
         addq #2,r0
         loadw (r0),c3
         shlq #8,i1_n
         shlq #8,i2_n
-        shlq #8,i3_n            ;intensity values to 24-Bit
-
-        cmp y1_n,y2_n           ;Get vertices in order: (x1_n,y1_n)=TOP (lowest y) ---> (x3_n,y3_n)=BOTTOM
-        jr pl,p_nswap1          ;No nop after, as first bit of the macro only bashes r31
+        shlq #8,i3_n               ; intensity values to 24-Bit
+    
+        cmp y1_n,y2_n              ; Get vertices in order: (x1_n,y1_n)=TOP (lowest y) ---> (x3_n,y3_n)=BOTTOM
+        jr pl,p_nswap1             ; No nop after, as first bit of the macro only bashes r31
         swap x1_n,x2_n
         swap y1_n,y2_n
         swap i1_n,i2_n
@@ -310,13 +355,13 @@ p_nswap1: cmp y1_n,y3_n
         jr pl,p_nswap2
         swap x1_n,x3_n
         swap y1_n,y3_n
-        swap i1_n,i3_n          ;Now, (x1_n,y1_n) is definitely the top..
+        swap i1_n,i3_n             ; Now, (x1_n,y1_n) is definitely the top..
         swap c1,c3
 p_nswap2: cmp y2_n,y3_n
         jr pl,p_nswap3
         swap x2_n,x3_n
         swap y2_n,y3_n
-        swap i2_n,i3_n          ;The points are now in top-to-bottom order,
+        swap i2_n,i3_n             ; The points are now in top-to-bottom order,
         swap c2,c3
 p_nswap3:
         move y2_n,count1
@@ -327,37 +372,37 @@ p_nswap3:
         addq #1,count1
         sub y1_n,count3
         addq #1,count2
-        addq #1,count3          ;COUNT1=Y length of first span, count2=second span, y3_n=third span
-
+        addq #1,count3             ; COUNT1=Y length of first span, count2=second span, y3_n=third span
+    
         move x3_n,xinc2
         move x2_n,xinc1
         sub x1_n,xinc2
         sub x1_n,xinc1
         move i3_n,iinc2
-        move i2_n,iinc1         ;copy target values...
+        move i2_n,iinc1            ; copy target values...
         sub i1_n,iinc2
         sub i1_n,iinc1
         shlq #16,xinc2
-        shlq #16,xinc1          ;pixel values to 16:16
-
+        shlq #16,xinc1             ; pixel values to 16:16
+    
         sdiv count1,xinc1
-        sdiv count3,xinc2       ;get the gradient increments for x...
+        sdiv count3,xinc2          ; get the gradient increments for x...
         sdiv count1,iinc1
-        sdiv count3,iinc2       ;and the i-increments.
-
+        sdiv count3,iinc2          ; and the i-increments.
+    
         movei #p_loop1,loop1
-        movei #p_loop2,loop2    ;initialise loop addresses
-
+        movei #p_loop2,loop2       ; initialise loop addresses
+    
         moveta x3_n,x3_n
         moveta i3_n,i3_n
         moveta x2_n,x2_n
-        moveta i2_n,i2_n                ;Save these in alternates so they are free for use in the loop
-
+        moveta i2_n,i2_n           ; Save these in alternates so they are free for use in the loop
+    
         move c1,sum5
         move c1,sum6
         move c1,sum7
-        move c1,sum8            ;copy point 1 colour to all colour inc totals
-        movei #$f0000,r0        ;mask
+        move c1,sum8               ; copy point 1 colour to all colour inc totals
+        movei #$f0000,r0           ; mask
         shlq #12,sum5
         shlq #16,sum6
         shlq #12,sum7
@@ -365,122 +410,122 @@ p_nswap3:
         and r0,sum5
         and r0,sum6
         and r0,sum7
-        and r0,sum8             ;split colour vectors and make 'em 16:16 fractions
-
+        and r0,sum8                ; split colour vectors and make 'em 16:16 fractions
+    
         move c2,cinc1
-        move c2,cinc2           ;Get short side's colour values
+        move c2,cinc2              ; Get short side's colour values
         shlq #12,cinc1
         shlq #16,cinc2
         and r0,cinc1
-        and r0,cinc2            ;Split and fractionate the vectors
-
-        move x1_n,sum1          ;Get rid of x1_n, as it is about to become CINC4
-
-        move c3,cinc3           ;Now, PRECALCULATE the inc for the second short side
-        move c3,cinc4           ;Get second short side's colour values
+        and r0,cinc2               ; Split and fractionate the vectors
+    
+        move x1_n,sum1             ; Get rid of x1_n, as it is about to become CINC4
+    
+        move c3,cinc3              ; Now, PRECALCULATE the inc for the second short side
+        move c3,cinc4              ; Get second short side's colour values
         shlq #12,cinc3
         shlq #16,cinc4
         and r0,cinc3
-        and r0,cinc4            ;Split and fractionate the vectors
-
+        and r0,cinc4               ; Split and fractionate the vectors
+    
         sub cinc1,cinc3
-        sub cinc2,cinc4         ;Vector from second point to top
+        sub cinc2,cinc4            ; Vector from second point to top
         sub sum5,cinc1
-        sub sum6,cinc2          ;Make colour i-vectors
+        sub sum6,cinc2             ; Make colour i-vectors
         sdiv count1,cinc1
-        sdiv count1,cinc2       ;Make the increment per scan line
+        sdiv count1,cinc2          ; Make the increment per scan line
         sdiv count2,cinc3
         sdiv count2,cinc4
-
+    
         moveta cinc3,cinc1
-        moveta cinc4,cinc2      ;Store the second pair of i-vectors in alternates
-
+        moveta cinc4,cinc2         ; Store the second pair of i-vectors in alternates
+    
         move c3,cinc3
-        move c3,cinc4           ;Get long side's colour values
+        move c3,cinc4              ; Get long side's colour values
         shlq #12,cinc3
         shlq #16,cinc4
         and r0,cinc3
-        and r0,cinc4            ;Split and fractionate the vectors
+        and r0,cinc4               ; Split and fractionate the vectors
         sub sum7,cinc3
-        sub sum8,cinc4          ;Make colour i-vectors
+        sub sum8,cinc4             ; Make colour i-vectors
         sdiv count3,cinc3
-        sdiv count3,cinc4       ;Make the increment per scan line
-
+        sdiv count3,cinc4          ; Make the increment per scan line
+    
         move i1_n,sum2
         move sum1,sum3
         move i1_n,sum4
         shlq #16,sum1
-        shlq #16,sum3           ;copy start parameters and convert to 16:16
-
+        shlq #16,sum3              ; copy start parameters and convert to 16:16
+    
         movei #gpu_screen,r0
-        load (r0),base          ;get screenbase
-        moveta base,base        ;stash it so its register can be used
-
+        load (r0),base             ; get screenbase
+        moveta base,base           ; stash it so its register can be used
+    
         moveta y1_n,y1_n
         movei #mwidth,r0
-        mult r0,y1_n            ;turn Y into a scanline address
-
+        mult r0,y1_n               ; turn Y into a scanline address
+    
 p_loop1:
-
+    
 ;* Draw one scanline of Pretty Poly
-
+    
         moveta xinc1,xinc1
         moveta sum1,sum1
         moveta sum2,sum2
         moveta sum3,sum3
-        moveta sum4,sum4        ;Free up some registers for inside the loop
-
-        movefa base,base        ;restore screenbase
-        moveq #2,xinc1          ;assume pixel increment is positive
+        moveta sum4,sum4           ; Free up some registers for inside the loop
+    
+        movefa base,base           ; restore screenbase
+        moveq #2,xinc1             ; assume pixel increment is positive
         sub sum1,sum3
         jr pl,notneggy
-        shrq #15,sum1           ;sum1 is the start pixel *2 (word screen)
+        shrq #15,sum1              ; sum1 is the start pixel *2 (word screen)
         abs sum3
-        neg xinc1               ;change sign of step if necessary
+        neg xinc1                  ; change sign of step if necessary
 notneggy: bclr #0,sum1
-        shrq #16,sum3           ;sum3 is the loop size
-        add y1_n,sum1           ;sum1 is the offset to the screen pixel
+        shrq #16,sum3              ; sum3 is the loop size
+        add y1_n,sum1              ; sum1 is the offset to the screen pixel
         addq #1,sum3
-        add sum1,base           ;base now points to the start pixel
-
+        add sum1,base              ; base now points to the start pixel
+    
         move sum7,ci1
         move sum8,ci2
-        move sum4,ii            ;intensity-inc
+        move sum4,ii               ; intensity-inc
         sub sum5,ci1
-        sub sum6,ci2            ;get delta colour vectors
-        sub sum2,ii             ;delta-i along the line..
+        sub sum6,ci2               ; get delta colour vectors
+        sub sum2,ii                ; delta-i along the line..
         sdiv sum3,ci1
-        sdiv sum3,ci2           ;divide by the loop size
-        sdiv sum3,ii            ;all the increments are set...
-
+        sdiv sum3,ci2              ; divide by the loop size
+        sdiv sum3,ii               ; all the increments are set...
+    
         moveta sum5,r20
-        moveta sum6,r21 ;save current colour values
-
-        movei #p_loop3,sum1     ;loop-address...
+        moveta sum6,r21            ; save current colour values
+    
+        movei #p_loop3,sum1        ; loop-address...
         moveta sum8,r1
-        movei #$f000,sum8               ;hi-mask...
-        movei #$f00,sum4                ;lo-mask
-
+        movei #$f000,sum8          ; hi-mask...
+        movei #$f00,sum4           ; lo-mask
+    
 p_loop3: move sum5,r0
-        move sum6,r31           ;current colour vectors
+        move sum6,r31              ; current colour vectors
         shrq #4,r0
         shrq #8,r31
         and sum8,r0
         and sum4,r31
-        or r0,r31               ;r31 now has recombined colour value
-
+        or r0,r31                  ; r31 now has recombined colour value
+    
         move sum2,r0
-        shrq #16,r0             ;r0 now has i-value in low 8-bits
-        or r0,r31               ;r31 has the final pixel value
-
-        storew r31,(base)       ;plot the pixel
+        shrq #16,r0                ; r0 now has i-value in low 8-bits
+        or r0,r31                  ; r31 has the final pixel value
+    
+        storew r31,(base)          ; plot the pixel
         add ci1,sum5
-        add xinc1,base          ;update everything
+        add xinc1,base             ; update everything
         add ci2,sum6
-        subq #1,sum3            ;sum3 is the loop-counter
-        jump ne,(sum1)          ;jump back to the loop
-        add ii,sum2             ;adding the ii as we go
-
+        subq #1,sum3               ; sum3 is the loop-counter
+        jump ne,(sum1)             ; jump back to the loop
+        add ii,sum2                ; adding the ii as we go
+    
         movefa r1,sum8
         movefa xinc1,xinc1
         movefa r20,sum5
@@ -488,12 +533,12 @@ p_loop3: move sum5,r0
         movefa sum1,sum1
         movefa sum2,sum2
         movefa sum3,sum3
-        movefa sum4,sum4        ;Restore the stuff that was used
-
+        movefa sum4,sum4           ; Restore the stuff that was used
+    
 ;* Scanline draw complete
-
+    
         movefa y1_n,y1_n
-        addq #1,y1_n            ;step to nxt scanline
+        addq #1,y1_n               ; step to nxt scanline
         movei #mwidth,r0
         moveta y1_n,y1_n
         add xinc1,sum1
@@ -506,83 +551,83 @@ p_loop3: move sum5,r0
         add cinc4,sum8
         subq #1,count1
         jump ne,(loop1)
-        add iinc2,sum4          ;move to next values
-
+        add iinc2,sum4             ; move to next values
+    
         movefa x3_n,xinc1
-        movefa i3_n,iinc1               ;new target point is x3_n/i3_n
+        movefa i3_n,iinc1          ; new target point is x3_n/i3_n
         movefa x2_n,r0
         movefa i2_n,r1
         sub r0,xinc1
-        sub r1,iinc1            ;get differences
+        sub r1,iinc1               ; get differences
         shlq #16,xinc1
-
+    
         sdiv count2,xinc1
-        sdiv count2,iinc1       ;new increments
-
+        sdiv count2,iinc1          ; new increments
+    
         movefa cinc1,cinc1
-        movefa cinc2,cinc2      ;get these which were precalculated
-
+        movefa cinc2,cinc2         ; get these which were precalculated
+    
 p_loop2:
-
+    
 ;* Draw one scanline of Pretty Poly
-
+    
         moveta xinc1,xinc1
         moveta sum1,sum1
         moveta sum2,sum2
         moveta sum3,sum3
-        moveta sum4,sum4        ;Free up some registers for inside the loop
-
-        movefa base,base        ;restore screenbase
-        moveq #2,xinc1          ;assume pixel increment is positive
+        moveta sum4,sum4           ; Free up some registers for inside the loop
+    
+        movefa base,base           ; restore screenbase
+        moveq #2,xinc1             ; assume pixel increment is positive
         sub sum1,sum3
         jr pl,n2otneggy
-        shrq #15,sum1           ;sum1 is the start pixel *2 (word screen)
+        shrq #15,sum1              ; sum1 is the start pixel *2 (word screen)
         abs sum3
-        neg xinc1               ;change sign of step if necessary
+        neg xinc1                  ; change sign of step if necessary
 n2otneggy: bclr #0,sum1
-        shrq #16,sum3           ;sum3 is the loop size
-        add y1_n,sum1           ;sum1 is the offset to the screen pixel
+        shrq #16,sum3              ; sum3 is the loop size
+        add y1_n,sum1              ; sum1 is the offset to the screen pixel
         addq #1,sum3
-        add sum1,base           ;base now points to the start pixel
-
+        add sum1,base              ; base now points to the start pixel
+    
         move sum7,ci1
         move sum8,ci2
-        move sum4,ii            ;intensity-inc
+        move sum4,ii               ; intensity-inc
         sub sum5,ci1
-        sub sum6,ci2            ;get delta colour vectors
-        sub sum2,ii             ;delta-i along the line..
+        sub sum6,ci2               ; get delta colour vectors
+        sub sum2,ii                ; delta-i along the line..
         sdiv sum3,ci1
-        sdiv sum3,ci2           ;divide by the loop size
-        sdiv sum3,ii            ;all the increments are set...
-
+        sdiv sum3,ci2              ; divide by the loop size
+        sdiv sum3,ii               ; all the increments are set...
+    
         moveta sum5,r20
-        moveta sum6,r21 ;save current colour values
-
-        movei #p2_loop3,sum1    ;loop-address...
+        moveta sum6,r21            ; save current colour values
+    
+        movei #p2_loop3,sum1       ; loop-address...
         moveta sum8,r1
-        movei #$f000,sum8               ;hi-mask...
-        movei #$f00,sum4                ;lo-mask
-
+        movei #$f000,sum8          ; hi-mask...
+        movei #$f00,sum4           ; lo-mask
+    
 p2_loop3: move sum5,r0
-        move sum6,r31           ;current colour vectors
+        move sum6,r31              ; current colour vectors
         shrq #4,r0
         shrq #8,r31
         and sum8,r0
         and sum4,r31
-        or r0,r31               ;r31 now has recombined colour value
-
+        or r0,r31                  ; r31 now has recombined colour value
+    
         move sum2,r0
-        shrq #16,r0             ;r0 now has i-value in low 8-bits
-        or r0,r31               ;r31 has the final pixel value
-
-        storew r31,(base)       ;plot the pixel
+        shrq #16,r0                ; r0 now has i-value in low 8-bits
+        or r0,r31                  ; r31 has the final pixel value
+    
+        storew r31,(base)          ; plot the pixel
         add ci1,sum5
-        add xinc1,base          ;update everything
+        add xinc1,base             ; update everything
         add ci2,sum6
-        subq #1,sum3            ;sum3 is the loop-counter
-        jump ne,(sum1)          ;jump back to the loop
-        add ii,sum2             ;adding the ii as we go
-
+        subq #1,sum3               ; sum3 is the loop-counter
+        jump ne,(sum1)             ; jump back to the loop
+        add ii,sum2                ; adding the ii as we go
+    
         movefa r1,sum8
         movefa xinc1,xinc1
         movefa r20,sum5
@@ -590,12 +635,12 @@ p2_loop3: move sum5,r0
         movefa sum1,sum1
         movefa sum2,sum2
         movefa sum3,sum3
-        movefa sum4,sum4        ;Restore the stuff that was used
-
+        movefa sum4,sum4           ; Restore the stuff that was used
+    
 ;* Scanline draw complete
-
+    
         movefa y1_n,y1_n
-        addq #1,y1_n            ;step to nxt scanline
+        addq #1,y1_n               ; step to nxt scanline
         movei #mwidth,r0
         moveta y1_n,y1_n
         add xinc1,sum1
@@ -608,13 +653,13 @@ p2_loop3: move sum5,r0
         add cinc4,sum8
         subq #1,count2
         jump ne,(loop2)
-        add iinc2,sum4          ;move to next values
-
+        add iinc2,sum4             ; move to next values
+    
         movei #StopGPU,r0
         jump (r0)
         nop
-
-
+    
+    
 ; *******************************************************************
 ; crex
 ; A centred version of 'rex' below - does some set up and falls through
@@ -626,21 +671,21 @@ p2_loop3: move sum5,r0
 ;*
 ;*      Provide: dest screen in gpu_screen, in_buf: 0=source image address
 ;*      4=source image start pixel address, 8=x and y size of source, 12=X scale (16:16), 16=Y scale (16:16), 20=X shear (16:16), 24=Y shear,
-;*      28=Mode (0=Top edge, 1=Centered), 32=Dest X and Y 
+;*      28=Mode (0=Top edge, 1=Centered), 32=Dest X and Y
 ;*
 ;*****
 ; *******************************************************************
 crex:
         a2_n            REGEQU r15
-        _bass           REGEQU r2       ;Source base address
-        spixel          REGEQU r3       ;Source pixel start
-        ssize           REGEQU r4       ;Source rectangle size
+        _bass           REGEQU r2   ; Source base address
+        spixel          REGEQU r3   ; Source pixel start
+        ssize           REGEQU r4   ; Source rectangle size
         scalex          REGEQU r5
-        scaley          REGEQU r6       ;Scaling X and Y
+        scaley          REGEQU r6   ; Scaling X and Y
         shearx          REGEQU r7
-        sheary          REGEQU r8       ;Shearing X and Y
-        mode            REGEQU r9       ;Centering mode
-
+        sheary          REGEQU r8   ; Shearing X and Y
+        mode            REGEQU r9   ; Centering mode
+    
         xinc            REGEQU r10
         yinc            REGEQU r11
         xstep           REGEQU r12
@@ -652,12 +697,12 @@ crex:
         dstx            REGEQU r21
         axshear         REGEQU r22
         ayshear         REGEQU r23
-
+    
         xx              REGEQU r24
         yy              REGEQU r25
         dsty            REGEQU r26
         dstz            REGEQU r1
-
+    
         movei #ycent,r0
         load (r0),r28
         addq #4,r0
@@ -667,9 +712,9 @@ crex:
         movei #orex,r0
         jump (r0)
         nop
-        
-
-
+    
+    
+    
 ; *******************************************************************
 ; rex
 ; Multiple images stretching towards you in Z.
@@ -683,7 +728,7 @@ crex:
 ;*
 ;*      Provide: dest screen in gpu_screen, in_buf: 0=source image address
 ;*      4=source image start pixel address, 8=x and y size of source, 12=X scale (16:16), 16=Y scale (16:16), 20=X shear (16:16), 24=Y shear,
-;*      28=Mode (0=Top edge, 1=Centered), 32=Dest X and Y 
+;*      28=Mode (0=Top edge, 1=Centered), 32=Dest X and Y
 ;*
 ;*****
 ; *******************************************************************
@@ -695,14 +740,14 @@ rex:
         btst #5,r1
         jr z,orex
         nop
-        movei #$8c0000,r28      
-
+        movei #$8c0000,r28
+    
 ; *******************************************************************
 ; orex
 ; The common base for both crex and rex.
 ; *******************************************************************
 orex:   movei #A1_BASE,a1_n
-        movei #A2_BASE,a2_n             ;initialise the usual stuff
+        movei #A2_BASE,a2_n        ; initialise the usual stuff
         movei #B_CMD,blit
 ;       movei #$ffffffff,r0
         xor r0,r0
@@ -710,8 +755,8 @@ orex:   movei #A1_BASE,a1_n
         store r0,(r1)
         addq #4,r1
         store r0,(r1)
-
-        movei #in_buf,r0                ;load the parameters into registers
+    
+        movei #in_buf,r0           ; load the parameters into registers
         load (r0),_bass
         addq #4,r0
         load (r0),spixel
@@ -733,67 +778,67 @@ orex:   movei #A1_BASE,a1_n
         load (r0),dsty
         addq #4,r0
         load (r0),dstz
-
+    
         movei #$ffff0000,himask
         movei #$ffff,lomask
-
-
+    
+    
 ;       movei #$c00000,r27
 ;       movei #$780000,r28
-        shrq #14,dstz           ;perspective/scale initial stuff
+        shrq #14,dstz              ; perspective/scale initial stuff
         sdiv dstz,dstx
         sdiv dstz,dsty
         shlq #9,dstx
         shlq #9,dsty
         add r27,dstx
         add r28,dsty
-
+    
         sdiv dstz,scalex
-        sdiv dstz,scaley        ;scale the scales
+        sdiv dstz,scaley           ; scale the scales
         shlq #9,scalex
         shlq #9,scaley
-
+    
         move scalex,_xstart
         move ssize,r0
         move scaley,ystart
         move ssize,r1
-        shlq #16,r0             ;got X size
-        and himask,r1           ;and Y size as 16:16
+        shlq #16,r0                ; got X size
+        and himask,r1              ; and Y size as 16:16
         fmult _xstart,r0
-        fmult ystart,r1         ;got (width*scalex) and (height*scaley)
-
-
+        fmult ystart,r1            ; got (width*scalex) and (height*scaley)
+    
+    
         move shearx,axshear
         move sheary,ayshear
-        fmult axshear,r1        ;height*xshear
-        fmult ayshear,r0        ;width*yshear
-
-        move _xstart,xx         ;Calculation for CENTERED explosion
+        fmult axshear,r1           ; height*xshear
+        fmult ayshear,r0           ; width*yshear
+    
+        move _xstart,xx            ; Calculation for CENTERED explosion
         move ystart,yy
         add axshear,xx
         add ayshear,yy
         sharq #1,xx
-        sharq #1,yy             ;XX and YY are vector to start pixel for dest blit
-
+        sharq #1,yy                ; XX and YY are vector to start pixel for dest blit
+    
         move dstx,r0
         move dsty,r1
         sub xx,r0
-        sub yy,r1               ;r0 has x pixel+frac, r1 has y
-
+        sub yy,r1                  ; r0 has x pixel+frac, r1 has y
+    
         ;*** HACK to prevent a1_n clipping bug. Brute force but who gives a shit.
         movei #pasthack,r30
-        cmpq #0,r0              ;check for bug condition (LH sprite edge off the screen)
+        cmpq #0,r0                 ; check for bug condition (LH sprite edge off the screen)
         nop
         nop
         jump pl,(r30)
         nop
         nop
 shrnk:
-        subq #1,ssize           ;shrink until pixel's on screen
+        subq #1,ssize              ; shrink until pixel's on screen
         addq #1,spixel
         sub scalex,_xstart
         add scalex,r0
-        nop     
+        nop
         nop
         jr mi,shrnk
         nop
@@ -808,7 +853,7 @@ shrnk:
         nop
         jump eq,(r28)
         nop
-
+    
 ; *******************************************************************
 ; pasthack
 ; Helper routine for rex.
@@ -817,31 +862,31 @@ pasthack:
         move r0,xx
         move r0,yy
         shrq #16,xx
-        and lomask,yy           ;X integer parts to xx and fractional to yy
+        and lomask,yy              ; X integer parts to xx and fractional to yy
         move r1,r0
         shlq #16,r1
         and himask,r0
         or r1,yy
-        or r0,xx                ;XX and YY now have a1_pixel and a1_pixelf values
-
+        or r0,xx                   ; XX and YY now have a1_pixel and a1_pixelf values
+    
         move _xstart,xstep
         move ayshear,ystep
         neg xstep
         neg ystep
-        add shearx,xstep        ;x step is -(width*scale)-shearx
-        add scaley,ystep        ;y step is -(width*yshear)+scaley
-
+        add shearx,xstep           ; x step is -(width*scale)-shearx
+        add scaley,ystep           ; y step is -(width*yshear)+scaley
+    
         move xstep,r0
         move xstep,r1
         shrq #16,r0
-        and lomask,r1           ;x components set up
-
+        and lomask,r1              ; x components set up
+    
         move ystep,xstep
         shlq #16,ystep
         and himask,xstep
         or ystep,r1
-        or xstep,r0             ;r0/r1 have a1_step and a1_fstep
-
+        or xstep,r0                ; r0/r1 have a1_step and a1_fstep
+    
         move scalex,xinc
         move scalex,yinc
         shrq #16,xinc
@@ -850,11 +895,11 @@ pasthack:
         shlq #16,sheary
         and himask,scalex
         or sheary,yinc
-        or scalex,xinc          ;xinc/yinc have a1_inc and a1_finc
-        
+        or scalex,xinc             ; xinc/yinc have a1_inc and a1_finc
+    
         waitblit
 ;       movei #$18007f,xx
-
+    
         store xx,(a1_n+_pixel)
         store yy,(a1_n+_fpixel)
         store r0,(a1_n+_step)
@@ -866,32 +911,32 @@ pasthack:
         load (r0),r26
         store r1,(a1_n+_flags)
         movei #$1180180,r1
-        store r26,(a1_n)        ;a1_n is now set up...
+        store r26,(a1_n)           ; a1_n is now set up...
         store r1,(a1_n+_clip)
-
-
+    
+    
         store _bass,(a2_n)
         store spixel,(a2_n+_pixel)
         move ssize,r0
-        and lomask,r0           ;get width
+        and lomask,r0              ; get width
         neg r0
         and lomask,r0
-        bset #16,r0             ;step is (-xsize,1)
+        bset #16,r0                ; step is (-xsize,1)
         movei #(PITCH1|PIXEL16|WID320|XADDPIX),r1
         store r0,(a2_n+_step)
         store r1,(a2_n+_flags)
-
+    
         movei #B_COUNT,r0
-        store ssize,(r0)        ;count is destination size
-
+        store ssize,(r0)           ; count is destination size
+    
         movei #(SRCEN|CLIP_A1|UPDA1F|UPDA1|UPDA2|LFU_A|LFU_AN|DCOMPEN),r0
 ;       movei #(PATDSEL|CLIP_A1|UPDA1F|UPDA1),r0
-        store r0,(blit)         ;draw the sprite
-
+        store r0,(blit)            ; draw the sprite
+    
         movei #StopGPU,r0
         jump (r0)
-
-
+    
+    
 ; *******************************************************************
 ; polyo2d
 ;*****
@@ -904,7 +949,7 @@ pasthack:
 ;*
 ;*****
 ; *******************************************************************
-
+    
 polyo2d:
 ;*      Definitions for use in the alternate-register bank. Alternate r0 and ISTART are used in the polyrenderer.
         sinebase        REGEQU r23
@@ -922,8 +967,9 @@ polyo2d:
         poly_loop       REGEQU r20
         colour          REGEQU r21
         vertex          REGEQU r22
-
-
-
-
-
+    
+    
+    
+    
+    
+; vim:ft=asm68k ts=2

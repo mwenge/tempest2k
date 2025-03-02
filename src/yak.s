@@ -1,5 +1,6 @@
 ; *******************************************************************
-; Welcome to the source code for 'Tempest 2000' by Jeff Minter.
+; Welcome to the Motorola 68K Assembler source code for 'Tempest 2000' by Jeff Minter.
+;
 ;                                                                                                                 
 ;    ===                                                                                                       
 ;    ======                                                                                                    
@@ -28,6 +29,11 @@
 ;
 ; Fig 1. Ascii rendering of the 'sine wave' web used in level 12 of Tempest 2000.
 ;                                                                                                                 
+; This source code was originally 'leaked' by 'JaySmith2000' in August 2008,
+; who solid it on CD as part of a release entitled the 'Jaguar Sector II Source Code
+; Collection':
+;  https://web.archive.org/web/20131117222232/http://www.jaysmith2000.com/Jagpriceguide.htm
+;
 ; This is a cleaned-up and commented version of the main source code
 ; file 'yak.s' for Tempest 2000. No code has been changed, so this source file
 ; can be used to create a build of Tempest 2000 that is byte-for-byte
@@ -38,6 +44,8 @@
 ;   - Fixed up indentation.
 ;   - Added comments and routine headers.
 ;
+; The home of this file and the rest of the Tempest 2000 source code is:
+;    https://github.com/mwenge/tempest2k 
 ;             
 ; Objects in Tempest 2000
 ; -----------------------

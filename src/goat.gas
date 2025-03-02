@@ -1,18 +1,64 @@
-; vim:ft=asm68k
-; *******************************************************************
+; **************************************************************************************
+; Welcome to the Motorola 68K Assembler source code for 'Tempest 2000' by Jeff Minter.
+;
+;                 ===============                   ===============                                               
+;              =====================             =====================                                            
+;            =====   =====      ======         ======      ====    =====                                          
+;         ======       =====     == =====   ===== ==     ====        =====                                        
+;       =====            =====    ==  =========  ==    =====            =====                                     
+;       =======            =====  ===   ====    ==   =====            =======                                     
+;       ============         =====  ==   ==    ==  =====         ============                                     
+;        ==    ==========      ========= ==  =========      ==========    ==                                      
+;        ===        ========== ======================= ==========        ==                                       
+;         ===           =========      ======      =========            ===                                       
+;          ==                ===                     ==                 ==                                        
+;          ===                ===                   ==                 ===                                        
+;           ==            ========                 ========           ===                                         
+;            =======================             =======================                                          
+;            =============        =====       =====        =============                                          
+;             =====             =====================            =====                                            
+;                =====       =====    ========    ======       =====                                              
+;                  =====   =====       ==   ==       =====  ======                                                
+;                     =======         ==    ===        ========                                                   
+;                       =====         ==     ==         =====                                                     
+;                          =====     ==      ===     =====                                                        
+;                            =====   ==       ==   =====                                                          
+;                              =======        =======                                                             
+;                                 =================                                                               
+;                                    ===========                                                                  
+;                                                                                                                                                   
+;                   Fig 1. Ascii rendering of the 'kiss of death' web.
+;                                                                                                                 
+; This source code was originally 'leaked' by 'JaySmith2000' in August 2008,
+; who sold it on CD as part of a release entitled the 'Jaguar Sector II Source Code
+; Collection':
+;     https://web.archive.org/web/20131117222232/http://www.jaysmith2000.com/Jagpriceguide.htm
+;
+; This is a cleaned-up and commented version of the source code file 'goat.gas'.
+;
+; No code has been changed, so this source file can be used to create a build
+; of Tempest 2000 that is byte-for-byte identical to the original 1994 release.
+;
+; All original variable and routine names are preserved. The changes include:
+;   - Fixed up indentation.
+;   - Added comments and routine headers.
+;
+; The home of this file and the rest of the Tempest 2000 source code is:
+;     https://github.com/mwenge/tempest2k 
+;
 ; goat.gas
 ; Contains the following routines:
 ; starfield1 - Not used, see starfield1 in llama.gas instead.
-; undraw     -  Not used, see undraw in llama.gas instead.
-; vect3d     - which is used to draw all webs in the game. Use a viewer
+; undraw     - Not used, see undraw in llama.gas instead.
+; vect3d     - Used to draw all webs in the game. Uses a viewer
 ;              orientation transformation matrix to move the web according
 ;              to the player's viewpoint.
 ; view_otm   - Used to transform an object according to viewpoint.
-; *******************************************************************
+; **************************************************************************************
 
         Base equ $f00000
 
-  INCLUDE       "jaguar.inc"    ; Jaguar General definitions
+        INCLUDE "jaguar.inc"            ; Jaguar General definitions
 
         gpu_mode EQU (GPU_RAM+$ffc)     ; Number defines which routine the GPU will do
         gpu_screen EQU (GPU_RAM+$ff8)   ; The address of the screen the GPU will draw on
@@ -52,7 +98,7 @@
         L_PIX           REGEQU  R6
         L_COUNT         REGEQU  R7
         L_INCF          REGEQU  R8
-        x1_n            REGEQU  R9              ;thangs
+        x1_n            REGEQU  R9   ; thangs
         y1_n            REGEQU  R10
         x2_n            REGEQU  R11
         y2_n            REGEQU  R12
@@ -65,12 +111,12 @@
         A1PIXEL         REGEQU  R22
         UNDRAW          REGEQU  R25
         sinebase        REGEQU  R26
-        RMODE           REGEQU  R29             ;Rotation mode. 0=XY rotate only.
-
+        RMODE           REGEQU  R29   ; Rotation mode. 0=XY rotate only.
+    
 ; *******************************************************************
 ; fmult
 ; *******************************************************************
-        MACRO fmult     ;multiply 2 thangs, uses r2-r4, returns in first reg.
+        MACRO fmult                ; multiply 2 thangs, uses r2-r4, returns in first reg.
         moveq #0,r2
         move r2,r3
         abs \1
@@ -98,30 +144,30 @@
         neg \1
 \~fmptt:
         ENDM
-
+    
 ; *******************************************************************
 ; sdiv
 ; *******************************************************************
-        MACRO sdiv      ;Divide, keeping sign of that which is divided, uses r2-r3
+        MACRO sdiv                 ; Divide, keeping sign of that which is divided, uses r2-r3
         move \2,r2
         abs \2
         div \1,\2
-        btst #31,r2     ;Get sign bit of original thang
+        btst #31,r2                ; Get sign bit of original thang
         jr z,\~sdtt
         nop
         neg \2
-\~sdtt: 
+\~sdtt:
         ENDM
-
+    
 ; *******************************************************************
 ; fjsr
 ; *******************************************************************
-        MACRO fjsr      ;Fast single-level JSR
+        MACRO fjsr                 ; Fast single-level JSR
         move PC,r30
         jump (\1)
-        addq #6,r30     ; Determine Return Address
+        addq #6,r30                ; Determine Return Address
         ENDM
-
+    
 ; *******************************************************************
 ; frts
 ; *******************************************************************
@@ -129,16 +175,16 @@
         jump (r30)
         nop
         ENDM
-
+    
 ; *******************************************************************
 ; gjsr
 ; *******************************************************************
-        MACRO gjsr      ;Fast single-level JSR
+        MACRO gjsr                 ; Fast single-level JSR
         move PC,r31
         jump (\1)
-        addq #6,r31     ; Determine Return Address
+        addq #6,r31                ; Determine Return Address
         ENDM
-
+    
 ; *******************************************************************
 ; grts
 ; *******************************************************************
@@ -146,25 +192,25 @@
         jump (r31)
         nop
         ENDM
-
+    
 ; *******************************************************************
 ; Execution of the module starts here.
 ; *******************************************************************
         ; Set up our GPU flags.
-        movei #(GPU_RAM+$f00),r27       ;To use as a stack pointer
-        movei #BLIT_CMD,cmd             ;Init register stuff
+        movei #(GPU_RAM+$f00),r27   ; To use as a stack pointer
+        movei #BLIT_CMD,cmd        ; Init register stuff
         movei #BLIT_A1PIXEL,A1PIXEL
         movei #BLIT_COUNT,count
         movei #p_sines,sinebase
-
-        movei #(PITCH1|PIXEL16|WIDTH384|XADDINC),r0             ;usual blittr settings
+    
+        movei #(PITCH1|PIXEL16|WIDTH384|XADDINC),r0   ; usual blittr settings
         movei #BLIT_A1FLAGS,r1
         store r0,(r1)
         movei #gpu_screen,r1
-        load (r1),r0            ;Dest screen passed from foreground
+        load (r1),r0               ; Dest screen passed from foreground
         movei #BLIT_A1BASE,r1
         store r0,(r1)
-
+    
 ; *******************************************************************
 ; Detect the GPU mode selected by the caller and use that to determine
 ; which routine (shader) to run.
@@ -174,183 +220,183 @@
 ; Mode 4 = view_otm
 ; *******************************************************************
         movei #gpu_mode,r0
-        load (r0),r1                    ;get GPU mode that was set
+        load (r0),r1               ; get GPU mode that was set
         movei #undraw,r0
         cmpq #0,r1
-        jump eq,(r0)                    ;Undraw lines
+        jump eq,(r0)               ; Undraw lines
         nop
         movei #starfield1,r0
         cmpq #3,r1
-        jump eq,(r0)                    ;go draw a starfield
+        jump eq,(r0)               ; go draw a starfield
         nop
         movei #view_otm,r0
         cmpq #4,r1
-        jump eq,(r0)                    ;go prepare the viewer OTM
+        jump eq,(r0)               ; go prepare the viewer OTM
         nop
         movei #vect3d,r0
         jump (r0)
-        nop                             ;go draw 3d vectors
-
-
+        nop                        ; go draw 3d vectors
+    
+    
 ; *******************************************************************
 ; view_otm
 ;
 ; prepare the viewer's transformation matrix
 ; *******************************************************************
 view_otm:
-
-        movei #vpang,r28        ;address of angle x-y in list   ---- getting sines and coses for this object
+    
+        movei #vpang,r28           ; address of angle x-y in list   ---- getting sines and coses for this object
         movei #$ff,r1
-        movei #$80,r2           ;used in getting sine
-        load (r28),r0           ;get angle
+        movei #$80,r2              ; used in getting sine
+        load (r28),r0              ; get angle
         addq #4,r28
-        move r0,r3              ;save for getting cos
-        and r1,r0               ;limit 0-255    
-        add sinebase,r0         ;point into sine table
-        loadb (r0),r8           ;get sine x
-        sub r2,r8               ;make signed
-        movei #$40,r0           ;get angle
-        add r3,r0               ;add $40
-        and r1,r0               ;limit 0-255
+        move r0,r3                 ; save for getting cos
+        and r1,r0                  ; limit 0-255
+        add sinebase,r0            ; point into sine table
+        loadb (r0),r8              ; get sine x
+        sub r2,r8                  ; make signed
+        movei #$40,r0              ; get angle
+        add r3,r0                  ; add $40
+        and r1,r0                  ; limit 0-255
         add sinebase,r0
-        loadb (r0),r16          ;get cos x
-        sub r2,r16              ;make signed
-
-        load (r28),r0           ;get angle
+        loadb (r0),r16             ; get cos x
+        sub r2,r16                 ; make signed
+    
+        load (r28),r0              ; get angle
         addq #4,r28
-        move r0,r3              ;save for getting cos
-        and r1,r0               ;limit 0-255    
-        add sinebase,r0         ;point into sine table
-        loadb (r0),r5           ;get sine x
-        sub r2,r5               ;make signed
-        movei #$40,r0           ;get angle
-        add r3,r0               ;add $40
-        and r1,r0               ;limit 0-255
+        move r0,r3                 ; save for getting cos
+        and r1,r0                  ; limit 0-255
+        add sinebase,r0            ; point into sine table
+        loadb (r0),r5              ; get sine x
+        sub r2,r5                  ; make signed
+        movei #$40,r0              ; get angle
+        add r3,r0                  ; add $40
+        and r1,r0                  ; limit 0-255
         add sinebase,r0
-        loadb (r0),r6           ;get cos x
-        sub r2,r6               ;make signed
-
-        moveq #0,r0             ;zero for matrix
-        movei #$80,r1           ;one for matrix 
-        movei #otm_2,r14                ;point to the matrix ram
-
-        move r6,r2              ;cos c to r2
-        imult r16,r2            ;cos a * cos c
-        sharq #7,r2             ;normalise
-        store r2,(r14)          ;build the OTM:
-        neg r8                  ;make -sin a
-        store r8,(r14+1)        ;-sin a...
-        move r16,r2             ;cos a to r2
-        neg r2                  ;make it -ve coz this sin c shud be -ve
-        imult r5,r2             ;* sin c
+        loadb (r0),r6              ; get cos x
+        sub r2,r6                  ; make signed
+    
+        moveq #0,r0                ; zero for matrix
+        movei #$80,r1              ; one for matrix
+        movei #otm_2,r14           ; point to the matrix ram
+    
+        move r6,r2                 ; cos c to r2
+        imult r16,r2               ; cos a * cos c
+        sharq #7,r2                ; normalise
+        store r2,(r14)             ; build the OTM:
+        neg r8                     ; make -sin a
+        store r8,(r14+1)           ; -sin a...
+        move r16,r2                ; cos a to r2
+        neg r2                     ; make it -ve coz this sin c shud be -ve
+        imult r5,r2                ; * sin c
         sharq #7,r2
-        store r2,(r14+2)        ;cos a * sin c...
-        neg r8                  ;make +sin a...
-        move r6,r2              ;cos c to r2
+        store r2,(r14+2)           ; cos a * sin c...
+        neg r8                     ; make +sin a...
+        move r6,r2                 ; cos c to r2
         imult r8,r2
-        sharq #7,r2     
-        moveta r2,r0            ;save the last 6 elements for combining with the third matrix
+        sharq #7,r2
+        moveta r2,r0               ; save the last 6 elements for combining with the third matrix
         moveta r16,r1
-        move r5,r2              ;sin c...
-        neg r2                  ;(minus)..
-        imult r8,r2             ;* sin a...
+        move r5,r2                 ; sin c...
+        neg r2                     ; (minus)..
+        imult r8,r2                ; * sin a...
         sharq #7,r2
         moveta r2,r2
         moveta r5,r3
         moveta r0,r4
-        moveta r6,r5            ;last 6 elements in alt regs 0-5.
-
+        moveta r6,r5               ; last 6 elements in alt regs 0-5.
+    
 ; might as well build the rest of the OTM now I'm here and already pointing at it...
-
-
+    
+    
         movei #$ff,r1
-        movei #$80,r2           ;used in getting sine
-        load (r28),r0           ;get angle
-        move r0,r3              ;save for getting cos
-        and r1,r0               ;limit 0-255    
-        add sinebase,r0         ;point into sine table
-        loadb (r0),r8           ;get sine x
-        sub r2,r8               ;make signed
-        movei #$40,r0           ;get angle
-        add r3,r0               ;add $40
-        and r1,r0               ;limit 0-255
+        movei #$80,r2              ; used in getting sine
+        load (r28),r0              ; get angle
+        move r0,r3                 ; save for getting cos
+        and r1,r0                  ; limit 0-255
+        add sinebase,r0            ; point into sine table
+        loadb (r0),r8              ; get sine x
+        sub r2,r8                  ; make signed
+        movei #$40,r0              ; get angle
+        add r3,r0                  ; add $40
+        and r1,r0                  ; limit 0-255
         add sinebase,r0
-        loadb (r0),r16          ;get cos x
-        sub r2,r16              ;make signed
-
+        loadb (r0),r16             ; get cos x
+        sub r2,r16                 ; make signed
+    
         movefa r0,r5
-        imult r16,r5            ;cos b * M4
+        imult r16,r5               ; cos b * M4
         movefa r3,r6
-        neg r8                  ;make -sin
-        imult r8,r6             ;-sin b * M7
-        add r6,r5               ;add
-        sharq #7,r5             ;normalise
-        store r5,(r14+3)        ;put in the OTM
-
+        neg r8                     ; make -sin
+        imult r8,r6                ; -sin b * M7
+        add r6,r5                  ; add
+        sharq #7,r5                ; normalise
+        store r5,(r14+3)           ; put in the OTM
+    
         movefa r1,r5
-        imult r16,r5            ;cos b * M5
+        imult r16,r5               ; cos b * M5
         sharq #7,r5
         store r5,(r14+4)
-
+    
         movefa r2,r5
         movefa r5,r6
-        imult r16,r5            ;cos b * M6
-        imult r8,r6             ;-sin b * M9
+        imult r16,r5               ; cos b * M6
+        imult r8,r6                ; -sin b * M9
         add r6,r5
         sharq #7,r5
         store r5,(r14+5)
-
-        neg r8                  ;make sin positive again
-
+    
+        neg r8                     ; make sin positive again
+    
         movefa r3,r5
         movefa r0,r6
-        imult r16,r5            ;cos b * M7
-        imult r8,r6             ;-sin b * M4
+        imult r16,r5               ; cos b * M7
+        imult r8,r6                ; -sin b * M4
         add r6,r5
         sharq #7,r5
         store r5,(r14+6)
-
+    
         movefa r1,r5
-        imult r8,r5             ;sin b * M5
+        imult r8,r5                ; sin b * M5
         sharq #7,r5
         store r5,(r14+7)
-
+    
         movefa r5,r5
         movefa r2,r6
-        imult r16,r5            ;cos b * M9
-        imult r8,r6             ;-sin b * M6
+        imult r16,r5               ; cos b * M9
+        imult r8,r6                ; -sin b * M6
         add r6,r5
         sharq #7,r5
-        store r5,(r14+8)        ;Now all 3 matrices are combined. Whoopee.
-
+        store r5,(r14+8)           ; Now all 3 matrices are combined. Whoopee.
+    
         movei #StopGPU,r0
         jump (r0)
         nop
-
-
-
-
+    
+    
+    
+    
 a1_n    REGEQU r15
         _base EQU 0
         _flags EQU 1
         _clip EQU 2
         _mask EQU 2
-        _pixel EQU 3 
+        _pixel EQU 3
         _step EQU 4
         _fstep EQU 5
         _fpixel EQU 6
         _inc EQU 7
         _finc EQU 8
-
-
+    
+    
 ; *******************************************************************
 ; undraw
 ; Not used. See undraw in llama.gas instead.
 ; *******************************************************************
 undraw:
-        movei #BLIT_A1BASE,a1_n ;blitter Base
-        movei #BLIT_CMD,cmd     ;blitter flags/go
-        xor r0,r0                       ;Blit the screen clear  (hard coded for 384x240, 16bit)
+        movei #BLIT_A1BASE,a1_n    ; blitter Base
+        movei #BLIT_CMD,cmd        ; blitter flags/go
+        xor r0,r0                  ; Blit the screen clear  (hard coded for 384x240, 16bit)
         store r0,(a1_n+_pixel)
         moveq #0,r0
         movei #BLIT_PATD,r1
@@ -362,7 +408,7 @@ undraw:
         store r0,(a1_n)
         movei #(PITCH1|PIXEL16|WIDTH384|XADDPHR),r0
         store r0,(a1_n+_flags)
-        movei #$0001fe80,r0             ;1,-384
+        movei #$0001fe80,r0        ; 1,-384
         store r0,(a1_n+_step)
         movei #BLIT_COUNT,r0
         movei #$f00180,r1
@@ -376,49 +422,49 @@ wb:     load (cmd),r0
         movei #StopGPU,r0
         jump (r0)
         nop
-
-
-
-
-vend:   movei #StopGPU,r0               ;go shut off gpu
+    
+    
+    
+    
+vend:   movei #StopGPU,r0          ; go shut off gpu
         jump (r0)
         nop
-
+    
 ; *******************************************************************
 ; vect3d
 ; Used to draw the web only.
 ; *******************************************************************
 vect3d:
-
+    
         movei #_sysflags,r0
         load (r0),r1
-        moveta r1,r9            
-
+        moveta r1,r9
+    
         movei #(in_buf+16),r0
 ;       load (r0),RMODE
-        moveq #1,RMODE          ;rotate mode always on
+        moveq #1,RMODE             ; rotate mode always on
         addq #4,r0
         load (r0),r1
-        moveta r1,RMODE         ;RMODE std bank is rotate mode, alt bank is horiz scale value
-
+        moveta r1,RMODE            ; RMODE std bank is rotate mode, alt bank is horiz scale value
+    
         movei #(in_buf+64),r3
-        load (r3),col           ;get initial vector colour
- 
+        load (r3),col              ; get initial vector colour
+    
         movei #in_buf+4,buffer
         load (buffer),r15
         addq #4,buffer
         load (buffer),r16
         addq #4,buffer
-        load (buffer),r17       ;get final X, Y and Z xform co-ordinates
-
+        load (buffer),r17          ; get final X, Y and Z xform co-ordinates
+    
 ;*****
 ;
 ; Viewer OTM xform of these points
 ;
 ;*****
-
-
-        movei #vpox,r28         ;translate to centre on vp offset position
+    
+    
+        movei #vpox,r28            ; translate to centre on vp offset position
         load (r28),r5
         addq #4,r28
         sub r5,r15
@@ -427,129 +473,129 @@ vect3d:
         sub r6,r16
         load (r28),r7
         sub r7,r17
-
+    
         sharq #8,r15
         sharq #8,r16
-        sharq #8,r17            ;Offsets to 8:8
-
+        sharq #8,r17               ; Offsets to 8:8
+    
         shlq #16,r16
         movei #$ffff,r0
         and r0,r15
         and r0,r17
-        or r15,r16              ;make the 3x1 matrix packed in registers
-
+        or r15,r16                 ; make the 3x1 matrix packed in registers
+    
         move r16,r2
         move r17,r3
-
-        movei #$f02108,r0       ;matrix address reggie
-        movei #otm_2,r1         ;address of first element in ram
+    
+        movei #$f02108,r0          ; matrix address reggie
+        movei #otm_2,r1            ; address of first element in ram
         store r1,(r0)
-
+    
         moveta r16,r16
-        moveta r17,r17          ;place the matrix in the alt registers
-
-
+        moveta r17,r17             ; place the matrix in the alt registers
+    
+    
 ;
 ; now rotate using the otm...
-
-
-        mmult r16,r15           ;Multiply matrices and leave result in (r5,r6,r7)
-
-        addq #12,r1 
+    
+    
+        mmult r16,r15              ; Multiply matrices and leave result in (r5,r6,r7)
+    
+        addq #12,r1
         store r1,(r0)
         moveta r2,r16
         moveta r3,r17
         mmult r16,r16
-
+    
         addq #12,r1
         store r1,(r0)
         moveta r2,r16
         moveta r3,r17
         mmult r16,r17
-
+    
         shlq #1,r15
         shlq #1,r16
-        shlq #1,r17             ;restore to 16:16
-
-        add r5,r15              ;restore original VP
+        shlq #1,r17                ; restore to 16:16
+    
+        add r5,r15                 ; restore original VP
         add r6,r16
         add r7,r17
-
+    
 ;*****
 ;
 ; Viewer OTM finished
 ;
 ;*****
-
+    
         moveta r16,r16
-
-        movei #$f02104,r0       ;matrix control reggie
-        moveq #3,r1     ;MADDW + width=3
+    
+        movei #$f02104,r0          ; matrix control reggie
+        moveq #3,r1                ; MADDW + width=3
         store r1,(r0)
-
+    
         movei #vpang,r9
         load (r9),r10
         addq #4,r9
-        movei #(in_buf+40),r8   ;address of angle x-y in list   ---- getting sines and coses for this object
+        movei #(in_buf+40),r8      ; address of angle x-y in list   ---- getting sines and coses for this object
         movei #$ff,r1
-        movei #$80,r2           ;used in getting sine
-        load (r8),r0            ;get angle
+        movei #$80,r2              ; used in getting sine
+        load (r8),r0               ; get angle
 ;       add r10,r0
-        move r0,r3              ;save for getting cos
-        and r1,r0               ;limit 0-255    
-        add sinebase,r0         ;point into sine table
-        loadb (r0),r8           ;get sine x
-        sub r2,r8               ;make signed
-        movei #$40,r0           ;get angle
-        add r3,r0               ;add $40
-        and r1,r0               ;limit 0-255
+        move r0,r3                 ; save for getting cos
+        and r1,r0                  ; limit 0-255
+        add sinebase,r0            ; point into sine table
+        loadb (r0),r8              ; get sine x
+        sub r2,r8                  ; make signed
+        movei #$40,r0              ; get angle
+        add r3,r0                  ; add $40
+        and r1,r0                  ; limit 0-255
         add sinebase,r0
-        loadb (r0),r16          ;get cos x
-        sub r2,r16              ;make signed
-
+        loadb (r0),r16             ; get cos x
+        sub r2,r16                 ; make signed
+    
         load (r9),r10
         addq #4,r9
-        movei #(in_buf+48),r28  ;address of angle y-z in list   ---- combining the sines and coses of the x-z rotation
-        load (r28),r0           ;get angle
+        movei #(in_buf+48),r28     ; address of angle y-z in list   ---- combining the sines and coses of the x-z rotation
+        load (r28),r0              ; get angle
 ;       add r10,r0              ;Testing global rotate
-        move r0,r3              ;save for getting cos
-        and r1,r0               ;limit 0-255    
-        add sinebase,r0         ;point into sine table
-        loadb (r0),r5           ;get sine x
-        sub r2,r5               ;make signed
-        movei #$40,r0           ;get angle
-        add r3,r0               ;add $40
-        and r1,r0               ;limit 0-255
+        move r0,r3                 ; save for getting cos
+        and r1,r0                  ; limit 0-255
+        add sinebase,r0            ; point into sine table
+        loadb (r0),r5              ; get sine x
+        sub r2,r5                  ; make signed
+        movei #$40,r0              ; get angle
+        add r3,r0                  ; add $40
+        and r1,r0                  ; limit 0-255
         add sinebase,r0
-        loadb (r0),r6           ;get cos x
-        sub r2,r6               ;make signed
-
-        moveq #0,r0             ;zero for matrix
-        movei #$80,r1           ;one for matrix 
-        movei #otm_1,r14                ;point to the matrix ram
-
-        move r6,r2              ;cos c to r2
-        imult r16,r2            ;cos a * cos c
-        sharq #7,r2             ;normalise
-        store r2,(r14)          ;build the OTM:
-        neg r8                  ;make -sin a
-        store r8,(r14+1)        ;-sin a...
-        move r16,r2             ;cos a to r2
-        neg r2                  ;make it -ve coz this sin c shud be -ve
-        imult r5,r2             ;* sin c
+        loadb (r0),r6              ; get cos x
+        sub r2,r6                  ; make signed
+    
+        moveq #0,r0                ; zero for matrix
+        movei #$80,r1              ; one for matrix
+        movei #otm_1,r14           ; point to the matrix ram
+    
+        move r6,r2                 ; cos c to r2
+        imult r16,r2               ; cos a * cos c
+        sharq #7,r2                ; normalise
+        store r2,(r14)             ; build the OTM:
+        neg r8                     ; make -sin a
+        store r8,(r14+1)           ; -sin a...
+        move r16,r2                ; cos a to r2
+        neg r2                     ; make it -ve coz this sin c shud be -ve
+        imult r5,r2                ; * sin c
         sharq #7,r2
-        store r2,(r14+2)        ;cos a * sin c...
-        neg r8                  ;make +sin a...
-        move r6,r2              ;cos c to r2
+        store r2,(r14+2)           ; cos a * sin c...
+        neg r8                     ; make +sin a...
+        move r6,r2                 ; cos c to r2
         imult r8,r2
-        sharq #7,r2     
+        sharq #7,r2
 ;       store r2,(r14+3)        ;sin a * cos c...
-        moveta r2,r0            ;save the last 6 elements for combining with the third matrix
+        moveta r2,r0               ; save the last 6 elements for combining with the third matrix
 ;       store r16,(r14+4)       ;cos a...
         moveta r16,r1
-        move r5,r2              ;sin c...
-        neg r2                  ;(minus)..
-        imult r8,r2             ;* sin a...
+        move r5,r2                 ; sin c...
+        neg r2                     ; (minus)..
+        imult r8,r2                ; * sin a...
         sharq #7,r2
 ;       store r2,(r14+5)        ;sin a * -sin c... (effectively)...
         moveta r2,r2
@@ -559,75 +605,75 @@ vect3d:
         moveta r0,r4
 ;       movei #(otm_1+32),r4
 ;       store r6,(r4)           ;cos c.
-        moveta r6,r5            ;last 6 elements in alt regs 0-5.
-
+        moveta r6,r5               ; last 6 elements in alt regs 0-5.
+    
 ; might as well build the rest of the OTM now I'm here and already pointing at it...
-
+    
         load (r9),r10
         movei #$ff,r1
-        movei #$80,r2           ;used in getting sine
-        movei #(in_buf+44),r8   ;address of angle x-z in list
-        load (r8),r0            ;get angle
+        movei #$80,r2              ; used in getting sine
+        movei #(in_buf+44),r8      ; address of angle x-z in list
+        load (r8),r0               ; get angle
 ;       add r10,r0
-        move r0,r3              ;save for getting cos
-        and r1,r0               ;limit 0-255    
-        add sinebase,r0         ;point into sine table
-        loadb (r0),r8           ;get sine x
-        sub r2,r8               ;make signed
-        movei #$40,r0           ;get angle
-        add r3,r0               ;add $40
-        and r1,r0               ;limit 0-255
+        move r0,r3                 ; save for getting cos
+        and r1,r0                  ; limit 0-255
+        add sinebase,r0            ; point into sine table
+        loadb (r0),r8              ; get sine x
+        sub r2,r8                  ; make signed
+        movei #$40,r0              ; get angle
+        add r3,r0                  ; add $40
+        and r1,r0                  ; limit 0-255
         add sinebase,r0
-        loadb (r0),r16          ;get cos x
-        sub r2,r16              ;make signed
-
+        loadb (r0),r16             ; get cos x
+        sub r2,r16                 ; make signed
+    
         movefa r0,r5
-        imult r16,r5            ;cos b * M4
+        imult r16,r5               ; cos b * M4
         movefa r3,r6
-        neg r8                  ;make -sin
-        imult r8,r6             ;-sin b * M7
-        add r6,r5               ;add
-        sharq #7,r5             ;normalise
-        store r5,(r14+3)        ;put in the OTM
-
+        neg r8                     ; make -sin
+        imult r8,r6                ; -sin b * M7
+        add r6,r5                  ; add
+        sharq #7,r5                ; normalise
+        store r5,(r14+3)           ; put in the OTM
+    
         movefa r1,r5
-        imult r16,r5            ;cos b * M5
+        imult r16,r5               ; cos b * M5
         sharq #7,r5
         store r5,(r14+4)
-
+    
         movefa r2,r5
         movefa r5,r6
-        imult r16,r5            ;cos b * M6
-        imult r8,r6             ;-sin b * M9
+        imult r16,r5               ; cos b * M6
+        imult r8,r6                ; -sin b * M9
         add r6,r5
         sharq #7,r5
         store r5,(r14+5)
-
-        neg r8                  ;make sin positive again
-
+    
+        neg r8                     ; make sin positive again
+    
         movefa r3,r5
         movefa r0,r6
-        imult r16,r5            ;cos b * M7
-        imult r8,r6             ;-sin b * M4
+        imult r16,r5               ; cos b * M7
+        imult r8,r6                ; -sin b * M4
         add r6,r5
         sharq #7,r5
         store r5,(r14+6)
-
+    
         movefa r1,r5
-        imult r8,r5             ;sin b * M5
+        imult r8,r5                ; sin b * M5
         sharq #7,r5
         store r5,(r14+7)
-
+    
         movefa r5,r5
         movefa r2,r6
-        imult r16,r5            ;cos b * M9
-        imult r8,r6             ;-sin b * M6
+        imult r16,r5               ; cos b * M9
+        imult r8,r6                ; -sin b * M6
         add r6,r5
         sharq #7,r5
-        store r5,(r14+8)        ;Now all 3 matrices are combined. Whoopee.
-
+        store r5,(r14+8)           ; Now all 3 matrices are combined. Whoopee.
+    
 ; now multiply this matrix by the viewer OTM...
-
+    
         movei #otm_1,r14
         load (r14),r5
         load (r14+3),r6
@@ -636,16 +682,16 @@ vect3d:
         movei #$ffff,r0
         and r0,r5
         and r0,r7
-        or r5,r6                ;make the 3x1 matrix packed in registers
+        or r5,r6                   ; make the 3x1 matrix packed in registers
         move r6,r2
         move r7,r3
-        movei #$f02108,r0       ;let the matrix in ram be the viewer-otm
-        movei #otm_2,r1 
+        movei #$f02108,r0          ; let the matrix in ram be the viewer-otm
+        movei #otm_2,r1
         store r1,(r0)
         moveta r6,r6
-        moveta r7,r7            ;place the matrix in the alt registers
-        mmult r6,r5             ;Multiply matrices and leave result in (r5,r6,r7)
-        addq #12,r1 
+        moveta r7,r7               ; place the matrix in the alt registers
+        mmult r6,r5                ; Multiply matrices and leave result in (r5,r6,r7)
+        addq #12,r1
         store r1,(r0)
         moveta r2,r6
         moveta r3,r7
@@ -662,7 +708,7 @@ vect3d:
         store r6,(r14+3)
         store r7,(r14+6)
         addq #4,r14
-
+    
         load (r14),r5
         load (r14+3),r6
         load (r14+6),r7
@@ -670,16 +716,16 @@ vect3d:
         movei #$ffff,r0
         and r0,r5
         and r0,r7
-        or r5,r6                ;make the 3x1 matrix packed in registers
+        or r5,r6                   ; make the 3x1 matrix packed in registers
         move r6,r2
         move r7,r3
-        movei #$f02108,r0       ;let the matrix in ram be the viewer-otm
-        movei #otm_2,r1 
+        movei #$f02108,r0          ; let the matrix in ram be the viewer-otm
+        movei #otm_2,r1
         store r1,(r0)
         moveta r6,r6
-        moveta r7,r7            ;place the matrix in the alt registers
-        mmult r6,r5             ;Multiply matrices and leave result in (r5,r6,r7)
-        addq #12,r1 
+        moveta r7,r7               ; place the matrix in the alt registers
+        mmult r6,r5                ; Multiply matrices and leave result in (r5,r6,r7)
+        addq #12,r1
         store r1,(r0)
         moveta r2,r6
         moveta r3,r7
@@ -696,7 +742,7 @@ vect3d:
         store r6,(r14+3)
         store r7,(r14+6)
         addq #4,r14
-
+    
         load (r14),r5
         load (r14+3),r6
         load (r14+6),r7
@@ -704,16 +750,16 @@ vect3d:
         movei #$ffff,r0
         and r0,r5
         and r0,r7
-        or r5,r6                ;make the 3x1 matrix packed in registers
+        or r5,r6                   ; make the 3x1 matrix packed in registers
         move r6,r2
         move r7,r3
-        movei #$f02108,r0       ;let the matrix in ram be the viewer-otm
-        movei #otm_2,r1 
+        movei #$f02108,r0          ; let the matrix in ram be the viewer-otm
+        movei #otm_2,r1
         store r1,(r0)
         moveta r6,r6
-        moveta r7,r7            ;place the matrix in the alt registers
-        mmult r6,r5             ;Multiply matrices and leave result in (r5,r6,r7)
-        addq #12,r1 
+        moveta r7,r7               ; place the matrix in the alt registers
+        mmult r6,r5                ; Multiply matrices and leave result in (r5,r6,r7)
+        addq #12,r1
         store r1,(r0)
         moveta r2,r6
         moveta r3,r7
@@ -729,122 +775,122 @@ vect3d:
         store r5,(r14)
         store r6,(r14+3)
         store r7,(r14+6)
-
-
-
-skippy: movei #(in_buf+52),r0   ;points to vertlist base
+    
+    
+    
+skippy: movei #(in_buf+52),r0      ; points to vertlist base
         load (r0),r23
         addq #4,r0
-        load (r0),r24           ;get vertex list base and conn base
-        subq #12,r23            ;compensate for vertex #'s starting at 1
-
+        load (r0),r24              ; get vertex list base and conn base
+        subq #12,r23               ; compensate for vertex #'s starting at 1
+    
         moveta r15,r15
         moveta r17,r17
         moveta r23,r23
-        moveta r24,r24          ;stash these in their alternates
-
-
-nxtvertex: loadw (r24),r0       ;get vertex number
+        moveta r24,r24             ; stash these in their alternates
+    
+    
+nxtvertex: loadw (r24),r0          ; get vertex number
         addq #2,r24
         cmpq #0,r0
-        jr ne,gv1               ;if non0 is really a vertex
+        jr ne,gv1                  ; if non0 is really a vertex
         nop
         movei #vend,r0
-        jump (r0)               ;leave routine if vertex # is 0
+        jump (r0)                  ; leave routine if vertex # is 0
         nop
 gv1:    moveq #12,r4
-        mult r0,r4              ;r4 hass offset into vertex table
-        add r23,r4              ;add vertex list base
-        load (r4),r5            ;get X
+        mult r0,r4                 ; r4 hass offset into vertex table
+        add r23,r4                 ; add vertex list base
+        load (r4),r5               ; get X
         addq #4,r4
         load (r4),r6
         addq #4,r4
-        load (r4),r7            ;get X, Y and Z of first vertex
-
+        load (r4),r7               ; get X, Y and Z of first vertex
+    
         movei #transform_3d,r28
         fjsr r28
-
+    
         moveta r5,r20
         moveta r6,r21
-        moveta r7,r22           ;save transformed xyz co-ordinates      (may be needed by the z-clipper)
-
+        moveta r7,r22              ; save transformed xyz co-ordinates      (may be needed by the z-clipper)
+    
         move x1_n,x2_n
-        move y1_n,y2_n          ;copy to x2_n.y2_n (unchanging point)
+        move y1_n,y2_n             ; copy to x2_n.y2_n (unchanging point)
         move intens_0,intens_1
         moveta x2_n,x2_n
-        moveta y2_n,y2_n                ;so original value can be got back
+        moveta y2_n,y2_n           ; so original value can be got back
         moveta intens_1,intens_1
-
-nxtconn: loadw (r24),r0         ;get connected-vertex number
+    
+nxtconn: loadw (r24),r0            ; get connected-vertex number
         addq #2,r24
         movei #$ff,r28
         move r0,r4
         and r28,r0
         shrq #8,r4
-        and r28,r4              ;this will be non zero for a colour change
+        and r28,r4                 ; this will be non zero for a colour change
         jr z,nocolch
         nop
-        move r4,col             ;change colour
+        move r4,col                ; change colour
 nocolch: cmpq #0,r0
-        jr ne,gcv1              ;if non0 is really a vertex
+        jr ne,gcv1                 ; if non0 is really a vertex
         nop
         movei #nxtvertex,r0
-        jump (r0)               ;leave routine if vertex # is 0
+        jump (r0)                  ; leave routine if vertex # is 0
         nop
 gcv1:   moveq #12,r4
-        mult r0,r4              ;r4 hass offset into vertex table
-        add r23,r4              ;add vertex list base
-        load (r4),r5            ;get X
+        mult r0,r4                 ; r4 hass offset into vertex table
+        add r23,r4                 ; add vertex list base
+        load (r4),r5               ; get X
         addq #4,r4
         load (r4),r6
         addq #4,r4
         load (r4),r7
-
+    
         movei #transform_3d,r28
         fjsr r28
-
+    
         cmpq #0,intens_0
-        jr mi,zfail             ;one of the z's is out of range!
+        jr mi,zfail                ; one of the z's is out of range!
         nop
         movei #zlegal,r28
         cmpq #0,intens_1
-        jump pl,(r28)           ;z is legal so go
+        jump pl,(r28)              ; z is legal so go
         nop
-zfail:  movei #znext,r28        ;skip a line
-        cmp intens_0,intens_1   ;if they are equal, they are both off the screen, so no line
-        jump eq,(r28)           ;was jump eq
-        nop     
-        movei #fixedillegal,r28 ;two different cases for if legal or illegal fixed point
-        cmpq #0,intens_1        ;was the fixed point out of range?
-        jump mi,(r28)           ;-ve, it was, and its co-ords are in x2_n and y2_n
+zfail:  movei #znext,r28           ; skip a line
+        cmp intens_0,intens_1      ; if they are equal, they are both off the screen, so no line
+        jump eq,(r28)              ; was jump eq
+        nop
+        movei #fixedillegal,r28    ; two different cases for if legal or illegal fixed point
+        cmpq #0,intens_1           ; was the fixed point out of range?
+        jump mi,(r28)              ; -ve, it was, and its co-ords are in x2_n and y2_n
         nop
         movefa r20,r0
         movefa r21,r1
-        sharq #shift1,r0                ;(int)
-        movefa r22,r2           ;get legal transformed 3D point
+        sharq #shift1,r0           ; (int)
+        movefa r22,r2              ; get legal transformed 3D point
         sharq #shift1,r1
         move r2,r3
-        sub r7,r3               ;r3 is the total length of the z component and will be used to divide the others.
+        sub r7,r3                  ; r3 is the total length of the z component and will be used to divide the others.
         abs r3
-        move r5,r4              ;r4 is combined x and y of the naughty point
+        move r5,r4                 ; r4 is combined x and y of the naughty point
         sharq #shift1,r4
-        sub r0,r4               ;now it is the length of the x difference between the two points
-        imult r2,r4             ;multiply by legal z size
-        move r4,r5              ;save the sign
+        sub r0,r4                  ; now it is the length of the x difference between the two points
+        imult r2,r4                ; multiply by legal z size
+        move r4,r5                 ; save the sign
         cmpq #0,r5
         jr pl,_nz1
         nop
         neg r5
-_nz1:   div r3,r5               ;make the new unsigned x vector size
+_nz1:   div r3,r5                  ; make the new unsigned x vector size
         move r6,x1_n
-        sharq #shift1,x1_n              ;int an' sign extend y
-        sub r1,x1_n             ;signed y size
+        sharq #shift1,x1_n         ; int an' sign extend y
+        sub r1,x1_n                ; signed y size
         imult r2,x1_n
         cmpq #0,r4
         jr pl,_nz2
         nop
-        neg r5                  ;set right sign for x component
-_nz2:   move x1_n,r6            ;save sign
+        neg r5                     ; set right sign for x component
+_nz2:   move x1_n,r6               ; save sign
         cmpq #0,r6
         jr pl,_nz3
         nop
@@ -854,9 +900,9 @@ _nz3:   div r3,r6
         jr pl,_nz4
         nop
         neg r6
-_nz4:   add r0,r5               ;make transformed xy
+_nz4:   add r0,r5                  ; make transformed xy
         add r1,r6
-        shlq #shift2,r5         ;simplifies because effectively z=1
+        shlq #shift2,r5            ; simplifies because effectively z=1
         shlq #shift2,r6
         movei #z_top,r28
         load (r28),intens_0
@@ -864,39 +910,39 @@ _nz4:   add r0,r5               ;make transformed xy
         movei #192,x1_n
         movei #120,y1_n
         add r5,x1_n
-        add r6,y1_n             ;set parameters for the line
+        add r6,y1_n                ; set parameters for the line
         movei #zlegal,r0
         jump (r0)
         nop
-
-fixedillegal: move r5,r0                ;x and y pair
+    
+fixedillegal: move r5,r0           ; x and y pair
         move r6,r1
         sharq #shift1,r0
         sharq #shift1,r1
-        move r7,r2              ;legal point expanded
+        move r7,r2                 ; legal point expanded
         move r2,r3
         movefa r22,y2_n
-        sub y2_n,r3             ;r3 is the total length of the z component and will be used to divide the others.
+        sub y2_n,r3                ; r3 is the total length of the z component and will be used to divide the others.
         movei #$ffff0000,r28
-        movefa r20,r4           ;r4 is combined x and y of the naughty point
+        movefa r20,r4              ; r4 is combined x and y of the naughty point
         sharq #shift1,r4
-        sub r0,r4               ;now it is the length of the x difference between the two points
-        imult r2,r4             ;multiply by legal z size
-        move r4,r5              ;save the sign
+        sub r0,r4                  ; now it is the length of the x difference between the two points
+        imult r2,r4                ; multiply by legal z size
+        move r4,r5                 ; save the sign
         cmpq #0,r5
         jr pl,_nz5
         nop
         neg r5
-_nz5:   div r3,r5               ;make the new unsigned x vector size
-        movefa r21,x2_n         ;signed y as 16:16
+_nz5:   div r3,r5                  ; make the new unsigned x vector size
+        movefa r21,x2_n            ; signed y as 16:16
         sharq #shift1,x2_n
-        sub r1,x2_n             ;signed y size
+        sub r1,x2_n                ; signed y size
         imult r2,x2_n
         cmpq #0,r4
         jr pl,_nz6
         nop
-        neg r5                  ;set right sign for x component
-_nz6:   move x2_n,r6            ;save sign
+        neg r5                     ; set right sign for x component
+_nz6:   move x2_n,r6               ; save sign
         cmpq #0,r6
         jr pl,_nz7
         nop
@@ -906,9 +952,9 @@ _nz7:   div r3,r6
         jr pl,_nz8
         nop
         neg r6
-_nz8:   add r0,r5               ;make transformed xy
+_nz8:   add r0,r5                  ; make transformed xy
         add r1,r6
-        shlq #shift2,r5         ;simplifies because effectively z=1
+        shlq #shift2,r5            ; simplifies because effectively z=1
         shlq #shift2,r6
         movei #z_top,r28
         load (r28),intens_1
@@ -916,35 +962,35 @@ _nz8:   add r0,r5               ;make transformed xy
         movei #192,x2_n
         movei #120,y2_n
         add r5,x2_n
-        add r6,y2_n             ;set parameters for the line
-                
-
+        add r6,y2_n                ; set parameters for the line
+    
+    
 zlegal:
-
+    
         movei #clip_gouline,r28
         fjsr r28
-
-
-                
+    
+    
+    
 znext:  movefa x2_n,x2_n
         movefa y2_n,y2_n
         movefa intens_1,intens_1
         movefa r23,r23
         movefa r15,r15
-
+    
         movei #nxtconn,r0
-        jump (r0)               ;go and do next connected vertex
+        jump (r0)                  ; go and do next connected vertex
         nop
-
+    
 endconn: movei #nxtvertex,r0
-        jump (r0)               ;go and do next vertex
-
+        jump (r0)                  ; go and do next vertex
+    
 ; *******************************************************************
 ; transform_3d
 ; Helper for vect3d.
 ; *******************************************************************
-transform_3d: nop               ;movei after jump is fishy 
-        movei #(in_buf+(12+16)),r0      ;address of xyz centre
+transform_3d: nop                  ; movei after jump is fishy
+        movei #(in_buf+(12+16)),r0   ; address of xyz centre
         load (r0),r1
         sub r1,r5
         addq #4,r0
@@ -952,99 +998,99 @@ transform_3d: nop               ;movei after jump is fishy
         sub r1,r6
         addq #4,r0
         load (r0),r1
-        sub r1,r7       ;translate to local centre
-
+        sub r1,r7                  ; translate to local centre
+    
         movefa RMODE,r28
-        imult r28,r5            ;X-Scale
-
+        imult r28,r5               ; X-Scale
+    
         shlq #8,r5
         shlq #8,r6
         shlq #8,r7
-
+    
         shlq #16,r6
         movei #$ffff,r0
         and r0,r5
         and r0,r7
-        or r5,r6                ;make the 3x1 matrix packed in registers
-
+        or r5,r6                   ; make the 3x1 matrix packed in registers
+    
         move r6,r2
         move r7,r3
-
-        movei #$f02108,r0       ;matrix address reggie
-        movei #otm_1,r1         ;address of first element in ram
+    
+        movei #$f02108,r0          ; matrix address reggie
+        movei #otm_1,r1            ; address of first element in ram
         store r1,(r0)
-
+    
         moveta r6,r6
-        moveta r7,r7            ;place the matrix in the alt registers
-
-
+        moveta r7,r7               ; place the matrix in the alt registers
+    
+    
 ;
 ; now rotate using the otm...
-
-
-        mmult r6,r5             ;Multiply matrices and leave result in (r5,r6,r7)
-
-        addq #12,r1 
+    
+    
+        mmult r6,r5                ; Multiply matrices and leave result in (r5,r6,r7)
+    
+        addq #12,r1
         store r1,(r0)
         moveta r2,r6
         moveta r3,r7
         mmult r6,r6
-
+    
         addq #12,r1
         store r1,(r0)
         moveta r2,r6
         moveta r3,r7
         mmult r6,r7
-
+    
         sharq #7,r5
         sharq #7,r6
-        sharq #7,r7             ;wuz 7
-
-
+        sharq #7,r7                ; wuz 7
+    
+    
 noyz:   movefa r16,r16
         movefa r17,r17
-
+    
         movei #scaler,r28
         load (r28),r0
-        subq #8,r0              ;objects half size (was q #8)
+        subq #8,r0                 ; objects half size (was q #8)
         sha r0,r5
         sha r0,r6
         sha r0,r7
         add r15,r5
         add r16,r6
         movei #zsafe,r28
-        add r17,r7              ;translate to designated position
+        add r17,r7                 ; translate to designated position
         sharq #14,r7
         jr eq,zbogus
         nop
-        jump pl,(r28)           ;if >0 its legal
-        nop                     ;if point is in positive 'z', it is Ok
-zbogus: movei #$ffff0000,r1     ;mask to keep int of x
-
+        jump pl,(r28)              ; if >0 its legal
+        nop                        ; if point is in positive 'z', it is Ok
+zbogus: movei #$ffff0000,r1        ; mask to keep int of x
+    
         move r5,r28
-        and r1,r28              ;x --> int in high word
+        and r1,r28                 ; x --> int in high word
         move r6,r0
         shrq #16,r0
         or r0,r28
-        
-        movei #-2,intens_0      ;-ve2 intensity means 'this is a point that needs z cliipping'
+    
+        movei #-2,intens_0         ; -ve2 intensity means 'this is a point that needs z cliipping'
         move r28,x1_n
-        move r7,y1_n            ;return packed 3D stuff as XY co-ords
+        move r7,y1_n               ; return packed 3D stuff as XY co-ords
         frts
-
-zsafe:  movei #z_max,r28        ;maximum z for depth q
+    
+zsafe:  movei #z_max,r28           ; maximum z for depth q
         load (r28),intens_0
         addq #4,r28
-        move intens_0,r1        ;copy of z_max
-        load (r28),r0           ;get max intens value
-        sub r7,intens_0         ;make range (max---0)
+        move intens_0,r1           ; copy of z_max
+        load (r28),r0              ; get max intens value
+        sub r7,intens_0            ; make range (max---0)
         jr pl,satu1
         nop
         moveq #0,intens_0
         jr gotme
         nop
 satu1:  mult r0,intens_0
-        div r1,intens_0         ;should leave intens_0 with intensity
+        div r1,intens_0            ; should leave intens_0 with intensity
         shlq #8,intens_0
 gotme:  move r5,r1
         sdiv r7,r1
@@ -1053,18 +1099,18 @@ gotme:  move r5,r1
         load (r27),x1_n
         subq #4,r27
 ;       movei #192,x1_n
-        add r1,x1_n             ;final x1_n
-                        
+        add r1,x1_n                ; final x1_n
+    
         move r6,r1
         sdiv r7,r1
         sharq #7,r1
 ;       movei #120,y1_n
         load (r27),y1_n
-        add r1,y1_n             ;final y1_n
-
+        add r1,y1_n                ; final y1_n
+    
         frts
-
-
+    
+    
 ; *******************************************************************
 ; starfield1
 ;
@@ -1084,209 +1130,209 @@ starfield1:
         addq #4,r28
         load (r28),r21
         addq #4,r28
-        load (r28),r22                  ;get X, Y and Z viewpoint
+        load (r28),r22             ; get X, Y and Z viewpoint
         addq #4,r28
-        load (r28),r25                  ;r25 points to start of star data structure in 68K RAM (or ROM...)
+        load (r28),r25             ; r25 points to start of star data structure in 68K RAM (or ROM...)
         addq #4,r28
-        load (r28),r0                   ;this is the warp counter
+        load (r28),r0              ; this is the warp counter
         addq #4,r28
-        load (r28),r1                   ;and this is the warp separation
-
-        load (r25),r26                  ;r26 has the total number of stars.
-        addq #4,r25                     ;r25 now points to the first star.
-
+        load (r28),r1              ; and this is the warp separation
+    
+        load (r25),r26             ; r26 has the total number of stars.
+        addq #4,r25                ; r25 now points to the first star.
+    
         movei #gpu_screen,r28
-        load (r28),r24                  ;r24 points to the base of screen RAM.
+        load (r28),r24             ; r24 points to the base of screen RAM.
         movei #width,r18
-        movei #height,r19               ;Keep these in register for fast pixel address generation and clipping.
+        movei #height,r19          ; Keep these in register for fast pixel address generation and clipping.
         move r18,r14
         move r19,r15
         shrq #1,r14
-        shrq #1,r15                     ;make X and Y centre
-        movei #nxtpix,r13               ;to go to if clipping fails
-        movei #$1ffffff,r11             ;to make z wrap
+        shrq #1,r15                ; make X and Y centre
+        movei #nxtpix,r13          ; to go to if clipping fails
+        movei #$1ffffff,r11        ; to make z wrap
         moveta r0,r0
         moveta r1,r1
-starloop: move r0,r2                    ;set z-streak iterations
+starloop: move r0,r2               ; set z-streak iterations
         moveta r2,r2
         load (r25),r5
         addq #4,r25
         load (r25),r6
         addq #4,r25
-        load (r25),r7                   ;get X, Y, Z of this star
+        load (r25),r7              ; get X, Y, Z of this star
         addq #4,r25
         sub r20,r5
         sub r21,r6
-        sub r22,r7                      ;translate to current VP
-streakloop: and r11,r7                  ;wrap the z
-
-        moveta r7,r7                    ;save untransformed z
+        sub r22,r7                 ; translate to current VP
+streakloop: and r11,r7             ; wrap the z
+    
+        moveta r7,r7               ; save untransformed z
         moveta r6,r6
         moveta r5,r5
-        move r7,r0                      ;copy the Z
+        move r7,r0                 ; copy the Z
         movei #255,r8
         shrq #16,r0
-        shrq #1,r0                      ;z to 0-255 range
-        sub r0,r8                       ;r8 now has intensity-byte
-        sharq #14,r7                    ;make z OK....
-
-        addq #1,r7              ;ensure no div-by-0
+        shrq #1,r0                 ; z to 0-255 range
+        sub r0,r8                  ; r8 now has intensity-byte
+        sharq #14,r7               ; make z OK....
+    
+        addq #1,r7                 ; ensure no div-by-0
         sdiv r7,r5
         sharq #7,r5
         add r14,r5
         jump mi,(r13)
-        sdiv r7,r6              ;*** BRANCH OPT ***
+        sdiv r7,r6                 ; *** BRANCH OPT ***
         sharq #7,r6
         add r15,r6
         jump mi,(r13)
-        cmp r18,r5              ;*** BO ***
+        cmp r18,r5                 ; *** BO ***
         jump pl,(r13)
-        shlq #1,r5              ;x times 2 to point at words...  *** BRANCH OPT ***
+        shlq #1,r5                 ; x times 2 to point at words...  *** BRANCH OPT ***
         cmp r19,r6
-        jump pl,(r13)           ;do clip to screen
-        mult r18,r6             ;Y*linewidth                    *** BRANCH OPT ***
-        shlq #1,r6              ;*2 because its words
-        add r5,r6               ;r6 is offset into screen-RAM
-        loadw (r25),r0          ;get star colour
-        add r24,r6              ;r6 now points to actual screen location
-        or r8,r0                ;combine colour and i-value
-        storew r0,(r6)          ;store that pixel
-
+        jump pl,(r13)              ; do clip to screen
+        mult r18,r6                ; Y*linewidth                    *** BRANCH OPT ***
+        shlq #1,r6                 ; *2 because its words
+        add r5,r6                  ; r6 is offset into screen-RAM
+        loadw (r25),r0             ; get star colour
+        add r24,r6                 ; r6 now points to actual screen location
+        or r8,r0                   ; combine colour and i-value
+        storew r0,(r6)             ; store that pixel
+    
 nxtpix: movefa r0,r0
-        movefa r1,r1            ;get z-streak stuff
+        movefa r1,r1               ; get z-streak stuff
         movefa r2,r2
         movefa r6,r6
         movefa r5,r5
-        movefa r7,r7            ;get back z co-ord
-        add r1,r7               ;displace z
+        movefa r7,r7               ; get back z co-ord
+        add r1,r7                  ; displace z
         movei #streakloop,r3
         subq #1,r2
         moveta r2,r2
-        jump pl,(r3)            ;loop for streak back
+        jump pl,(r3)               ; loop for streak back
         nop
-
-        addq #20,r25            ;go to next star
+    
+        addq #20,r25               ; go to next star
         movei #starloop,r28
-        subq #1,r26             ;dec #stars counter
-        jump ne,(r28)           ;loop back for all stars
+        subq #1,r26                ; dec #stars counter
+        jump ne,(r28)              ; loop back for all stars
         nop
-
-        movei #StopGPU,r28      ;all done
+    
+        movei #StopGPU,r28         ; all done
         jump (r28)
         nop
-
-
-
+    
+    
+    
 ; *******************************************************************
 ; clip_gouline
 ; Helper routine for vect3d.
 ;
 ; clip the line (x1_n,y1_n)-(x2_n,y2_n) to the vector viewport
-
+    
 ; calculate the cohen-sutherland outcodes
 ; *******************************************************************
 clip_gouline:
-
-
-
-        moveq #0,r15    ;swapped points phlag
-doit:   moveq #0,r0             ;r0 to build outcode for (x1_n,y1_n)
+    
+    
+    
+        moveq #0,r15               ; swapped points phlag
+doit:   moveq #0,r0                ; r0 to build outcode for (x1_n,y1_n)
         movei #vyhi,r28
         sub y1_n,r28
         jr pl,clip_1
         nop
-        bset #3,r0              ;sign bit of (ymax-y)
+        bset #3,r0                 ; sign bit of (ymax-y)
 clip_1: movei #vylo,r2
         move y1_n,r28
         sub r2,r28
         jr pl,clip_2
         nop
-        bset #2,r0              ;not sign bit of (ymin-y)
+        bset #2,r0                 ; not sign bit of (ymin-y)
 clip_2: movei #vxhi,r28
         sub x1_n,r28
         jr pl,clip_3
         nop
-        bset #1,r0              ;sign bit of (ymax-y)
+        bset #1,r0                 ; sign bit of (ymax-y)
 clip_3: movei #vxlo,r2
         move x1_n,r28
         sub r2,r28
         jr pl,clip_4
         nop
-        bset #0,r0              ;not sine bit of (ymin-y)
-clip_4: moveq #0,r1             ;r1 to build outcode for (x2_n,y2_n)
+        bset #0,r0                 ; not sine bit of (ymin-y)
+clip_4: moveq #0,r1                ; r1 to build outcode for (x2_n,y2_n)
         movei #vyhi,r28
         sub y2_n,r28
         jr pl,clip_5
         nop
-        bset #3,r1              ;sign bit of (ymax-y)
+        bset #3,r1                 ; sign bit of (ymax-y)
 clip_5: movei #vylo,r2
         move y2_n,r28
         sub r2,r28
         jr pl,clip_6
         nop
-        bset #2,r1              ;not sign bit of (ymin-y)
+        bset #2,r1                 ; not sign bit of (ymin-y)
 clip_6: movei #vxhi,r28
         sub x2_n,r28
         jr pl,clip_7
         nop
-        bset #1,r1              ;sign bit of (ymax-y)
+        bset #1,r1                 ; sign bit of (ymax-y)
 clip_7: movei #vxlo,r2
         move x2_n,r28
         sub r2,r28
         jr pl,clip_8
         nop
-        bset #0,r1              ;not sine bit of (ymin-y)
+        bset #0,r1                 ; not sine bit of (ymin-y)
 clip_8: move r0,r28
         add r1,r28
-        jr nz,clip_9            ;check both outcodes =0 (line in clip window)
+        jr nz,clip_9               ; check both outcodes =0 (line in clip window)
         nop
-clip_ok: movei #gouline,r0      ;bog off
-        cmpq #0,r15             ;points swapped?
-        jump eq,(r0)            ;no
+clip_ok: movei #gouline,r0         ; bog off
+        cmpq #0,r15                ; points swapped?
+        jump eq,(r0)               ; no
         nop
         move x1_n,r28
         move y1_n,r2
         move x2_n,x1_n
         move y2_n,y1_n
         move r28,x2_n
-        move r2,y2_n            ;swop points
+        move r2,y2_n               ; swop points
         jump (r0)
         nop
-
+    
 clip_9: move r0,r28
         and r1,r28
-        jr z,clip_iterate       ;if this is zero got to do some clipping dude
+        jr z,clip_iterate          ; if this is zero got to do some clipping dude
         nop
 clipfail: frts
 ; movei #return,r0      ;no line here thank you so much
 ;       jump (r0)
 ;       nop
-clip_iterate: cmpq #0,r0        ;check first endpoint is on the screen
+clip_iterate: cmpq #0,r0           ; check first endpoint is on the screen
         jr ne, right_order
         nop
-        move r0,r28             ;if it is, exchange endpoints and outcodes
+        move r0,r28                ; if it is, exchange endpoints and outcodes
         move r1,r0
-        move r28,r1             ;swop outcodes
-
+        move r28,r1                ; swop outcodes
+    
         move x1_n,r28
         move y1_n,r2
         move x2_n,x1_n
         move y2_n,y1_n
         move r28,x2_n
-        move r2,y2_n            ;swop points
+        move r2,y2_n               ; swop points
         moveq #1,r2
-        xor r2,r15              ;flippyflag points are swapped
-
-
+        xor r2,r15                 ; flippyflag points are swapped
+    
+    
 right_order:
         move x2_n,r5
         move y2_n,r6
-        sub x1_n,r5             ;get vector sizes
-        sub y1_n,r6             ;in (r5,r6)
-        move r0,r7              ;save outcode 1
-
+        sub x1_n,r5                ; get vector sizes
+        sub y1_n,r6                ; in (r5,r6)
+        move r0,r7                 ; save outcode 1
+    
         movei #do_out1,r4
-        btst #3,r7              ;check for bit 0 of outcode 1
+        btst #3,r7                 ; check for bit 0 of outcode 1
         jump z,(r4)
         nop
         movei #vyhi,r1
@@ -1295,14 +1341,14 @@ right_order:
         move r6,r0
         abs r0
         sdiv r0,r1
-        sub r1,x1_n             ;new X pos from that calculation
-        movei #vyhi,y1_n                ;new Y if top of screen
+        sub r1,x1_n                ; new X pos from that calculation
+        movei #vyhi,y1_n           ; new Y if top of screen
         movei #doit,r0
         jump (r0)
         nop
-
+    
 do_out1: movei #do_out2,r4
-        btst #2,r7              ;check for bit 0 of outcode 1
+        btst #2,r7                 ; check for bit 0 of outcode 1
         jump z,(r4)
         nop
         movei #vylo,r1
@@ -1311,47 +1357,47 @@ do_out1: movei #do_out2,r4
         move r6,r0
         abs r0
         sdiv r0,r1
-        add r1,x1_n             ;new X pos from that calculation
-        movei #vylo,y1_n                ;new Y if top of screen
+        add r1,x1_n                ; new X pos from that calculation
+        movei #vylo,y1_n           ; new Y if top of screen
         movei #doit,r0
         jump (r0)
         nop
-
+    
 do_out2: movei #do_out3,r4
         btst #1,r7
         jump z,(r4)
         nop
-
+    
         movei #vxhi,r1
         sub x1_n,r1
         imult r6,r1
         move r5,r0
         abs r0
         sdiv r0,r1
-        sub r1,y1_n             ;new X pos from that calculation
-        movei #vxhi,x1_n                ;new Y if top of screen
+        sub r1,y1_n                ; new X pos from that calculation
+        movei #vxhi,x1_n           ; new Y if top of screen
         movei #doit,r0
         jump (r0)
         nop
-
+    
 do_out3:
         movei #clipfail,r4
         btst #0,r7
         jump z,(r4)
         nop
-
+    
         movei #vxlo,r1
         sub x1_n,r1
         imult r6,r1
         move r5,r0
         abs r0
         sdiv r0,r1
-        add r1,y1_n             ;new X pos from that calculation
-        movei #vxlo,x1_n                ;new Y if top of screen
+        add r1,y1_n                ; new X pos from that calculation
+        movei #vxlo,x1_n           ; new Y if top of screen
         movei #doit,r0
         jump (r0)
         nop
-
+    
 ; *******************************************************************
 ; gouline
 ; Helper routine for vect3d.
@@ -1361,12 +1407,12 @@ do_out3:
 gouline:
         movei #lineparams,r28
         gjsr r28
-
-        moveta r30,r30          ;this is doublewidth line stuff- save the proper frts value...
+    
+        moveta r30,r30             ; this is doublewidth line stuff- save the proper frts value...
         movei #glin,r28
         fjsr r28
         movefa r30,r30
-        movefa r9,r1            ;get sysflags
+        movefa r9,r1               ; get sysflags
         btst #1,r1
         jr eq,thick
         nop
@@ -1374,47 +1420,47 @@ gouline:
         jump (r0)
         nop
 thick:  addq #1,L_PIX
-
-
+    
+    
 glin:   move intens_1,r0
-        move L_COUNT,r1         ;blitter count is abs line length
-        sub intens_0,r0         ;get signed intensity gradient
-        bclr #16,r1             ;(without the outer loop bit)
+        move L_COUNT,r1            ; blitter count is abs line length
+        sub intens_0,r0            ; get signed intensity gradient
+        bclr #16,r1                ; (without the outer loop bit)
         movei #z2return,r28
         cmpq #0,r1
-        jump eq,(r28)           ;check for 0-length and go if true
+        jump eq,(r28)              ; check for 0-length and go if true
         nop
-        moveq #0,r3             ;do a signed divide as usual
+        moveq #0,r3                ; do a signed divide as usual
         cmp r3,r0
         jr pl,nneg1
         nop
         bset #0,r3
         abs r0
 nneg1: div r1,r0
-        movei #$ff,r4           ;for getting the integer parts
+        movei #$ff,r4              ; for getting the integer parts
         and r4,col
-        move col,r23            ;get a copy of the colour
-        shlq #16,r23            ;going to build pattern here  ----moved up for pipeline
+        move col,r23               ; get a copy of the colour
+        shlq #16,r23               ; going to build pattern here  ----moved up for pipeline
         or col,r23
-        shlq #8,r23             ;two colour bytes woth holes for the intensity
-
-
+        shlq #8,r23                ; two colour bytes woth holes for the intensity
+    
+    
         btst #0,r3
         jr z,nneg11
         nop
         neg r0
-nneg11: move intens_0,r1        ;get start intensity
-
-bstop: load (cmd),r28           ;check for blitter stop
+nneg11: move intens_0,r1           ; get start intensity
+    
+bstop: load (cmd),r28              ; check for blitter stop
         btst #0,r28
         jr z,bstop
         nop
-
+    
         movei #BLIT_PATD,r28
         store r23,(r28)
         addq #4,r28
-        store r23,(r28)         ;colour is set..
-
+        store r23,(r28)            ; colour is set..
+    
         movei #$ffffff,r28
         and r28,r0
         movei #B_I3,r28
@@ -1428,11 +1474,11 @@ bstop: load (cmd),r28           ;check for blitter stop
         add r0,r1
         addq #4,r28
         store r1,(r28)
-
+    
         movei #BLIT_IINC,r28
-        store r0,(r28)          ;set it
+        store r0,(r28)             ; set it
         movei #BLIT_A1INCF,r1
-        store L_INCF,(r1)               ;set up blitter
+        store L_INCF,(r1)          ; set up blitter
         movei #BLIT_A1INC,r1
         store L_INC,(r1)
         store L_PIX,(A1PIXEL)
@@ -1442,45 +1488,45 @@ bstop: load (cmd),r28           ;check for blitter stop
         moveq #0,r0
         movei #BLIT_A1PIXELF,r1
         store r0,(r1)
-        movei #(PATDSEL|GOURD),r0       ;pattern data + Gourard stuff
-        store r0,(cmd)                  ;start it up
-
+        movei #(PATDSEL|GOURD),r0   ; pattern data + Gourard stuff
+        store r0,(cmd)             ; start it up
+    
 farts:  frts
 z2return: moveq #0,L_COUNT
         frts
-
-return: load (r27),r0           ;get return address on the stack
-        addq #4,r27             ;update SP
-        jump (r0)               ;jump to return address
-        nop 
-
-
-
+    
+return: load (r27),r0              ; get return address on the stack
+        addq #4,r27                ; update SP
+        jump (r0)                  ; jump to return address
+        nop
+    
+    
+    
 line:
         movei #lineparams,r28
         gjsr r28
-
+    
         move col,r0
         shlq #16,r0
         or col,r0
         movei #z2return,r3
-        move L_COUNT,r28        
+        move L_COUNT,r28
         bclr #16,r28
         cmpq #0,r28
         jump eq,(r3)
         nop
-
-lbstop: load (cmd),r28          ;check for blitter stop
+    
+lbstop: load (cmd),r28             ; check for blitter stop
         btst #0,r28
         jr z,lbstop
         nop
-
+    
         movei #BLIT_PATD,r1
         store r0,(r1)
         addq #4,r1
         store r0,(r1)
         movei #BLIT_A1INCF,r1
-        store L_INCF,(r1)               ;set up blitter
+        store L_INCF,(r1)          ; set up blitter
         movei #BLIT_A1INC,r1
         store L_INC,(r1)
         store L_PIX,(A1PIXEL)
@@ -1493,14 +1539,14 @@ lbstop: load (cmd),r28          ;check for blitter stop
         and r2,r1
         bset #16,r1
         store r1,(count)
-        movei #(PATDSEL),r0             ;pattern data + Gourard stuff
-        store r0,(cmd)                  ;start it up
-
+        movei #(PATDSEL),r0        ; pattern data + Gourard stuff
+        store r0,(cmd)             ; start it up
+    
         frts
-
-
-
-
+    
+    
+    
+    
 ; *******************************************************************
 ; lineparams
 ; Helper routine for vect3d.
@@ -1509,36 +1555,36 @@ lbstop: load (cmd),r28          ;check for blitter stop
 ; *******************************************************************
 lineparams:
         sub x1_n,x2_n
-        sub y1_n,y2_n                   ;get differences
+        sub y1_n,y2_n              ; get differences
         move y1_n,L_PIX
         shlq #16,L_PIX
-        or x1_n,L_PIX                   ;set pixel origin
+        or x1_n,L_PIX              ; set pixel origin
         move x2_n,r0
         move y2_n,r1
         abs r0
-        abs r1                          ;get abs size
+        abs r1                     ; get abs size
         cmp r0,r1
-        jr mi,x_greater                 ;see which is biggest
+        jr mi,x_greater            ; see which is biggest
         nop
         movei #y_greater,r0
         jump (r0)
         nop
-
+    
 x_greater: movei #zreturn,r28
         cmpq #0,r0
-        jump eq,(r28)                   ;check for 0-length and go if true
+        jump eq,(r28)              ; check for 0-length and go if true
         nop
-        shlq #16,y2_n                   ;y difference to 16:16
+        shlq #16,y2_n              ; y difference to 16:16
         moveq #0,r3
-        cmp r3,y2_n                     ;stuff to do signed divide
+        cmp r3,y2_n                ; stuff to do signed divide
         jr pl,pos2
         nop
         bset #0,r3
         abs y2_n
-pos2:   div r0,y2_n                     ;divide by x
+pos2:   div r0,y2_n                ; divide by x
         move r0,L_COUNT
         addq #1,L_COUNT
-        bset #16,L_COUNT                ;set count to X
+        bset #16,L_COUNT           ; set count to X
         btst #0,r3
         nop
         jr z,pos22
@@ -1546,35 +1592,35 @@ pos2:   div r0,y2_n                     ;divide by x
         neg y2_n
 pos22:
 ;       move r0,L_COUNT
-;       bset #16,L_COUNT                ;set count to X
+;       bset #16,L_COUNT           ;set count to X
         move y2_n,L_INCF
-        shlq #16,L_INCF                 ;Frac of Y, zero X
+        shlq #16,L_INCF            ; Frac of Y, zero X
         movei #$ffff0000,r3
         move y2_n,L_INC
         and r3,L_INC
         moveq #1,r0
-        cmpq #0,x2_n                    ;check sign of x
+        cmpq #0,x2_n               ; check sign of x
         jr pl,sgnpos
         nop
-        movei #$ffff,r0                 ;-1
+        movei #$ffff,r0            ; -1
 sgnpos: or r0,L_INC
         grts
-
+    
 y_greater: movei #zreturn,r28
         cmpq #0,r1
-        jump eq,(r28)                   ;check for 0-length and go if true
+        jump eq,(r28)              ; check for 0-length and go if true
         nop
-        shlq #16,x2_n                   ;x difference to 16:16
+        shlq #16,x2_n              ; x difference to 16:16
         moveq #0,r3
-        cmp r3,x2_n                     ;stuff to do signed divide
+        cmp r3,x2_n                ; stuff to do signed divide
         jr pl,pos1
         nop
         bset #0,r3
         abs x2_n
-pos1:   div r1,x2_n                     ;divide by Y
+pos1:   div r1,x2_n                ; divide by Y
         move r1,L_COUNT
         addq #1,L_COUNT
-        bset #16,L_COUNT                ;set count to Y
+        bset #16,L_COUNT           ; set count to Y
         btst #0,r3
         nop
         jr z,pos12
@@ -1582,37 +1628,34 @@ pos1:   div r1,x2_n                     ;divide by Y
         neg x2_n
 pos12:
 ;       move r1,L_COUNT
-;       bset #16,L_COUNT                ;set count to Y
+;       bset #16,L_COUNT           ;set count to Y
         move x2_n,L_INCF
         movei #$ffff,r3
-        and r3,L_INCF                   ;Frac of X, zero Y
+        and r3,L_INCF              ; Frac of X, zero Y
         move x2_n,L_INC
         shrq #16,L_INC
         movei #$10000,r0
-        cmpq #0,y2_n                    ;check sign of y
+        cmpq #0,y2_n               ; check sign of y
         nop
         jr pl,sgnpos1
         nop
-        movei #$FFFF0000,r0             ;-1
+        movei #$FFFF0000,r0        ; -1
 sgnpos1: or r0,L_INC
         grts
-
+    
 zreturn: moveq #0,L_COUNT
         grts
-
+    
 StopGPU:
-        movei #GPUCTRL,r1       ;point at GPU flags
-        movei #gpu_sem,r2       ;Finish semaphore
-        moveq #0,r0     
-        store r0,(r2)           ;Flag GPU completion
+        movei #GPUCTRL,r1          ; point at GPU flags
+        movei #gpu_sem,r2          ; Finish semaphore
+        moveq #0,r0
+        store r0,(r2)              ; Flag GPU completion
         load (r1),r0
         bclr #0,r0
-
-        store r0,(r1)           ;stop the GPU
+    
+        store r0,(r1)              ; stop the GPU
 stoploop:
         jr stoploop
-
-
-
-
-
+    
+; vim:ft=asm68k ts=2

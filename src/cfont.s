@@ -1,3 +1,54 @@
+; **************************************************************************************
+; Welcome to the Motorola 68K Assembler source code for 'Tempest 2000' by Jeff Minter.
+;
+;                 ===============                   ===============                                               
+;              =====================             =====================                                            
+;            =====   =====      ======         ======      ====    =====                                          
+;         ======       =====     == =====   ===== ==     ====        =====                                        
+;       =====            =====    ==  =========  ==    =====            =====                                     
+;       =======            =====  ===   ====    ==   =====            =======                                     
+;       ============         =====  ==   ==    ==  =====         ============                                     
+;        ==    ==========      ========= ==  =========      ==========    ==                                      
+;        ===        ========== ======================= ==========        ==                                       
+;         ===           =========      ======      =========            ===                                       
+;          ==                ===                     ==                 ==                                        
+;          ===                ===                   ==                 ===                                        
+;           ==            ========                 ========           ===                                         
+;            =======================             =======================                                          
+;            =============        =====       =====        =============                                          
+;             =====             =====================            =====                                            
+;                =====       =====    ========    ======       =====                                              
+;                  =====   =====       ==   ==       =====  ======                                                
+;                     =======         ==    ===        ========                                                   
+;                       =====         ==     ==         =====                                                     
+;                          =====     ==      ===     =====                                                        
+;                            =====   ==       ==   =====                                                          
+;                              =======        =======                                                             
+;                                 =================                                                               
+;                                    ===========                                                                  
+;                                                                                                                                                   
+;                   Fig 1. Ascii rendering of the 'kiss of death' web.
+;                                                                                                                 
+; This source code was originally 'leaked' by 'JaySmith2000' in August 2008,
+; who sold it on CD as part of a release entitled the 'Jaguar Sector II Source Code
+; Collection':
+;     https://web.archive.org/web/20131117222232/http://www.jaysmith2000.com/Jagpriceguide.htm
+;
+; This is a cleaned-up and commented version of the source code file 'afont.s'.
+;
+; No code has been changed, so this source file can be used to create a build
+; of Tempest 2000 that is byte-for-byte identical to the original 1994 release.
+;
+; All original variable and routine names are preserved. The changes include:
+;   - Fixed up indentation.
+;   - Added comments and routine headers.
+;
+; The home of this file and the rest of the Tempest 2000 source code is:
+;     https://github.com/mwenge/tempest2k 
+;
+; cfont.s consists of addresses into the data in pic. pic contains a spritesheet
+; of characters for the font.
+; **************************************************************************************
 *
 *
 * Page 1 font, 8x8, by Joby
@@ -103,3 +154,4 @@ cfont:
 	dc.l $b50137	;}
 	dc.l $b50137	;~
 	dc.l $b50137	;DEL
+; vim:ft=asm68k ts=2

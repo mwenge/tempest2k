@@ -1,39 +1,79 @@
-; vim:ft=asm68k
-; *******************************************************************
+; **************************************************************************************
+; Welcome to the Motorola 68K Assembler source code for 'Tempest 2000' by Jeff Minter.
+;
+;                   -:.                                 _-
+;                    _/:.                             _^_ 
+;                     _|":.                         _^+_  
+;                      _||/:.                     _^++_   
+;                       _|||/'.                 _^++=_    
+;                        _||||/'.             _^+===_     
+;                         _|||||/'          _^+====_      
+;                          _||||||/'      _^++====_       
+;                           _"||||||+'. _;++++++=_        
+;                            +)>>>>>)i=_^^;;;;;^:         
+;                           ^vvvvv%%\:  .',,,,,,,-        
+;                          ^vvvv%%\:      .',,,,,,-       
+;                         ^vvv%%<:          .',,,,,-      
+;                        ;vv%%<:              `',,,,-     
+;                       ;v%%<:                  `',,,-    
+;                      ;%%<,                      `',,-   
+;                     ;%<,                          `',-  
+;                    ;<;                              `:- 
+;                   ';.                                 ``
+;                                                                                                                                                   
+;                     Fig 1. Ascii rendering of the 'flipper'.
+;                                                                                                                 
+; This source code was originally 'leaked' by 'JaySmith2000' in August 2008,
+; who sold it on CD as part of a release entitled the 'Jaguar Sector II Source Code
+; Collection':
+;     https://web.archive.org/web/20131117222232/http://www.jaysmith2000.com/Jagpriceguide.htm
+;
+; This is a cleaned-up and commented version of the source code file 'horse.gas'.
+;
+; No code has been changed, so this source file can be used to create a build
+; of Tempest 2000 that is byte-for-byte identical to the original 1994 release.
+;
+; All original variable and routine names are preserved. The changes include:
+;   - Fixed up indentation.
+;   - Added comments and routine headers.
+;
+; The home of this file and the rest of the Tempest 2000 source code is:
+;     https://github.com/mwenge/tempest2k 
+;
 ; horse.gas
 ; This module contains the GPU routine use for most drawing of solid
 ; polygons (polyo2d). It also contains the routine for drawing power-
 ; up explosions (pring2) and a sphere routine that is only used once,
 ; in head to head mode (psphere). 'psphere' is a near duplicate of its
 ; counterpart in ox.gas.
-; *******************************************************************
+; **************************************************************************************
         Base equ $f00000
 
-  INCLUDE       "jaguar.inc"    ; Jaguar General definitions
-
-        gpu_mode     EQU (G_RAM+$ffc)       ; Number defines which routine the GPU will do
-        gpu_screen   EQU (G_RAM+$ff8)     ; The address of the screen the GPU will draw on
+        INCLUDE      "jaguar.inc"       ; Jaguar General definitions
+    
+        gpu_mode     EQU (G_RAM+$ffc)   ; Number defines which routine the GPU will do
+        gpu_screen   EQU (G_RAM+$ff8)   ; The address of the screen the GPU will draw on
         source_flags EQU (G_RAM+$ff4)
-        dest_flags   EQU (G_RAM+$ff0)     ; Blitter flags 4 source+dest
+        dest_flags   EQU (G_RAM+$ff0)   ; Blitter flags 4 source+dest
         backg        EQU (G_RAM+$fec)
-
+    
         sysflags     EQU (G_RAM+$fd0)
         xcent        EQU (G_RAM+$efc)
         ycent        EQU (G_RAM+$ef8)
-
-
-        p_sines      EQU $30000              ; 256-byte sine table of unsigned bytes
-        in_buf       EQU (G_RAM+$f60)        ; General space for passing stuff to GPU
+    
+    
+        p_sines      EQU $30000         ; 256-byte sine table of unsigned bytes
+        in_buf       EQU (G_RAM+$f60)   ; General space for passing stuff to GPU
         ORG          $f03000
         width        EQU 384
         mwidth       EQU 768
         height       EQU 240
         diag         EQU $4000
-
+    
 ; *******************************************************************
 ;***** EQUATES for Blitter offsets
 ; *******************************************************************
-
+    
         _base   EQU 0
         _flags  EQU 1
         _clip   EQU 2
@@ -44,51 +84,51 @@
         _fpixel EQU 6
         _inc    EQU 7
         _finc   EQU 8
-
+    
 ; *******************************************************************
 ; sdiv
 ; *******************************************************************
-        MACRO sdiv      ;Divide, keeping sign of that which is divided, uses r27
+        MACRO sdiv                 ; Divide, keeping sign of that which is divided, uses r27
         move \2,r31
         abs \2
         div \1,\2
-        btst #31,r31    ;Get sign bit of original thang
+        btst #31,r31               ; Get sign bit of original thang
         jr z,\~sdtt
         nop
         neg \2
-\~sdtt: 
+\~sdtt:
         ENDM
-
+    
 ; *******************************************************************
 ; sdiv0
 ; *******************************************************************
-        MACRO sdiv0     ;Divide, keeping sign of that which is divided, uses r2-r3
+        MACRO sdiv0                ; Divide, keeping sign of that which is divided, uses r2-r3
         move \2,r0
         abs \2
         div \1,\2
-        btst #31,r0     ;Get sign bit of original thang
+        btst #31,r0                ; Get sign bit of original thang
         jr z,\~sd0tt
         nop
         neg \2
-\~sd0tt:        
+\~sd0tt:
         ENDM
-
-
+    
+    
 ; *******************************************************************
 ; waitblit
 ; *******************************************************************
-        MACRO waitblit  ; Wait for the Blitter to stop
+        MACRO waitblit             ; Wait for the Blitter to stop
 \~waitt:load (blit),r31
         btst #0,r31
         jr z,\~waitt
         nop
         ENDM
-
+    
 ; *******************************************************************
 ; fmult
 ; *******************************************************************
-        MACRO fmult     ;multiply 2 thangs, uses r2-r4, returns in first reg.
-        moveta \2,r31   ;(preserves second Thang)
+        MACRO fmult                ; multiply 2 thangs, uses r2-r4, returns in first reg.
+        moveta \2,r31              ; (preserves second Thang)
         moveq #0,r27
         move r27,r28
         abs \1
@@ -116,7 +156,7 @@
         neg \1
 \~fmptt:
         ENDM
-
+    
 ; *******************************************************************
 ; bank0
 ; *******************************************************************
@@ -124,7 +164,7 @@
         movei #G_FLAGS,r0
         load (r0),r1
         bclr #14,r1
-        store r1,(r0)                   ;Switch to Register Bank #0
+        store r1,(r0)              ; Switch to Register Bank #0
         nop
         nop
         nop
@@ -136,7 +176,7 @@
         jr nz,\~bnk0tt
         nop
         ENDM
-
+    
 ; *******************************************************************
 ; bank1
 ; *******************************************************************
@@ -144,7 +184,7 @@
         movei #G_FLAGS,r0
         load (r0),r1
         bset #14,r1
-        store r1,(r0)                   ;Switch to Register Bank #1
+        store r1,(r0)              ; Switch to Register Bank #1
         nop
         nop
         nop
@@ -156,7 +196,7 @@
         jr z,\~bnk1tt
         nop
         ENDM
-
+    
 ; *******************************************************************
 ; swap
 ; *******************************************************************
@@ -165,7 +205,7 @@
         move \2,\1
         move r31,\2
         ENDM
-
+    
 ; *******************************************************************
 ; Not sure what this is for.
 ; *******************************************************************
@@ -174,9 +214,9 @@ waifer: load (r0),r31
         btst #0,r31
         jr z,waifer
         nop
-
+    
 ; *******************************************************************
-; Detect the GPU mode selected by the caller and use that to determin
+; Detect the GPU mode selected by the caller and use that to determine
 ; which routine (shader) to run.
 ; Mode 0 = polyo2d
 ; Mode 1 = pring2
@@ -186,14 +226,14 @@ waifer: load (r0),r31
         movei #pring2,r1
         movei #psphere,r2
         load (r0),r31
-        cmpq #1,r31          ; Mode 1 selected?
-        jump eq,(r1)         ; Jump to pring2.
+        cmpq #1,r31                ; Mode 1 selected?
+        jump eq,(r1)               ; Jump to pring2.
         nop
-        cmpq #2,r31          ; Mode 2 selected?
-        jump eq,(r2)         ; Jump to psphere.
+        cmpq #2,r31                ; Mode 2 selected?
+        jump eq,(r2)               ; Jump to psphere.
         nop
         ; Mode 1 selected. Fall through to polyo2d.
-        
+    
 ; *******************************************************************
 ; polyo2d
 ;*
@@ -206,7 +246,7 @@ waifer: load (r0),r31
 ; Used by drawsolidxy, one of the main solid polygon drawing routines.
 ; *******************************************************************
 polyo2d:
-        x1_n            REGEQU r3       
+        x1_n            REGEQU r3
         y1_n            REGEQU r4
         x2_n            REGEQU r5
         y2_n            REGEQU r6
@@ -228,19 +268,19 @@ polyo2d:
         sum2            REGEQU r24
         sum3            REGEQU r25
         sum4            REGEQU r26
-
+    
         xstart          REGEQU r27
         istart          REGEQU r28
         xsize           REGEQU r29
         isize           REGEQU r30
         cmd             REGEQU r2
-
-
+    
+    
         blit            REGEQU r13
         a1_n            REGEQU r14
-
+    
 ;*      Definitions for use in the alternate-register bank. Alternate r0 and ISTART are used in the polyrenderer.
-
+    
         sinebase        REGEQU r23
         polypointer     REGEQU r24
         xxx             REGEQU r25
@@ -257,24 +297,24 @@ polyo2d:
         colour          REGEQU r21
         vertex          REGEQU r22
         bank0
-
-        movei #A1_BASE,a1_n     ;blitter Base
-        movei #B_CMD,blit       ;blitter flags/go
-        movei #(PATDSEL|CLIP_A1|GOURD),cmd      ;blitter Go command
-        waitblit                        ;make sure it's stopped
+    
+        movei #A1_BASE,a1_n        ; blitter Base
+        movei #B_CMD,blit          ; blitter flags/go
+        movei #(PATDSEL|CLIP_A1|GOURD),cmd   ; blitter Go command
+        waitblit                   ; make sure it's stopped
         movei #gpu_screen,r0
         load (r0),r1
-        store r1,(a1_n) ;screen destination base address set
+        store r1,(a1_n)            ; screen destination base address set
         movei #$1180180,r0
         nop
-        store r0,(a1_n+_clip)   ;clip window dimensions
+        store r0,(a1_n+_clip)      ; clip window dimensions
         nop
-
-
+    
+    
         bank1
-
+    
         movei #in_buf,r0
-        load (r0),polypointer           ;Get poly stuff
+        load (r0),polypointer      ; Get poly stuff
         addq #4,r0
         load (r0),xxx
         addq #4,r0
@@ -286,12 +326,12 @@ polyo2d:
         addq #4,r0
         load (r0),ycen
         addq #4,r0
-        load (r0),r1                    ;this is the rotation angle
-
+        load (r0),r1               ; this is the rotation angle
+    
         movei #$ff,byte
         move r1,r0
-        movei #p_sines,sinebase         ;initialise some constants
-
+        movei #p_sines,sinebase    ; initialise some constants
+    
         movei #$40,r2
         and byte,r0
         add r2,r1
@@ -300,117 +340,117 @@ polyo2d:
         loadb (r0),sin
         add sinebase,r1
         movei #$80,r0
-        loadb (r1),cos                  ;get sine and cosine values
+        loadb (r1),cos             ; get sine and cosine values
         sub r0,sin
-        sub r0,cos                      ;make them signed
-
-
-        load (polypointer),faces        ;get # of faces
+        sub r0,cos                 ; make them signed
+    
+    
+        load (polypointer),faces   ; get # of faces
         addq #4,polypointer
-
+    
         move faces,vertices
         shlq #4,vertices
-        add polypointer,vertices        ;16*faces plus address is v-table
+        add polypointer,vertices   ; 16*faces plus address is v-table
         movei #polyloop,poly_loop
-        shrq #14,zzz                    ;scale z properly
-
+        shrq #14,zzz               ; scale z properly
+    
 polyloop: nop
-        loadw (polypointer),colour      ;get colour of this face
+        loadw (polypointer),colour   ; get colour of this face
         move colour,r1
         add r1,r1
         nop
         addq #2,polypointer
         movei #$4008,r0
-
-        loadw (polypointer),vertex      ;Inline code for each vertex: get vertex index
+    
+        loadw (polypointer),vertex   ; Inline code for each vertex: get vertex index
         move vertex,r1
         add r1,r1
         nop
         addq #2,polypointer
-        loadw (polypointer),i1_n                ;got Intensity
+        loadw (polypointer),i1_n   ; got Intensity
         move i1_n,r1
         add r1,r1
         addq #2,polypointer
-        shlq #2,vertex                  ;vertex thang to long pointer
-        moveta i1_n,i1_n                        ;set intensity in alt for polyrenderer          *****
-        add vertices,vertex             ;point to this vertex
+        shlq #2,vertex             ; vertex thang to long pointer
+        moveta i1_n,i1_n           ; set intensity in alt for polyrenderer          *****
+        add vertices,vertex        ; point to this vertex
         loadw (vertex),x1_n
         addq #2,vertex
-        loadw (vertex),y1_n             ;got vertex XY position
-
-
+        loadw (vertex),y1_n        ; got vertex XY position
+    
+    
         shlq #16,x1_n
         shlq #16,y1_n
         sharq #16,x1_n
-        sharq #16,y1_n                  ;sign-extend the XY position
-
+        sharq #16,y1_n             ; sign-extend the XY position
+    
         sub xcen,x1_n
-        sub ycen,y1_n                   ;move to local centre
+        sub ycen,y1_n              ; move to local centre
         move x1_n,x2_n
-        move y1_n,y2_n                  ;copy them for rotation
-        neg y1_n                                ;y1_n will be the -SIN term in the rotation so negate it
+        move y1_n,y2_n             ; copy them for rotation
+        neg y1_n                   ; y1_n will be the -SIN term in the rotation so negate it
         imult cos,x1_n
         imult sin,y1_n
         imult sin,x2_n
-        imult cos,y2_n                  ;do the rotation-multiplies
+        imult cos,y2_n             ; do the rotation-multiplies
         add y1_n,x1_n
-        add x2_n,y2_n                   ;add the products, resultant rotated point is (x1_n,y2_n)
+        add x2_n,y2_n              ; add the products, resultant rotated point is (x1_n,y2_n)
         shlq #8,x1_n
-        shlq #8,y2_n                    ;rotated point to 16:16
+        shlq #8,y2_n               ; rotated point to 16:16
         add xxx,x1_n
-        add yyy,y2_n                    ;move to final XY in Tempest space
+        add yyy,y2_n               ; move to final XY in Tempest space
         sdiv zzz,x1_n
-        sdiv zzz,y2_n                   ;perspective transform
+        sdiv zzz,y2_n              ; perspective transform
         sharq #7,x1_n
         sharq #7,y2_n
         movei #ycent,vertex
         load (vertex),r1
         addq #4,vertex
         load (vertex),r0
-
+    
 ;       movei #192,r0
 ;       movei #120,r1
-        add r0,x1_n                     ;final x1_n
-        add r1,y2_n                     ;final y1_n
-        moveta x1_n,x1_n                        ;                                               *****
-        moveta y2_n,y1_n                        ;Set up in alternates for the polyrenderer      *****   
-
-        loadw (polypointer),vertex      ;Inline code for each vertex: get vertex index
+        add r0,x1_n                ; final x1_n
+        add r1,y2_n                ; final y1_n
+        moveta x1_n,x1_n           ; *****
+        moveta y2_n,y1_n           ; Set up in alternates for the polyrenderer      *****
+    
+        loadw (polypointer),vertex   ; Inline code for each vertex: get vertex index
         move vertex,r1
         addq #2,polypointer
         add r1,r1
-        
-        loadw (polypointer),i1_n                ;got Intensity
+    
+        loadw (polypointer),i1_n   ; got Intensity
         move i1_n,r1
         add r1,r1
         addq #2,polypointer
-        shlq #2,vertex                  ;vertex thang to long pointer
-        moveta i1_n,i2_n                        ;set intensity in alt for polyrenderer          *****
-        add vertices,vertex             ;point to this vertex
+        shlq #2,vertex             ; vertex thang to long pointer
+        moveta i1_n,i2_n           ; set intensity in alt for polyrenderer          *****
+        add vertices,vertex        ; point to this vertex
         loadw (vertex),x1_n
         addq #2,vertex
-        loadw (vertex),y1_n             ;got vertex XY position
+        loadw (vertex),y1_n        ; got vertex XY position
         shlq #16,x1_n
         shlq #16,y1_n
         sharq #16,x1_n
-        sharq #16,y1_n                  ;sign-extend the XY position
+        sharq #16,y1_n             ; sign-extend the XY position
         sub xcen,x1_n
-        sub ycen,y1_n                   ;move to local centre
+        sub ycen,y1_n              ; move to local centre
         move x1_n,x2_n
-        move y1_n,y2_n                  ;copy them for rotation
-        neg y1_n                                ;y1_n will be the -SIN term in the rotation so negate it
+        move y1_n,y2_n             ; copy them for rotation
+        neg y1_n                   ; y1_n will be the -SIN term in the rotation so negate it
         imult cos,x1_n
         imult sin,y1_n
         imult sin,x2_n
-        imult cos,y2_n                  ;do the rotation-multiplies
+        imult cos,y2_n             ; do the rotation-multiplies
         add y1_n,x1_n
-        add x2_n,y2_n                   ;add the products, resultant rotated point is (x1_n,y2_n)
+        add x2_n,y2_n              ; add the products, resultant rotated point is (x1_n,y2_n)
         shlq #8,x1_n
-        shlq #8,y2_n                    ;rotated point to 16:16
+        shlq #8,y2_n               ; rotated point to 16:16
         add xxx,x1_n
-        add yyy,y2_n                    ;move to final XY in Tempest space
+        add yyy,y2_n               ; move to final XY in Tempest space
         sdiv zzz,x1_n
-        sdiv zzz,y2_n                   ;perspective transform
+        sdiv zzz,y2_n              ; perspective transform
         sharq #7,x1_n
         sharq #7,y2_n
         movei #ycent,vertex
@@ -419,46 +459,46 @@ polyloop: nop
         load (vertex),r0
 ;       movei #192,r0
 ;       movei #120,r1
-        add r0,x1_n                     ;final x1_n
-        add r1,y2_n                     ;final y1_n
-        moveta x1_n,x2_n                        ;                                               *****
-        moveta y2_n,y2_n                        ;Set up in alternates for the polyrenderer      *****   
-
-        loadw (polypointer),vertex      ;Inline code for each vertex: get vertex index
+        add r0,x1_n                ; final x1_n
+        add r1,y2_n                ; final y1_n
+        moveta x1_n,x2_n           ; *****
+        moveta y2_n,y2_n           ; Set up in alternates for the polyrenderer      *****
+    
+        loadw (polypointer),vertex   ; Inline code for each vertex: get vertex index
         move vertex,r1
         addq #2,polypointer
         add r1,r1
-        loadw (polypointer),i1_n                ;got Intensity
+        loadw (polypointer),i1_n   ; got Intensity
         move i1_n,r1
         add r1,r1
         addq #4,polypointer
-        shlq #2,vertex                  ;vertex thang to long pointer
-        moveta i1_n,i3_n                        ;set intensity in alt for polyrenderer          *****
-        add vertices,vertex             ;point to this vertex
+        shlq #2,vertex             ; vertex thang to long pointer
+        moveta i1_n,i3_n           ; set intensity in alt for polyrenderer          *****
+        add vertices,vertex        ; point to this vertex
         loadw (vertex),x1_n
         addq #2,vertex
-        loadw (vertex),y1_n             ;got vertex XY position
+        loadw (vertex),y1_n        ; got vertex XY position
         shlq #16,x1_n
         shlq #16,y1_n
         sharq #16,x1_n
-        sharq #16,y1_n                  ;sign-extend the XY position
+        sharq #16,y1_n             ; sign-extend the XY position
         sub xcen,x1_n
-        sub ycen,y1_n                   ;move to local centre
+        sub ycen,y1_n              ; move to local centre
         move x1_n,x2_n
-        move y1_n,y2_n                  ;copy them for rotation
-        neg y1_n                                ;y1_n will be the -SIN term in the rotation so negate it
+        move y1_n,y2_n             ; copy them for rotation
+        neg y1_n                   ; y1_n will be the -SIN term in the rotation so negate it
         imult cos,x1_n
         imult sin,y1_n
         imult sin,x2_n
-        imult cos,y2_n                  ;do the rotation-multiplies
+        imult cos,y2_n             ; do the rotation-multiplies
         add y1_n,x1_n
-        add x2_n,y2_n                   ;add the products, resultant rotated point is (x1_n,y2_n)
+        add x2_n,y2_n              ; add the products, resultant rotated point is (x1_n,y2_n)
         shlq #8,x1_n
-        shlq #8,y2_n                    ;rotated point to 16:16
+        shlq #8,y2_n               ; rotated point to 16:16
         add xxx,x1_n
-        add yyy,y2_n                    ;move to final XY in Tempest space
+        add yyy,y2_n               ; move to final XY in Tempest space
         sdiv zzz,x1_n
-        sdiv zzz,y2_n                   ;perspective transform
+        sdiv zzz,y2_n              ; perspective transform
         sharq #7,x1_n
         sharq #7,y2_n
         movei #ycent,vertex
@@ -467,30 +507,30 @@ polyloop: nop
         load (vertex),r0
 ;       movei #192,r0
 ;       movei #120,r1
-        add r0,x1_n                     ;final x1_n
-        add r1,y2_n                     ;final y1_n
-        moveta x1_n,x3_n                        ;                                               *****
-        moveta y2_n,y3_n                        ;Set up in alternates for the polyrenderer      *****   
-
+        add r0,x1_n                ; final x1_n
+        add r1,y2_n                ; final y1_n
+        moveta x1_n,x3_n           ; *****
+        moveta y2_n,y3_n           ; Set up in alternates for the polyrenderer      *****
+    
 ;* Now everything is set up, time to render the poly.
-
-
+    
+    
         bank0
-
+    
 ;*******
 ;******* polyrenderer code start
 ;*******
-
-
-
-        shlq #8,i1_n                    ;This is the polyrenderer, same as POLY above
+    
+    
+    
+        shlq #8,i1_n               ; This is the polyrenderer, same as POLY above
         shlq #8,i2_n
-        shlq #8,i3_n            ;intensity values to 24-Bit
-
-        
-
-        cmp y1_n,y2_n           ;Get vertices in order: (x1_n,y1_n)=TOP (lowest y) ---> (x3_n,y3_n)=BOTTOM
-        jr pl,i_nswap1          ;No nop after, as first bit of the macro only bashes r31
+        shlq #8,i3_n               ; intensity values to 24-Bit
+    
+    
+    
+        cmp y1_n,y2_n              ; Get vertices in order: (x1_n,y1_n)=TOP (lowest y) ---> (x3_n,y3_n)=BOTTOM
+        jr pl,i_nswap1             ; No nop after, as first bit of the macro only bashes r31
         swap x1_n,x2_n
         swap y1_n,y2_n
         swap i1_n,i2_n
@@ -498,20 +538,20 @@ i_nswap1: cmp y1_n,y3_n
         jr pl,i_nswap2
         swap x1_n,x3_n
         swap y1_n,y3_n
-        swap i1_n,i3_n          ;Now, (x1_n,y1_n) is definitely the top..
+        swap i1_n,i3_n             ; Now, (x1_n,y1_n) is definitely the top..
 i_nswap2: cmp y2_n,y3_n
         jr pl,i_nswap3
         swap x2_n,x3_n
         swap y2_n,y3_n
-        swap i2_n,i3_n          ;The points are now in top-to-bottom order,
+        swap i2_n,i3_n             ; The points are now in top-to-bottom order,
 i_nswap3:
-
+    
 ;       movei #StopGPU,r0       ;Rough clipping kludge
 ;       movei #239,r1
 ;       cmp r1,y3_n             ;Rough clip of bottom
 ;       jump pl,(r0)
 ;       nop
-        
+    
         move y2_n,count1
         move y3_n,count2
         sub y1_n,count1
@@ -520,87 +560,87 @@ i_nswap3:
         addq #1,count1
         sub y1_n,count3
         addq #1,count2
-        addq #1,count3          ;COUNT1=Y length of first span, count2=second span, y3_n=third span
-
+        addq #1,count3             ; COUNT1=Y length of first span, count2=second span, y3_n=third span
+    
         move x3_n,xinc2
         move x2_n,xinc1
         sub x1_n,xinc2
         sub x1_n,xinc1
         move i3_n,iinc2
-        move i2_n,iinc1         ;copy target values...
+        move i2_n,iinc1            ; copy target values...
         sub i1_n,iinc2
         sub i1_n,iinc1
         shlq #16,xinc2
-        shlq #16,xinc1          ;pixel values to 16:16
-
-
+        shlq #16,xinc1             ; pixel values to 16:16
+    
+    
         sdiv count1,xinc1
-        sdiv count3,xinc2       ;get the gradient increments for x...
+        sdiv count3,xinc2          ; get the gradient increments for x...
         sdiv count1,iinc1
-        sdiv count3,iinc2       ;and the i-increments.
-
-        movefa colour,count3    ;COLOUR in the altbank held the poly colour
+        sdiv count3,iinc2          ; and the i-increments.
+    
+        movefa colour,count3       ; COLOUR in the altbank held the poly colour
         movei #i_loop1,loop1
         move count3,r0
-        movei #i_loop2,loop2    ;initialise loop addresses
+        movei #i_loop2,loop2       ; initialise loop addresses
         shlq #16,count3
-
+    
         move x1_n,sum1
         or r0,count3
         move i1_n,sum2
-        shlq #8,count3          ;finish preparing colour for blitter
-
-
-
+        shlq #8,count3             ; finish preparing colour for blitter
+    
+    
+    
         move x1_n,sum3
         move i1_n,sum4
         shlq #16,sum1
-        shlq #16,sum3           ;copy start parameters and convert to 16:16
-
+        shlq #16,sum3              ; copy start parameters and convert to 16:16
+    
 ;* now init the Blitter
-
+    
         movei #tri1on,r0
-        cmpq #0,y1_n            ;check 4 y2_n onscreen
-        jump pl,(r0)            ;tri1 is onscreen, no top clipping
+        cmpq #0,y1_n               ; check 4 y2_n onscreen
+        jump pl,(r0)               ; tri1 is onscreen, no top clipping
         nop
         movei #cliptri1,r0
         cmpq #0,y2_n
         jr eq,split2
         nop
-        jump pl,(r0)            ;got to clip Triangle One
+        jump pl,(r0)               ; got to clip Triangle One
         nop
         cmpq #0,y3_n
-        jr pl,split2            ;check for whole thing off top edge?
-        nop     
-        movei #zkk,r0
-        jump (r0)               ;Halt - no clip for 2nd triangle yet
+        jr pl,split2               ; check for whole thing off top edge?
         nop
-split2: move count1,r0          ;Code to skip the first subtriangle
+        movei #zkk,r0
+        jump (r0)                  ; Halt - no clip for 2nd triangle yet
+        nop
+split2: move count1,r0             ; Code to skip the first subtriangle
         shlq #16,r0
         move xinc2,r1
         move iinc2,r31
         fmult r1,r0
         fmult r31,r0
         add r1,sum3
-        add r31,sum4            ;where long edge would be at
+        add r31,sum4               ; where long edge would be at
         xor y1_n,y1_n
         move x2_n,sum1
         move i2_n,sum2
         shlq #16,sum1
-        movei #setp2,r0         ;skip to next subtriangle
+        movei #setp2,r0            ; skip to next subtriangle
         jump (r0)
         nop
-
-
-cliptri1: move y1_n,r0          ;get amount of clip lines
-        add y1_n,count1         ;reduce count by the size of the clip
-        neg r0                  ;make it +ve
-        addq #1,count1          ;(never zero)
-        shlq #16,r0             ;make it 16:16
+    
+    
+cliptri1: move y1_n,r0             ; get amount of clip lines
+        add y1_n,count1            ; reduce count by the size of the clip
+        neg r0                     ; make it +ve
+        addq #1,count1             ; (never zero)
+        shlq #16,r0                ; make it 16:16
         move xinc1,r1
         move iinc1,r31
         fmult r1,r0
-        fmult r31,r0            ;calculate total increment to clip line
+        fmult r31,r0               ; calculate total increment to clip line
         add r1,sum1
         add r31,sum2
         move xinc2,r1
@@ -608,92 +648,92 @@ cliptri1: move y1_n,r0          ;get amount of clip lines
         fmult r1,r0
         fmult r31,r0
         add r1,sum3
-        add r31,sum4            ;now, offsets are OK and the poly is shortened
-        moveq #0,y1_n           ;(it starts at top of screen)
+        add r31,sum4               ; now, offsets are OK and the poly is shortened
+        moveq #0,y1_n              ; (it starts at top of screen)
 tri1on: movei #279,r0
         movei #zkk,r31
-        cmp r0,y1_n             ;check for right off bottom edge
-        jump pl,(r31)           ;next poly if it was
+        cmp r0,y1_n                ; check for right off bottom edge
+        jump pl,(r31)              ; next poly if it was
         nop
         movei #tri1bot,r1
-        cmp r0,y2_n             ;check for this subtri split
-        jump mi,(r1)            ;not split, jump around
+        cmp r0,y2_n                ; check for this subtri split
+        jump mi,(r1)               ; not split, jump around
         nop
         move y2_n,r1
-        sub r0,r1               ;get amount of overhang
-        sub r1,count1           ;shorten poly by that amount
+        sub r0,r1                  ; get amount of overhang
+        sub r1,count1              ; shorten poly by that amount
         jump mi,(r31)
         nop
-        jump eq,(r31)           ;ensure -ve or 0 length never happens
+        jump eq,(r31)              ; ensure -ve or 0 length never happens
         nop
-
-tri1bot: shlq #16,y1_n          ;y1_n to blitter format
-
-
+    
+tri1bot: shlq #16,y1_n             ; y1_n to blitter format
+    
+    
 i_loop1:
-
+    
 ;****   Blit a line of poly
-
+    
         move sum1,xstart
         move sum2,istart
         move sum3,xsize
         move sum4,isize
-
+    
         cmp sum1,sum3
-        jr pl,i_nswap4          ;no NOP as first swap macro instruction iz harmless
+        jr pl,i_nswap4             ; no NOP as first swap macro instruction iz harmless
         swap xstart,xsize
-        swap istart,isize       ;make sure increasing x from xstart
+        swap istart,isize          ; make sure increasing x from xstart
 i_nswap4: sub xstart,xsize
-        sub istart,isize        ;calc delta X and delta I
-
-        sharq #16,xstart                ;make these
-        shrq #16,xsize          ;back to integer
+        sub istart,isize           ; calc delta X and delta I
+    
+        sharq #16,xstart           ; make these
+        shrq #16,xsize             ; back to integer
         addq #1,xsize
-
-        sdiv xsize,isize        ;Get iinc per pixel
-
+    
+        sdiv xsize,isize           ; Get iinc per pixel
+    
         waitblit
         movei #B_PATD,r1
-        store count3,(r1)       ;count3 used to hold colour
+        store count3,(r1)          ; count3 used to hold colour
         addq #4,r1
-        store count3,(r1)               ;colour is set in the pattern register
-
-
-
-        movei #(PITCH1|PIXEL16|WID384|XADDPHR),r1       ;default-settings for Phrase Mode
+        store count3,(r1)          ; colour is set in the pattern register
+    
+    
+    
+        movei #(PITCH1|PIXEL16|WID384|XADDPHR),r1   ; default-settings for Phrase Mode
         move xsize,r0
-        shrq #4,r0              ;Check for short lines where phrase mode don't work...
+        shrq #4,r0                 ; Check for short lines where phrase mode don't work...
         jr eq,i_setpix
         nop
         movei #i_gophrase,r0
         jump (r0)
         nop
-i_setpix:       bset #16,r1             ;this sets pixel mode, if xsize is <32
+i_setpix:       bset #16,r1        ; this sets pixel mode, if xsize is <32
         movei #B_I3,r0
         store istart,(r0)
         movei #i_pixmode,r0
-        store r1,(a1_n+_flags)  ;flags to pixelmode
+        store r1,(a1_n+_flags)     ; flags to pixelmode
         jump (r0)
         nop
-
-i_gophrase: store r1,(a1_n+_flags)      ;flags to phrasemode
+    
+i_gophrase: store r1,(a1_n+_flags)   ; flags to phrasemode
         moveta istart,istart
         move xstart,r0
         moveq #$03,r31
-        and r31,r0              ;r2 is 0-3 according to which pixel xstart is within 1 phrase
-i_alignr: cmpq #0,r0            ;align i-gradient to position in the phrase
+        and r31,r0                 ; r2 is 0-3 according to which pixel xstart is within 1 phrase
+i_alignr: cmpq #0,r0               ; align i-gradient to position in the phrase
         jr eq,i_aligned
         nop
         sub isize,istart
         subq #1,r0
         jr i_alignr
         nop
-
-i_aligned: move istart,r0               ;check for initial overflow
+    
+i_aligned: move istart,r0          ; check for initial overflow
         shrq #24,r0
         jr eq,i_all_ok
         nop
-        movei #i_setpix,r0      ;set pixelmode if true
+        movei #i_setpix,r0         ; set pixelmode if true
         movefa istart,istart
         jump (r0)
         nop
@@ -709,66 +749,66 @@ i_all_ok:       move isize,r1
         store istart,(r0)
         add r1,istart
         subq #4,r0
-        store istart,(r0)       ;set the intensities for the first 4 pixels
-
+        store istart,(r0)          ; set the intensities for the first 4 pixels
+    
 i_pixmode: movei #B_IINC,r0
         movei #$ffffff,r1
-        and r1,isize            ;make it 24 bit signed
-
-        store isize,(r0)        ;set the intensity-increment
-
+        and r1,isize               ; make it 24 bit signed
+    
+        store isize,(r0)           ; set the intensity-increment
+    
         movei #skip1,r1
         cmpq #0,y1_n
         jump mi,(r1)
         nop
-
+    
         movei #$ffff,r1
         and r1,xstart
-        or y1_n,xstart          ;form a pixel address
+        or y1_n,xstart             ; form a pixel address
         store xstart,(a1_n+_pixel)
-
-
-        bset #16,xsize          ;xsize can now be used to set the blitter's count
-        
+    
+    
+        bset #16,xsize             ; xsize can now be used to set the blitter's count
+    
         movei #B_COUNT,r0
-        store xsize,(r0)        ;set the count
-
-        store cmd,(blit)                ;Blit away
-
+        store xsize,(r0)           ; set the count
+    
+        store cmd,(blit)           ; Blit away
+    
 ;****   Poly line blit end
-
-
+    
+    
 skip1:  movei #$10000,r0
-        add r0,y1_n             ;step to nxt scanline
+        add r0,y1_n                ; step to nxt scanline
         add xinc1,sum1
         add iinc1,sum2
         add xinc2,sum3
         subq #1,count1
         jump ne,(loop1)
-        add iinc2,sum4          ;move to next values
-
+        add iinc2,sum4             ; move to next values
+    
 setp2:  move x3_n,xinc1
-        move i3_n,iinc1         ;new target point is x3_n/i3_n
+        move i3_n,iinc1            ; new target point is x3_n/i3_n
         sub x2_n,xinc1
-        sub i2_n,iinc1          ;get differences
+        sub i2_n,iinc1             ; get differences
         shlq #16,xinc1
-
+    
         sdiv count2,xinc1
-        sdiv count2,iinc1       ;new increments
-
+        sdiv count2,iinc1          ; new increments
+    
         movei #tri2on,r0
-        cmpq #0,y2_n            ;Check for poly split by screen top
-        jump pl,(r0)            ;Not split if y2_n positive
+        cmpq #0,y2_n               ; Check for poly split by screen top
+        jump pl,(r0)               ; Not split if y2_n positive
         nop
-        move y2_n,r0            ;get amount of clip lines
-        add y2_n,count2         ;reduce count by the size of the clip
-        neg r0                  ;make it +ve
-        addq #1,count2          ;(never zero)
-        shlq #16,r0             ;make it 16:16
+        move y2_n,r0               ; get amount of clip lines
+        add y2_n,count2            ; reduce count by the size of the clip
+        neg r0                     ; make it +ve
+        addq #1,count2             ; (never zero)
+        shlq #16,r0                ; make it 16:16
         move xinc1,r1
         move iinc1,r31
         fmult r1,r0
-        fmult r31,r0            ;calculate total increment to clip line
+        fmult r31,r0               ; calculate total increment to clip line
         add r1,sum1
         add r31,sum2
         move xinc2,r1
@@ -776,93 +816,93 @@ setp2:  move x3_n,xinc1
         fmult r1,r0
         fmult r31,r0
         add r1,sum3
-        add r31,sum4            ;now, offsets are OK and the poly is shortened
+        add r31,sum4               ; now, offsets are OK and the poly is shortened
         moveq #0,y2_n
-
+    
 tri2on: movei #279,r0
         movei #zkk,r31
-        cmp r0,y2_n             ;check for right off bottom edge
-        jump pl,(r31)           ;next poly if it was
+        cmp r0,y2_n                ; check for right off bottom edge
+        jump pl,(r31)              ; next poly if it was
         nop
         movei #tri2bot,r1
-        cmp r0,y3_n             ;check for this subtri split
-        jump mi,(r1)            ;not split, jump around
+        cmp r0,y3_n                ; check for this subtri split
+        jump mi,(r1)               ; not split, jump around
         nop
         move y3_n,r1
-        sub r0,r1               ;get amount of overhang
-        sub r1,count2           ;shorten poly by that amount
+        sub r0,r1                  ; get amount of overhang
+        sub r1,count2              ; shorten poly by that amount
         jump mi,(r31)
         nop
-        jump eq,(r31)           ;ensure -ve or 0 length never happens
+        jump eq,(r31)              ; ensure -ve or 0 length never happens
         nop
-
+    
 tri2bot:
-
+    
 i_loop2:
-
+    
 ;****   Blit a line of poly
-
+    
         move sum1,xstart
         move sum2,istart
         move sum3,xsize
         move sum4,isize
-
+    
         cmp sum1,sum3
-        jr pl,n3swap4           ;no NOP as first swap macro instruction iz harmless
+        jr pl,n3swap4              ; no NOP as first swap macro instruction iz harmless
         swap xstart,xsize
-        swap istart,isize       ;make sure increasing x from xstart
+        swap istart,isize          ; make sure increasing x from xstart
 n3swap4:        sub xstart,xsize
-        sub istart,isize        ;calc delta X and delta I
-
-        sharq #16,xstart                ;make these
-        shrq #16,xsize          ;back to integer
+        sub istart,isize           ; calc delta X and delta I
+    
+        sharq #16,xstart           ; make these
+        shrq #16,xsize             ; back to integer
         addq #1,xsize
-
-        sdiv xsize,isize        ;Get iinc per pixel
-
+    
+        sdiv xsize,isize           ; Get iinc per pixel
+    
         waitblit
         movei #B_PATD,r1
-        store count3,(r1)       ;count3 used to hold colour
+        store count3,(r1)          ; count3 used to hold colour
         addq #4,r1
-        store count3,(r1)               ;colour is set in the pattern register
-
-
-
-        movei #(PITCH1|PIXEL16|WID384|XADDPHR),r1       ;default-settings for Phrase Mode
+        store count3,(r1)          ; colour is set in the pattern register
+    
+    
+    
+        movei #(PITCH1|PIXEL16|WID384|XADDPHR),r1   ; default-settings for Phrase Mode
         move xsize,r0
-        shrq #4,r0              ;Check for short lines where phrase mode don't work...
+        shrq #4,r0                 ; Check for short lines where phrase mode don't work...
         jr eq,s3etpix
         nop
         movei #g3ophrase,r0
         jump (r0)
         nop
-s3etpix: bset #16,r1            ;this sets pixel mode, if xsize is <32
+s3etpix: bset #16,r1               ; this sets pixel mode, if xsize is <32
         movei #B_I3,r0
         store istart,(r0)
         movei #p3ixmode,r0
-        store r1,(a1_n+_flags)  ;flags to pixelmode
+        store r1,(a1_n+_flags)     ; flags to pixelmode
 ;       move isize,r1
         jump (r0)
         nop
-
-g3ophrase: store r1,(a1_n+_flags)       ;flags to phrasemode
+    
+g3ophrase: store r1,(a1_n+_flags)   ; flags to phrasemode
         moveta istart,istart
         move xstart,r0
         movei #$03,r31
-        and r31,r0              ;r2 is 0-3 according to which pixel xstart is within 1 phrase
-a3ligner: cmpq #0,r0            ;align i-gradient to position in the phrase
+        and r31,r0                 ; r2 is 0-3 according to which pixel xstart is within 1 phrase
+a3ligner: cmpq #0,r0               ; align i-gradient to position in the phrase
         jr eq,a3ligned
         nop
         sub isize,istart
         subq #1,r0
         jr a3ligner
         nop
-
-a3ligned: move istart,r0                ;check for initial overflow
+    
+a3ligned: move istart,r0           ; check for initial overflow
         shrq #24,r0
         jr eq,a3ll_ok
         nop
-        movei #s3etpix,r0       ;set pixelmode if true
+        movei #s3etpix,r0          ; set pixelmode if true
         movefa istart,istart
         jump (r0)
         nop
@@ -879,67 +919,67 @@ a3ll_ok:
         store istart,(r0)
         add r1,istart
         subq #4,r0
-        store istart,(r0)       ;set the intensities for the first 4 pixels
-
+        store istart,(r0)          ; set the intensities for the first 4 pixels
+    
 p3ixmode:
         movei #B_IINC,r0
         movei #$ffffff,r1
-        and r1,isize            ;make it 24 bit signed
-
-        store isize,(r0)        ;set the intensity-increment
-
+        and r1,isize               ; make it 24 bit signed
+    
+        store isize,(r0)           ; set the intensity-increment
+    
         movei #skip2,r1
         cmpq #0,y1_n
         jump mi,(r1)
         nop
-
+    
         movei #$ffff,r1
         and r1,xstart
-        or y1_n,xstart          ;form a pixel address
+        or y1_n,xstart             ; form a pixel address
         store xstart,(a1_n+_pixel)
-
-
-        bset #16,xsize          ;xsize can now be used to set the blitter's count
+    
+    
+        bset #16,xsize             ; xsize can now be used to set the blitter's count
         movei #B_COUNT,r0
-        store xsize,(r0)        ;set the count
-
-        store cmd,(blit)                ;Blit away
-
+        store xsize,(r0)           ; set the count
+    
+        store cmd,(blit)           ; Blit away
+    
 ;****   Poly line blit end
-
+    
 skip2:  movei #$10000,r0
-        add r0,y1_n             ;step to nxt scanline
+        add r0,y1_n                ; step to nxt scanline
         add xinc1,sum1
         add iinc1,sum2
         add xinc2,sum3
         subq #1,count2
         jump ne,(loop2)
-        add iinc2,sum4          ;move to next values
-
+        add iinc2,sum4             ; move to next values
+    
 ;*******
 ;******* polyrenderer code end
 ;*******
-
-
+    
+    
 zkk:
         bank1
-
+    
         subq #1,faces
-        jump ne,(poly_loop)             ;loop for all faces
+        jump ne,(poly_loop)        ; loop for all faces
         nop
-
+    
         bank0
-
-StopGPU: movei #G_CTRL,r1       ;point at GPU flags
+    
+StopGPU: movei #G_CTRL,r1          ; point at GPU flags
         load (r1),r0
         bclr #0,r0
-        store r0,(r1)           ;stop the GPU
+        store r0,(r1)              ; stop the GPU
 stoploop: jr stoploop
         nop
-
-
-
-
+    
+    
+    
+    
 ; *******************************************************************
 ; pring2
 ;
@@ -955,7 +995,7 @@ stoploop: jr stoploop
 ; *******************************************************************
 pring2:
         dstx            REGEQU r21
-        dsty            REGEQU r26      
+        dsty            REGEQU r26
         dstz            REGEQU r1
         dstc            REGEQU r10
         lwid            REGEQU r11
@@ -972,7 +1012,7 @@ pring2:
         eighty          REGEQU r23
         xcentr          REGEQU r24
         ycentr          REGEQU r25
-
+    
         MACRO pix
         movei #fxextt,r0
         cmpq #0,dstx
@@ -987,46 +1027,46 @@ pring2:
         cmp y_max,dsty
         jump pl,(r0)
         nop
-        shlq #1,dstx            ;x times 2 to point at words... 
-        mult lwid,dsty          ;Y*linewidth    
-        add dsty,dstx   
-        add scrbase,dstx                ;r6 now points to actual screen location
-        storew dstc,(dstx)              ;store that pixel
+        shlq #1,dstx               ; x times 2 to point at words...
+        mult lwid,dsty             ; Y*linewidth
+        add dsty,dstx
+        add scrbase,dstx           ; r6 now points to actual screen location
+        storew dstc,(dstx)         ; store that pixel
 fxextt: nop
         ENDM
-
-
-
-
-        movei #$100,r2          ;ready for the div
-        
-
+    
+    
+    
+    
+        movei #$100,r2             ; ready for the div
+    
+    
         movei #in_buf,r0
         load (r0),r3
         addq #4,r0
-        div r3,r2               ;start divide unit going while the rest is loaded
+        div r3,r2                  ; start divide unit going while the rest is loaded
         load (r0),dstx
         addq #4,r0
         load (r0),dsty
         addq #4,r0
         load (r0),dstz
         addq #4,r0
-        load (r0),dstc          ;get initial parameters
+        load (r0),dstc             ; get initial parameters
         addq #4,r0
         load (r0),radius
         addq #4,r0
         abs radius
         load (r0),phase
         movei #gpu_screen,r0
-        load (r0),scrbase       ;get screenbase
-
-        movei #p_sines,sinbass  ;get base of sinetable
-        movei #$40,forty        ;hex forty for doing sine
+        load (r0),scrbase          ; get screenbase
+    
+        movei #p_sines,sinbass     ; get base of sinetable
+        movei #$40,forty           ; hex forty for doing sine
         movei #$80,eighty
         movei #$ff,bytemask
         movei #width,x_max
         movei #height,y_max
-
+    
         movei #sysflags,r0
         load (r0),r6
         btst #5,r6
@@ -1034,8 +1074,8 @@ fxextt: nop
         nop
         movei #280,y_max
 notpal:
-
-
+    
+    
         movei #ycent,r0
         load (r0),ycentr
         addq #4,r0
@@ -1047,32 +1087,32 @@ notpal:
         move x_max,lwid
         subq #2,y_max
         shlq #1,lwid
-        subq #2,x_max           ;set screen width and clip constants
+        subq #2,x_max              ; set screen width and clip constants
         move lwid,l_2
         subq #2,l_2
-
-        shrq #14,dstz           ;convert z to scaling value
-        
+    
+        shrq #14,dstz              ; convert z to scaling value
+    
         move radius,r0
         movei #$ff,r6
         shrq #16,r0
-        sub r0,r6               ;r6 has byte i-value (I think)
+        sub r0,r6                  ; r6 has byte i-value (I think)
         shlq #8,dstc
-        or r6,dstc              ;generate combined i- and c-value
-
+        or r6,dstc                 ; generate combined i- and c-value
+    
         sdiv dstz,dstx
-        sdiv dstz,dsty          ;perspective transform xy centre position
-        sdiv dstz,radius        ;scale the radius
+        sdiv dstz,dsty             ; perspective transform xy centre position
+        sdiv dstz,radius           ; scale the radius
         sharq #7,dstx
         sharq #7,dsty
-        sharq #7,radius         ;dest x y and radius to integer
+        sharq #7,radius            ; dest x y and radius to integer
         add xcentr,dstx
-        add ycentr,dsty         ;dest xy to screen co-ordinates
-
+        add ycentr,dsty            ; dest xy to screen co-ordinates
+    
         movei #pixloop2,loop_ptr
         moveta dstx,dstx
-        moveta dsty,dsty        ;set loop counter, preserve original xy centre
-
+        moveta dsty,dsty           ; set loop counter, preserve original xy centre
+    
 pixloop2: move phase,r0
         move phase,r4
         and bytemask,r0
@@ -1083,28 +1123,28 @@ pixloop2: move phase,r0
         add sinbass,r4
         sub eighty,r5
         loadb (r4),r6
-        sub eighty,r6           ;r5/r6 have got sine and cos +/- 128
-
+        sub eighty,r6              ; r5/r6 have got sine and cos +/- 128
+    
         imult radius,r5
         imult radius,r6
         sharq #8,r5
-        sharq #8,r6             ;scaled sine/cos components
-
+        sharq #8,r6                ; scaled sine/cos components
+    
         movefa dstx,dstx
         movefa dsty,dsty
         add r5,dstx
-        add r6,dsty             ;translate to position relative to centre
-
-        pix                     ;draw single clipped pixel
-
-        add r2,phase            ;shift phase
-        subq #1,r3              ;dec ring pixel count
-        jump pl,(loop_ptr)      ;loop for all stuff
+        add r6,dsty                ; translate to position relative to centre
+    
+        pix                        ; draw single clipped pixel
+    
+        add r2,phase               ; shift phase
+        subq #1,r3                 ; dec ring pixel count
+        jump pl,(loop_ptr)         ; loop for all stuff
         nop
         movei #StopGPU,r0
         jump (r0)
-        nop                     ;terminate
-
+        nop                        ; terminate
+    
 ; *******************************************************************
 ; psphere
 ; Generate a sphere of particles. Inputs: x,y,z,xyrad,xyphase,yzphase,xycount,yzcount,xystep,yzstep,col
@@ -1113,8 +1153,8 @@ pixloop2: move phase,r0
 ; in head-to-head mode.
 ; *******************************************************************
 psphere:
-
-
+    
+    
         byte_mask       REGEQU r20
         sine_base       REGEQU r21
         xmid            REGEQU r22
@@ -1123,7 +1163,7 @@ psphere:
         ymax            REGEQU r24
         s_base          REGEQU r30
         l_length        REGEQU r26
-
+    
         s_x             REGEQU r2
         s_y             REGEQU r3
         s_z             REGEQU r4
@@ -1136,14 +1176,14 @@ psphere:
         xystep          REGEQU r11
         yzstep          REGEQU r12
         s_col           REGEQU r13
-
+    
         s_outer         REGEQU r14
         s_skip          REGEQU r15
-
+    
         _forty          REGEQU r16
         _eighty         REGEQU r17
-
-        movei #p_sines,sine_base                ;initialise constants
+    
+        movei #p_sines,sine_base   ; initialise constants
         movei #$ff,byte_mask
         movei #$17f,xmax
         movei #$117,ymax
@@ -1155,11 +1195,11 @@ psphere:
         movei #$80,_eighty
         move _eighty,_forty
         shrq #1,_forty
-        
+    
         movei #gpu_screen,r0
-        load (r0),s_base                ;get screen base
-
-        movei #in_buf,r0                ;fetch the parameters out of in_buf
+        load (r0),s_base           ; get screen base
+    
+        movei #in_buf,r0           ; fetch the parameters out of in_buf
         load (r0),s_x
         addq #4,r0
         load (r0),s_y
@@ -1183,13 +1223,13 @@ psphere:
         load (r0),s_col
         addq #4,r0
         load (r0),xyint
-
-        movei #sphout,s_outer           ;init loop addresses
+    
+        movei #sphout,s_outer      ; init loop addresses
         movei #spskip,s_skip
         moveta xycount,xycount
         moveta xyphase,xyphase
         shlq #8,s_col
-
+    
 sphout: move xyphase,r0
         move xyphase,r1
         add xystep,xyphase
@@ -1201,11 +1241,11 @@ sphout: move xyphase,r0
         add sine_base,r1
         sub _eighty,r27
         loadb (r1),r28
-        sub _eighty,r28                 ;get sine and cos +/-128 of ring pixel, in r27/r28
-
+        sub _eighty,r28            ; get sine and cos +/-128 of ring pixel, in r27/r28
+    
         imult xyrad,r27
         imult xyrad,r28
-
+    
         move yzphase,r0
         move yzphase,r1
         and byte_mask,r0
@@ -1216,60 +1256,61 @@ sphout: move xyphase,r0
         add sine_base,r1
         sub _eighty,r18
         loadb (r1),r19
-        sub _eighty,r19                 ;get sine and cos of the twist, in r18/r19
-
-        neg r18                         ;make -sin
+        sub _eighty,r19            ; get sine and cos of the twist, in r18/r19
+    
+        neg r18                    ; make -sin
         move r27,r29
-        imult r18,r29                   ;z is -sin*x
-        imult r19,r27                   ;transformed x
-
-        shlq #7,r28                     ;Everything should now be 8:8
+        imult r18,r29              ; z is -sin*x
+        imult r19,r27              ; transformed x
+    
+        shlq #7,r28                ; Everything should now be 8:8
 ;       imult xyrad,r27
 ;       imult xyrad,r28
 ;       imult xyrad,r29                 ;scale it...
         add s_x,r27
         add s_y,r28
-        add s_z,r29                     ;move it where it has to go...
+        add s_z,r29                ; move it where it has to go...
         jump mi,(s_skip)
-        sharq #14,r29                   ;Z to persp div range
+        sharq #14,r29              ; Z to persp div range
         addq #1,r29
-        sdiv0 r29,r27                   ;sdiv0 is like sdiv but uses r0
+        sdiv0 r29,r27              ; sdiv0 is like sdiv but uses r0
         sdiv0 r29,r28
-        
+    
         sharq #7,r27
-        sharq #7,r28                    ;complete the perspective xform
+        sharq #7,r28               ; complete the perspective xform
         add xmid,r27
-        jump mi,(s_skip)                        ;clip-as-we-go... clip...   clip...
-        add ymid,r28                    ;translate to screen centre
+        jump mi,(s_skip)           ; clip-as-we-go... clip...   clip...
+        add ymid,r28               ; translate to screen centre
         jump mi,(s_skip)
-        cmp xmax,r27                    ;Clip, clip...
+        cmp xmax,r27               ; Clip, clip...
         jump pl,(s_skip)
-        cmp ymax,r28                    ;...clip, clip, clip, CLIP, CLIP CLIPCLIPCLIPCLIP
+        cmp ymax,r28               ; ...clip, clip, clip, CLIP, CLIP CLIPCLIPCLIPCLIP
         jump pl,(s_skip)
-        shlq #1,r27                     ;translate XY coordinates into screen address Thang
+        shlq #1,r27                ; translate XY coordinates into screen address Thang
         mult l_length,r28
-        shrq #4,r29                     ;Rude and hairy way to simulate a proper i-calculation
-        add r27,r28                     ;r28 is offset to screen pixel
-        and byte_mask,r29                       ;Hairy and rude, I tell you
-        add s_base,r28                  ;r28 now points directly at an expectantly quivering pixel
-        move byte_mask,r0               ;No good will come of it, it's cheating
-        sub r29,r0                      ;AAARRRGHH I"M NOT INTERLEAVED ANYMORE!
+        shrq #4,r29                ; Rude and hairy way to simulate a proper i-calculation
+        add r27,r28                ; r28 is offset to screen pixel
+        and byte_mask,r29          ; Hairy and rude, I tell you
+        add s_base,r28             ; r28 now points directly at an expectantly quivering pixel
+        move byte_mask,r0          ; No good will come of it, it's cheating
+        sub r29,r0                 ; AAARRRGHH I"M NOT INTERLEAVED ANYMORE!
         mult xyint,r0
         shrq #8,r0
-        or s_col,r0                     ;combile colour and disgustingly unrigorous i-value
+        or s_col,r0                ; combile colour and disgustingly unrigorous i-value
         storew r0,(r28)
-
-spskip: add xystep,xyphase              ;next phase pos.
+    
+spskip: add xystep,xyphase         ; next phase pos.
         subq #1,xycount
-        jump ne,(s_outer)                       ;loop all arc
+        jump ne,(s_outer)          ; loop all arc
         nop
         movefa xyphase,xyphase
-        movefa xycount,xycount          ;restore arc size
-        add yzstep,yzphase              ;do twist
+        movefa xycount,xycount     ; restore arc size
+        add yzstep,yzphase         ; do twist
         subq #1,yzcount
         jump ne,(s_outer)
         nop
         movei #StopGPU,r0
         jump (r0)
-
-
+    
+    
+; vim:ft=asm68k ts=2
