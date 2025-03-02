@@ -30,7 +30,7 @@
 ; Fig 1. Ascii rendering of the 'sine wave' web used in level 12 of Tempest 2000.
 ;                                                                                                                 
 ; This source code was originally 'leaked' by 'JaySmith2000' in August 2008,
-; who solid it on CD as part of a release entitled the 'Jaguar Sector II Source Code
+; who sold it on CD as part of a release entitled the 'Jaguar Sector II Source Code
 ; Collection':
 ;  https://web.archive.org/web/20131117222232/http://www.jaysmith2000.com/Jagpriceguide.htm
 ;
