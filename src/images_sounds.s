@@ -223,3 +223,4 @@ modtable:
 ; This contains fragments of sample data.
 ; sample 28
 .incbin "incbin/paddingaftersamples.bin"
+; vim:ft=asm68k ts=2

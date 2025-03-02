@@ -28,10 +28,8 @@
 ;                                         ===     =====                                                           
 ;                                          ===========                                                            
 ;                                            =======                                                              
-;                                                                                                                 
-;                                                                                                                 
 ;
-; Fig 1. Ascii rendering of the 'distorted W' web used in level 6 of Tempest 2000.
+;     Fig 1. Ascii rendering of the 'distorted W' web used in level 6 of Tempest 2000.
 ;                                                                                                                 
 ; This source code was originally 'leaked' by 'JaySmith2000' in August 2008,
 ; who solid it on CD as part of a release entitled the 'Jaguar Sector II Source Code
