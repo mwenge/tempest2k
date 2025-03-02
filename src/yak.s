@@ -23617,18 +23617,18 @@ ObTypes:
         dc.w $60,32,4,0    ; 32-pixel high bit of cry screen
         dc.w $60,48,4,0    ; 48-pixel high bit of cry screen
 
-.include "digits.dat"  ;actually now only the ship gfx
+.include "dat/digits.dat"  ;actually now only the ship gfx
 
 ; *******************************************************************
 ; A sine table
 ; *******************************************************************
-sines: .include "sines.dat"
+sines: .include "dat/sines.dat"
 
 ; *******************************************************************
 ; A table for seeding random numbers
 ; *******************************************************************
 rantab:
-        .include "rantab.dat"
+        .include "dat/rantab.dat"
 ; *******************************************************************
 ; Table of the draw routines for all solid polygons in Tempest 2000
 ; *******************************************************************
@@ -23644,13 +23644,11 @@ solids:
 romstart:
         dc.l 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 
-        .include "moomoo.dat"
-
-
-        .include "obj2d.dat"
-        .include "afont.dat"
-        .include "bfont.dat"
-        .include "cfont.dat"
+        .include "dat/moomoo.dat"
+        .include "dat/obj2d.dat"
+        .include "dat/afont.dat"
+        .include "dat/bfont.dat"
+        .include "dat/cfont.dat"
 
         dc.l $a00000,0,$1000,$800,$1400000,0,$20000
         dc.l $80000,0,$8000,$2000,$1400000,-$1400000,$80000
@@ -23809,7 +23807,7 @@ copstart:
 ; The Imagitec Mod player is basically a 4 channel protrack mod player and 4 channels for sfx.
 ; https://forums.atariage.com/topic/157184-imagitec-designs-mod-player-informations/
 ; *******************************************************************
-.include "moomoo.dat"
+.include "dat/moomoo.dat"
 
 ; *******************************************************************
 ; These are the data structures for the solid polygon objects such
