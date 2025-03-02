@@ -42,8 +42,8 @@ run: cartridge
 clean:
 	-rm src/bin/*.o
 	-rm src/bin/*.cof
-	-rm t2000.abs
-	-rm T2000.DB
-	-rm T2000.TX
-	-rm T2000.DTA
-	-rm t2k.rom
+	-rm -f t2000.abs
+	-rm -f T2000.DB
+	-rm -f T2000.TX
+	-rm -f T2000.DTA
+	-rm -f t2k.rom
