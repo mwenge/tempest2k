@@ -59,7 +59,7 @@
 
         Base equ $f00000
 
-  INCLUDE       "jaguar.inc"    ; Jaguar General definitions
+        INCLUDE       "jaguar.inc"    ; Jaguar General definitions
 
         gpu_mode     EQU (G_RAM+$ffc)   ; Number defines which routine the GPU will do
         gpu_screen   EQU (G_RAM+$ff8)   ; The address of the screen the GPU will draw on
