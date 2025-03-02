@@ -1,33 +1,32 @@
 ; **************************************************************************************
 ; Welcome to the Motorola 68K Assembler source code for 'Tempest 2000' by Jeff Minter.
 ;
-;                 ===============                   ===============                                               
-;              =====================             =====================                                            
-;            =====   =====      ======         ======      ====    =====                                          
-;         ======       =====     == =====   ===== ==     ====        =====                                        
-;       =====            =====    ==  =========  ==    =====            =====                                     
-;       =======            =====  ===   ====    ==   =====            =======                                     
-;       ============         =====  ==   ==    ==  =====         ============                                     
-;        ==    ==========      ========= ==  =========      ==========    ==                                      
-;        ===        ========== ======================= ==========        ==                                       
-;         ===           =========      ======      =========            ===                                       
-;          ==                ===                     ==                 ==                                        
-;          ===                ===                   ==                 ===                                        
-;           ==            ========                 ========           ===                                         
-;            =======================             =======================                                          
-;            =============        =====       =====        =============                                          
-;             =====             =====================            =====                                            
-;                =====       =====    ========    ======       =====                                              
-;                  =====   =====       ==   ==       =====  ======                                                
-;                     =======         ==    ===        ========                                                   
-;                       =====         ==     ==         =====                                                     
-;                          =====     ==      ===     =====                                                        
-;                            =====   ==       ==   =====                                                          
-;                              =======        =======                                                             
-;                                 =================                                                               
-;                                    ===========                                                                  
+;      -''''''''''''''''''''''''''''''''''''''''''''''''''''''     -''''''''''''''''''''''''''''''''''''''''''''''''''''''
+;      -''''''''''''''''''''''''''''''''''''''''''''''''''''''     -''''''''''''''''''''''''''''''''''''''''''''''''''''''
+;      -'''',%%%%ij2333ywwwwfTLuuujeeeeettttt{"||||-````-'''''     -''''=yyyyy33333ywwwwfTLuuujeeeeettttt{"||||-````-'''''
+;      -'''';!!!!}XRNNNWKKKKKkGGGZXSSSSS6ppp6u>iiii`    `'''''     -''''|WWWWWNNNNNWKKKKKkGGGZXSSSSS6ppp6u>iiii`    `'''''
+;      -''''^uuuujXDKKKKUUUUUZXXXXEqSSSSF5FFFucllll_````-'''''     -''''|DDDDDHKKKKKUUUUUZXXXXEqSSSSF5FFFucllll_````-'''''
+;      -''''|MMMMMUkkkkkOOOOAX4444dggggh53222fTTTTT";^^^,'''''     -''''|MMMMMUkkkkkOOOOAX4444dggggh53222fTTTTT";^^^,'''''
+;      -''''|MMMMMUkkkkkAAAAAX44444ghhhh53222fTTTTT";^^^,'''''     -''''|MMMMMUkkkkkAAAAAX44444ghhhh53222fTTTTT";^^^,'''''
+;      -''''|DDDDD$&&&8PI????I}}}}}****{#yyyyCuuuuui<<<>/'''''     -''''|DDDDD$&&&8PI????I}}}}}****{#yyyyCuuuuui<<<>/'''''
+;      -''''"KKKKK$888$g|\\\\<<<<<<<<<<\nyfffCLuuuuxiiiv"'''''     -''''"KKKKK$888$g|\\\\<<<<<<<<<<\nyfffCunnnnxiiiv"'''''
+;      -''''"@@@@@8AAA&Ptaaaa1[[[[[]]]]!TwCCw#jjjjj%)iii"'''''     -''''"@@@@@8AAA&Ptaaaa1[[[[[]]]]!TwCCwu][[[[v)iii"'''''
+;      -''''"&&&&&OYYYkbEggggS66666FFFFFJT###u77777%)iii"'''''     -''''"&&&&&OYYYkbEggggS66666FFFFFJT##Jt<>>>>iiiiv"'''''
+;      -''''"&&&&&OYYYkZSggggF33333fffff#TTT#uo7777%)iii"'''''     -''''"&&&&&OYYYkZSggggF33333fffff#TTTJaivvvv>>>>)/'''''
+;      -''''/YYYYYZPPPZg%xxxxx%xxx%%%%%%7TnnTjtttttviiii"'''''     -''''/YYYYYZPPPZg%xxxxx%xxx%%%%%%7TnnTz[1111'....-'''''
+;      -''''/YYYYYGPPPGS>))))iiiiiiiiii)7TnnTjtttttviiii"'''''     -''''/YYYYYGPPPGS\<<<<>>>>>>>>>><7TnnTjttttt-    `'''''
+;      -''''/GGGGPXEEEXm>iiii+;;;;;;;;;,[j77ze[[[[[viiii"'''''     -''''/GGGGPXEEEghzjjjj7ooooe111117z77ze[[[[[|////^'''''
+;      -''''/XXXXXE444Ep>iiiv'          Ieaaet]]]]]viiii"'''''     -''''/XXXXXE4444dmmmmm52222yJJJJJoaaaet]]]]]%vvv%|'''''
+;      -''''/ggggE4ddd4F>iiiv'          ?oeee1!!!!!viiii"'''''     -''''/ggggE4ddddhFFFFp3fyyywnnnnToaeee1IIIII)<<<>/'''''
+;      -''''/VVVVhgSSSg2>iiiv'          Ieaae[*****viiii"'''''     -''''/VVVVhgSSSgq32222fCCCw#7zzzzeaaae?)iiii=;^^^,'''''
+;      -''''/VVVVVhgggh2>iiiv'          ?oeee[*****viiii"'''''     -''''/VVVVVhggggq22222fCwww#zzzzzeaeee?)iiii=^^^^,'''''
+;      -'''':|||||x****siiiiv'          :;;;;"%%%%%iiiii"'''''     -'''':|||||x*****sssssrrrrrrcccccccccc)=++++-````-'''''
+;      -''''_     /iii)ivvvvv'               ,viiiivvvvv|'''''     -''''_     /iiiiiiiiiiiiiiiiiiiiiiiiiv\;^^^^.    `'''''
+;      `-----     ;//////////-               _//////////;-----     `-----     ;//////////////////////////^'''''     .-----
+;                                                                                                                         
+;                                                                                                                         
 ;                                                                                                                                                   
-;                   Fig 1. Ascii rendering of the 'kiss of death' web.
+;                   Fig 1. Ascii rendering of 'A' and 'B' in cfont.
 ;                                                                                                                 
 ; This source code was originally 'leaked' by 'JaySmith2000' in August 2008,
 ; who sold it on CD as part of a release entitled the 'Jaguar Sector II Source Code
