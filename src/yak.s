@@ -1,4 +1,4 @@
-; *******************************************************************
+; ************************************************************************************
 ; Welcome to the Motorola 68K Assembler source code for 'Tempest 2000' by Jeff Minter.
 ;
 ;                                                                                                                 
@@ -331,14 +331,14 @@
 ; Pages 18-20 of the Jaguar Reference manual provide more detail on each field:
 ;   https://github.com/mwenge/TempestVsTempest/blob/master/material/jag_v8.pdf
 ;
-;  Bit Mapped Object
-; 		 Name     Value       Description
+;  Bit Mapped Object (main game screen)
+;      Name     Value       Description
 ;      ------   ----------  -----------
 ;      Type     0           Bit Mapped Object
 ;      YPOS     44          Y Position
 ;      HEIGHT   279
 ;      LINK     0xeb70      Address of next object in list.
-;      DATA     0x134800    Address of data, e.g. dscreen.
+;      DATA     0x134800    Address of pixel data, e.g. 'dscreen'.
 ;      XPOS     4088
 ;      DEPTH    4           4 bytes per pixel
 ;      PITCH    1
@@ -352,25 +352,25 @@
 ;      FIRSTPIX 0
 ; 
 ;  Stop Object
-; 		 Name     Value       Description
+;      Name     Value       Description
 ;      ------   ----------  -----------
 ;      Type     4
 ;      DATA     0x0
 ; 
 ;  Stop Object
-; 		 Name     Value       Description
+;      Name     Value       Description
 ;      ------   ----------  -----------
 ;      Type     4
 ;      DATA     0x0
 ; 
-;  Bit Mapped Object
-; 		 Name     Value       Description
+;  Bit Mapped Object (contains the player's score).
+;      Name     Value       Description
 ;      ------   ----------  -----------
 ;      Type     0
 ;      YPOS     60          Y position
 ;      HEIGHT   48
 ;      LINK     0xeb90
-;      DATA     0x50000    Address of data, e.g. dscreen.
+;      DATA     0x50000    Address of pixel data, e.g. dscreen.
 ;      XPOS     4088
 ;      DEPTH    4          4 bytes per pixel.
 ;      PITCH    1
@@ -384,7 +384,7 @@
 ;      FIRSTPIX 0
 ; 
 ;  Stop Object
-; 		 Name     Value       Description
+;      Name     Value       Description
 ;      ------   ----------  -----------
 ;      Type     4
 ;      DATA     0x0
