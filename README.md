@@ -17,15 +17,15 @@ sudo apt install build-essentials wine python3
 We use two tools to build the source code: `rmac` and `rln`. If you already have these installed you may have some
 luck using them, if not you can build the versions suggested below as they are known to work. 
 
-First clone the vlm repository:
+First clone the Tempest 2000 repository:
 
 ```sh
-git clone https://github.com/mwenge/vlm.git
+git clone https://github.com/mwenge/tempest2k.git
 ```
-Next run the following commands to enter the vlm repository and downoad the assembler toolchain:
+Next run the following commands to enter the Tempest 2000 repository and downoad the assembler toolchain:
 
 ```sh
-cd vlm
+cd tempest2k
 git clone git@github.com:mwenge/rmac.git
 git clone http://tiddly.mooo.com:5000/rln/rln.git
 ```
