@@ -201,62 +201,62 @@
 ; use either 'draw_sfliptank' to draw it as a solid polygon in Tempest 2000 mode,
 ; or the '_fliptank' vector object if in Tempest Classic mode.
 ;
-;  -----------------------      ----------------------  -------------   -----------       -------------    ------------    
-;       Description             Creating                Updating        Drawing           Solids            Vectors
-;                                                       (Bytes 54-56)  (Bytes 34-36)      (Bytes 0-4        Bytes 0-4
-;                                                       (run_vex)        draw_vex          solids          (Address)          
-;  -----------------------      ----------------------  -------------   -----------       -------------    ------------    
-;   0   Exploding Player                                rrts            changex
-;   1   Player Shot             frab                    player_shot     draw              draw_pixex       _shot           
-;   2   Flipper                 make_flipper            run_flipper     draw_vxc          cdraw_sflipper   _flipper        
-;       Blue Flipper            ggen                    run_flipper     draw_vxc          draw_blueflip                    
-;       Super Flipper 1         make_sflip2/superflip   run_flipper     draw_vxc          supf1                            
-;       Super Flipper 2         make_sflip3/superflip   run_flipper     draw_vxc          supf2                            
-;       Beast                   make_beast              run_flipper     draw_vxc          draw_beast          
-;   3   Type of Explosion       changex                 run_zap         draw                                               
-;   4   A shot that kills       colok                   kill_shot       draw              draw_pixex       _shot           
-;   5   Tanker                  make_tanker             run_tanker      draw              draw_sfliptank   _fliptank                
-;       Pulsar Tanker           make_putanker           run_tanker      draw              draw_spulstank   _pulstank                
-;       Fuse Tanker             make_futanker           run_tanker      draw              draw_sfusetank   _fusetank                
-;   6   Spike                   make_spike              run_spike       draw_spike        N/A              _spike                
-;   7   Spiker                  make_spiker             run_spiker      draw              N/A              _spiker                
-;   8   Enemy Bullet            alienfire               run_ashot       draw              ringbull                         
-;                                                                       draw              s_shot           _shot
-;   9   Fuseball                make_fuseball           run_fuseball    draw              draw_sfuseball   _fuse1/_fuse2
-;  10   Bonus Blowaway          vecbons                 blowaway        draw                                               
-;  11   Pulsar                  make_pulsar             run_pulsar      draw              draw_spulsar                     
-;  12   one up blowaway         do_oneup                oblow           draw_z            draw_oneup       _oneup          
-;  13   Going-Down Claw         gotu                    go_downc        draw                                               
-;  14   Going-Down Flipper      gotu                    go_downf        draw                                               
-;  15   Player 2 Claw           setclaw                 claw_con2       draw/dsclaw       sclaws           _claws    
-;  16   Player 1 Claw           setclaw                 claw_con1       draw/dsclaw       sclaws           _claws    
-;  17   AI Droid (Cube)         rundroid                rez_claw        rrts                               _cube           
-;  18                                                   czoom1                                      
-;  19                                                   czoom2                                     
-;  20   Explosion?              ouch                    pzap            draw                                               
-;  21   AI Droid                rez_claw                rundroid        draw_h2hclaw                       _cube           
-;  22   Pixel Explosion         xpixex                  run_pixex       draw_pixex        draw_pixex       _bons                
-;  23   Pulsar Spark            run_pulsar->lanetop     run_pspark      draw              draw_spulsar     _pu1/_pu2/_pu3 &c.                
-;  24   Power Up Explosion      changex                 run_prex        draw_prex                                           
-;       Power Up Explosion(H2H) changex                 run_prex        draw              draw_pprex                        
-;  25   Power Up                changex                 run_pup         draw_pup1         draw_pup1                        
-;  26   Splatter                dxle                    xshot           draw              dxshot                           
-;  27   Run Gate                cg                      run_gate        draw_gate         draw_gate                        
-;  28   XR Pixel Explosion      blowmeaway              xr_pixex        draw_mpixex                                        
-;  29   Firework                make_fw                 run_fw          draw_fw                                            
-;  30   Rez Claw                rez_claw                run_h2hclaw     draw_h2hclaw      draw_h2hclaw                     
-;  31   Mirror                  make_mirr               rumirr          draw              draw_mirr                        
-;  32   Player bullet           h2hfrab                 run_h2hshot     draw              draw_h2hshot                     
-;  33   Head to Head Gen        make_h2hgen             run_h2hgen      draw              draw_h2hgen                      
-;  34   Head to Head Ball       make_h2hball            run_h2hball     draw              draw_h2hball                     
-;  35   Excellent Explosion     any_pixex               oblow2          dmpix                                              
-;  36   Mirror                  make_mirr               rumirr          draw                                               
-;  37   Reflected Shot          rumirr                  refsht          draw                                               
-;  38   Reflected shot          beastrail               refsht2         draw                                               
-;  39   Type of AI Droid        make_adroid             run_adroid      draw              draw_adroid                      
-;  40   Loitering claw          go_downc/llost          loiter          1                                                  
-;  -----------------------      ----------------------  -------------   -----------       -------------    ------------    
-;  Table 2: The creation, update, and draw routines used by game elements in Tempest 2000.
+;  --------------------- -------------- ------------ ----------- -------------  ------------    
+;     Description        Creating       Updating     Drawing     Solids          Vectors
+;                                       Bytes 54-56  Bytes 34-36 Bytes 0-4       Bytes 0-4
+;                                       (run_vex)    draw_vex    solids         (Address)          
+;  --------------------- -------------- ------------ ----------- -------------  ------------    
+;   0 Exploding Player                  rrts         changex
+;   1 Player Shot        frab           player_shot  draw        draw_pixex     _shot           
+;   2 Flipper            make_flipper   run_flipper  draw_vxc    cdraw_sflipper _flipper        
+;     Blue Flipper       ggen           run_flipper  draw_vxc    draw_blueflip                  
+;     Super Flipper 1    make_sflip2    run_flipper  draw_vxc    supf1                          
+;     Super Flipper 2    make_sflip3    run_flipper  draw_vxc    supf2                          
+;     Beast              make_beast     run_flipper  draw_vxc    draw_beast        
+;   3 Type of Explosion  changex        run_zap      draw                                       
+;   4 A shot that kills  colok          kill_shot    draw        draw_pixex     _shot           
+;   5 Tanker             make_tanker    run_tanker   draw        draw_sfliptank _fliptank                
+;     Pulsar Tanker      make_putanker  run_tanker   draw        draw_spulstank _pulstank                
+;     Fuse Tanker        make_futanker  run_tanker   draw        draw_sfusetank _fusetank                
+;   6 Spike              make_spike     run_spike    draw_spike  N/A            _spike                
+;   7 Spiker             make_spiker    run_spiker   draw        N/A            _spiker                
+;   8 Enemy Bullet       alienfire      run_ashot    draw        ringbull                       
+;                                                    draw        s_shot         _shot
+;   9 Fuseball           make_fuseball  run_fuseball draw        draw_sfuseball _fuse1/_fuse2
+;  10 Bonus Blowaway     vecbons        blowaway     draw                                       
+;  11 Pulsar             make_pulsar    run_pulsar   draw        draw_spulsar                   
+;  12 one up blowaway    do_oneup       oblow        draw_z      draw_oneup     _oneup          
+;  13 Going-Down Claw    gotu           go_downc     draw                                       
+;  14 Going-Down Flipper gotu           go_downf     draw                                       
+;  15 Player 2 Claw      setclaw        claw_con2    draw/dsclaw sclaws         _claws    
+;  16 Player 1 Claw      setclaw        claw_con1    draw/dsclaw sclaws         _claws    
+;  17 AI Droid (Cube)    rundroid       rez_claw     rrts                       _cube           
+;  18                                   czoom1                             
+;  19                                   czoom2                            
+;  20 Explosion?         ouch           pzap         draw                                       
+;  21 AI Droid           rez_claw       rundroid     draw_h2hclaw               _cube           
+;  22 Pixel Explosion    xpixex         run_pixex    draw_pixex  draw_pixex     _bons                
+;  23 Pulsar Spark       run_pulsar     run_pspark   draw        draw_spulsar   _pu1/_pu2/_pu3 &c.                
+;  24 Power Up Explosion changex        run_prex     draw_prex                                   
+;     Pwr Up Expl. (H2H) changex        run_prex     draw        draw_pprex                      
+;  25 Power Up           changex        run_pup      draw_pup1   draw_pup1                      
+;  26 Splatter           dxle           xshot        draw        dxshot                         
+;  27 Run Gate           cg             run_gate     draw_gate   draw_gate                      
+;  28 XR Pixel Explosion blowmeaway     xr_pixex     draw_mpixex                                
+;  29 Firework           make_fw        run_fw       draw_fw                                    
+;  30 Rez Claw           rez_claw       run_h2hclaw  draw_h2hclawdraw_h2hclaw                   
+;  31 Mirror             make_mirr      rumirr       draw        draw_mirr                      
+;  32 Player bullet      h2hfrab        run_h2hshot  draw        draw_h2hshot                   
+;  33 Head to Head Gen   make_h2hgen    run_h2hgen   draw        draw_h2hgen                    
+;  34 Head to Head Ball  make_h2hball   run_h2hball  draw        draw_h2hball                   
+;  35 Excellent Explosn  any_pixex      oblow2       dmpix                                      
+;  36 Mirror             make_mirr      rumirr       draw                                       
+;  37 Reflected Shot     rumirr         refsht       draw                                       
+;  38 Reflected shot     beastrail      refsht2      draw                                       
+;  39 Type of AI Droid   make_adroid    run_adroid   draw        draw_adroid                    
+;  40 Loitering claw     go_downc/llost loiter       1                                                
+; 
+;      Table 2: The creation, update, and draw routines used by game elements in Tempest 2000.
 ;
 ; If you look at the above table long enough you may realize that not all
 ; objects are created 'de novo'. Some objects 'turn into' other objects rather
@@ -396,6 +396,7 @@
 ;
 ; Interesting Search Keywords for the Impatient
 ; -------------------------------------------
+; 'Init'   - Execution starts here.
 ; 'Frame:' - Responsible for updating the internal state of all the objects
 ;           in the game, such as enemies and the player's claw and bullets.
 ;           It is called every time the screen has finished painting, i.e.
@@ -803,6 +804,7 @@
 ; Init
 ; Execution and Initialisation starts here.
 ; *******************************************************************
+Init:
         move.l #$70007,G_END       ; NEW mode
         move.l #$70007,D_END       ; NEW mode
         move #$100,$f14000         ; audio on
@@ -1090,7 +1092,7 @@ notpal1: rts
 ; Game Over in Head-to-Head mode.
 ; *******************************************************************
 h2hover:
-        ; Do a melt-o-vision transition.
+        ; Do a meltovision transition.
         move.l #screen3,a0         ; Set the source screen
         move.l gpu_screen,a1       ; Set the gpu screen.
         move #0,d0                 ; X position in source screen
@@ -1099,7 +1101,7 @@ h2hover:
         move #32,d3                ; 32 lines high
         move #0,d4                 ; X position in destination screen.
         move #0,d5                 ; Y position in destination screen.
-        jsr pmfade                 ; Do a melto-vision transition.
+        jsr pmfade                 ; Do a meltovision transition.
     
         ; Clear the screens
         move.l #screen1,a0         ; Point a0 to screen1.
@@ -1172,7 +1174,7 @@ raww:   jsr settrue3
         bne rreset                 ; Return to the title screen.
 z1:
         clr z                      ; Clear hard reset signal.
-        jsr fade                   ; Do a melto-vision transition.
+        jsr fade                   ; Do a meltovision transition.
         tst z                      ; Has the player done a hard reset?
         bmi z2
         bne rreset                 ; Return to the title screen.
@@ -1234,7 +1236,7 @@ certnotpal:
         move #-1,lives
         move #8000,attime
         jsr attr                   ; Wait for player to press fire.
-        jsr fade                   ; Do a melto-vision transition.
+        jsr fade                   ; Do a meltovision transition.
         clr gb
         bra dloop                  ; Back to the top-level title screen loop.
     
@@ -1402,9 +1404,9 @@ treset:
     
 ; *******************************************************************
 ; zreset
-; Do a melto-vision fade and go back to the title screen.
+; Do a meltovision fade and go back to the title screen.
 ; *******************************************************************
-zreset: jsr fade                   ; Do a melto-vision transition.
+zreset: jsr fade                   ; Do a meltovision transition.
         bra rreset                 ; Return to the title screen.
     
 eeek:
@@ -1612,7 +1614,7 @@ alrzero:
         move #1,screen_ready       ; Signal to 'Frame' that we have a screen ready for display.
         jsr mainloop               ; Run the mainloop while the user selects the level.
         ; Once they've finished we can do a fade transition and start the game.
-        jmp fade                   ; Do a melto-vision transition.
+        jmp fade                   ; Do a meltovision transition.
     
 ; *******************************************************************
 ; draw_oo
@@ -2944,7 +2946,7 @@ mypal:  move.l #pic5,a0            ; Load pic5(beasty7.cry) to the source memory
         clr.l d7
         move #250,attime           ; Set the duration of this screen in attract mode.
         bsr attr
-        bra fade                   ; Do a melto-vision transition.
+        bra fade                   ; Do a meltovision transition.
     
 ; *******************************************************************
 ; v_ersion
@@ -3284,7 +3286,7 @@ dcc:    tst z                      ; Has the player done a hard reset?
         clr p1wins
         clr p2wins
     
-fago:   bsr fade                   ; Do a melto-vision transition.
+fago:   bsr fade                   ; Do a meltovision transition.
         clr selected               ; Clear selection.
         move #1,players            ; 1 player
         move #$1c,bulland          ; Standard number of bullet slots.
@@ -3374,7 +3376,7 @@ vop11:  cmp #1,d0
         bchg.b #1,sysflags         ; Toggle skinny/fat vectors.
         bra voe
 dcc3:   jsr eepromsave             ; Save the choice in settings.
-        bsr fade                   ; Do a melto-vision transition.
+        bsr fade                   ; Do a meltovision transition.
         move (a7)+,cweb            ; Restore stashed values from the stack.
         bra optionscreen           ; Go back to the game type selection screen.
     
@@ -3484,7 +3486,7 @@ npling: move #-1,keyplay
 isoka:  move d0,t2k_max
 nonkey: move (a7)+,selected        ; Restore stashed values from the stack.
     
-opling: bsr fade                   ; Do a melto-vision transition.
+opling: bsr fade                   ; Do a meltovision transition.
         ; Fall through
     
 ; *******************************************************************
@@ -3904,7 +3906,7 @@ _tunn:
         move #-1,beasties+140      ; Turn off beasties?
         tst z                      ; Has the player done a hard reset?
         bne rrrts
-        bsr ofade                  ; Do a melto-vision transition.
+        bsr ofade                  ; Do a meltovision transition.
     
         move.l #$ffffffff,warp_flash
         rts
@@ -4681,7 +4683,7 @@ sttoat2: move #11,d0
         move #-1,beasties+140      ; Turn off the object list?
         tst z                      ; Has the player done a hard reset?
         bne rrrts
-        bsr ofade                  ; Do a melto-vision transition.
+        bsr ofade                  ; Do a meltovision transition.
         move.l #$ffffffff,warp_flash
         move.l #2,warp_count
         rts
@@ -4980,13 +4982,13 @@ ennd:   move #1,50(a6)             ; Mark the activeobject entry for deletion.
     
     
 ; *******************************************************************
-; fade ; Do a melto-vision transition.
-; This is melt-o-vision.
-; https://www.trademarkia.com/melt-o-vision-74534584
+; fade ; Do a meltovision transition.
+; This is meltovision.
+; https://www.trademarkia.com/meltovision-74534584
 ; go into FADE after merging screen3 to current screen and turning off BEASTIES+64
 ; *******************************************************************
-fade:   tst beasties+76            ; 
-        bmi ofade                  ; If so, do a melto-vision transition.
+fade:   tst beasties+76            ; Are we ready for meltovision?
+        bmi ofade                  ; If so, do a meltovision transition.
         ; If not do a merge first.
         move.l #screen3,a0
         move.l gpu_screen,a1
@@ -5005,13 +5007,13 @@ pmfade: tst mfudj
         beq pmf2
         add #8,d5
         clr mfudj
-pmf2:   jsr MergeBlock
+pmf2:   jsr MergeBlock             ; Merge screen3 and gpu_screen 1
         move #-1,beasties+76       ; Signal we can do a fade now.
     
-        ; Now we can do the fade part of the melto-vision.
+        ; Now we can do the fade part of the meltovision.
 ofade:  clr _pauen                 ; can't pause in fade
-        move.l #ffade,demo_routine
-        move.l #failcount,routine
+        move.l #ffade,demo_routine ; Set meltovision as the demo_routine
+        move.l #failcount,routine  ; Set the counter routine.
         move #150,pongx
         jsr rannum                 ; Put a random number between 0 and d1 in d0.
         and #$7,d0
@@ -5021,8 +5023,8 @@ ofade:  clr _pauen                 ; can't pause in fade
         move.l #$f80000,delta_i
         move z,-(a7)               ; Stash some values in the stack so we can restore them later.
         clr z                      ; Clear hard reset signal.
-        bsr gogame
-        move.l #screen3,a0
+        bsr gogame                 ; Run the meltovision transition.
+        move.l #screen3,a0         ; Point a0 at screen3.
         jsr clrscreen              ; Clear the screen in a0.
         move (a7)+,z               ; Restore stashed values from the stack.
         move #1,sync
@@ -5232,18 +5234,22 @@ failcount:
         rts
     
 ; *******************************************************************
-; ffade ; Do a melto-vision transition.
+; ffade ; Do a meltovision transition.
 ; A demo_routine
-; Used to implement the melto-vision rotate and fade effect for the
+; Used to implement the meltovision rotate and fade effect for the
 ; entire screen.
 ; *******************************************************************
 ffade:
+        ; The net result of the dance here is that we pass a pongz value of 0xFF (-1)
+        ; for the first 7 frames, and then 0x00 for all frames after that. Since
+        ; pongz is the angle (in brads) to rotate, this results in rotating the image
+        ; for the first few frames and then leaving it without a rotation after that. 
         add #1,pongy
         move pongy,d0
-        and #$03,d0
-        bne failfade               ; Do a melto-vision transition.
-        tst.b pongz+1
-        beq failfade               ; Do a melto-vision transition.
+        and #$03,d0       ; First 7 frames are rotated 1 degree to right.
+        bne failfade               ; Do a meltovision transition.
+        tst.b pongz+1 ; If pongz+1 is zero, don't alter it.
+        beq failfade               ; Do a meltovision transition.
         bmi ffinc
         sub.b #2,pongz+1
 ffinc:
@@ -5810,7 +5816,7 @@ clent:
         move.l #txendraw,demo_routine
         move.l #txen,routine
         bsr gogame
-        bra fade                   ; Do a melto-vision transition.
+        bra fade                   ; Do a meltovision transition.
     
 wnb:
         move.l pad_now,d0
@@ -6089,7 +6095,7 @@ ctl:
         clr tblock
         move (a7)+,cweb            ; Restore stashed values from the stack.
         move #1,sf_on
-        bra fade                   ; Do a melto-vision transition.
+        bra fade                   ; Do a meltovision transition.
     
 ; *******************************************************************
 ; swebby
@@ -6193,12 +6199,12 @@ snopal: jsr centext                ; Display horizontally centred text.
         add palfix2,d1             ; Adjust for PAL screens if required.
 snopal2:jsr pager                  ; Write the credits text to screen.
     
-        ; When we're finished do a melt-o-vision transition.
+        ; When we're finished do a meltovision transition.
         move d7,-(a7)              ; Stash some values in the stack so we can restore them later.
         jsr hisettrue3
         bsr attract
         move (a7)+,d7              ; Restore stashed values from the stack.
-        bra fade                   ; Do a melto-vision transition.
+        bra fade                   ; Do a meltovision transition.
         ; Returns
     
 ; *******************************************************************
@@ -8163,8 +8169,9 @@ gogame:
         move #1,screen_ready       ; Signal to 'Frame' that we have a screen ready for display.
         clr db_on                  ; Enable double-buffering.
         clr x_end
-gog:
-        bsr thang
+
+        ; Loop.
+gog:    bsr thang
         tst z                      ; Has the player done a hard reset?
         bne gogx
         tst x_end
@@ -15855,6 +15862,7 @@ builtit:move.l #0,(a3)+
 ; *******************************************************************
 ; initvo
 ; Initialize a standard vector object
+; Makes a3 point to connect_ptr
 ; *******************************************************************
 initvo: move.l a0,a2
         move.l d0,(a0)+            ; x
@@ -15893,6 +15901,7 @@ initvo: move.l a0,a2
 ; a0 = vector ram space; a2.l = z depth to extrude to;
 ; d0.l=x scale, d1.l=y scale, d2.l=z scale, d3.l=x centre, d4.l=y centre,
 ; d5.l=z centre, d6=angle (xy)/angle (xz), d7=angle (yz)
+; a5 = webs,
 ;
 ; *******************************************************************
 extrude:
@@ -15901,6 +15910,7 @@ extrude:
         clr connect
         move.l a2,-(a7)            ; save z depth
         bsr initvo                 ; make header, do standard vector object init
+        ; a3 now points to connect_ptr
         move.l a3,a4               ; save first vertex
         move.l (a7)+,d7            ; retrieve z-depth
         move d7,d0
@@ -15911,17 +15921,17 @@ extrude:
         clr d5                     ; to catch highest X point
         move (a1)+,d6              ; First byte from raw_web: # channels to a web
         move d6,web_max            ; Set as the number of lanes in the web.
-        move (a1)+,web_firstseg    ; Second byte: player's starting position on web?
+        move (a1)+,web_firstseg    ; Second byte: player's starting position on web.
         move.l a1,web_ptab         ; Third byte: start of x/y pairs, the position table
         move.l a3,(a5)+            ; first vertex to lanes list
     
-        ;Read in the x/y pairs
-xweb:   move (a1)+,d0
-        move (a1)+,d1              ; get X and Y
-        ext.l d0
-        ext.l d1
-        cmp d5,d1                  ; Check if this is the large X value so far
-        blt xweb2                  ; As above.
+        ; Read in the x/y pairs. xweb will loop for all lanes in the web.
+xweb:   move (a1)+,d0              ; Get the X co-ordinate from the web data structure.
+        move (a1)+,d1              ; Get the Y co-ordinate.
+        ext.l d0                   ; Make X a 4-byte long.
+        ext.l d1                   ; Make Y a 4-byte long.
+        cmp d5,d1                  ; Check if this is the largest X value so far
+        blt xweb2                  ; If it is, skip the next line.
         move d1,d5                 ; It's bigger, so save it in d5.
     
         ;Store the x,y,z value for the near point in the web
@@ -15953,8 +15963,7 @@ xweb2:  move.l d0,(a2)+            ; x value
         move.l a3,(a5)+            ; to v.conn list
         add #2,d3                  ; move 2 vertices
     
-                                    ;Get the next pair
-        dbra d6,xweb
+        dbra d6,xweb               ; Get the next pair and loop.
     
 lastpoint:
         addq #1,d3
@@ -20637,21 +20646,27 @@ tempest:dc.b 1,1,1,2,0
 ; *******************************************************************
 ; These are the data structures defining the  webs for each level. There are 37 in total
 ; and they are shared by the Classic and Tempest 2000 modes.
-; The strucutres consists of lists of vertex pairs (x,y pairs) followed
+;
+; The structures consists of lists of vertex pairs (x,y pairs) followed
 ; by a list of object orientation values for each lane in the web: in other
 ; words how an object in the lane should be rotated when in that lane.
+;
 ; *******************************************************************
 ;                                                                                                                 
 ;       =====================================================================                                     
 ;       =====================================================================                                     
+;                    Ascii Representation of web1, a flat plane.
 ;                                                                                                                 
-;                                                                                                                 
-web1:   dc.w 11,5
-        dc.w -3,16,-1,16,1,16,3,16,5,16    ;flat plane
+web1:   dc.w 11                    ; length of orientation table, number of channels in the web.
+        dc.w 5                     ; player's initial position on the web
+    
+        ; x/y pairs of all vertices in the web.
+        dc.w -3,16,-1,16,1,16,3,16,5,16
         dc.w 7,16,9,16,11,16,13,16
         dc.w 15,16,17,16,19,16,-3,16,0
-
-        dc.w 0,0,0,0,0,0,0,0,0,0,0  ;orientation table (angle of an object within a particular lane)
+    
+        ;orientation table (angle of an object within a particular lane)
+        dc.w 0,0,0,0,0,0,0,0,0,0,0
         dc.w $80,$70,$60,$50,$40,$30,$32,$34,$36,$48,$5a
 
 ;                                                                                                                 

@@ -333,7 +333,8 @@ stoploop:
         ENDM
     
         MACRO waitblit             ; Wait for the Blitter to stop
-\~waitt:        load (blit),r0
+\~waitt:
+        load (blit),r0
         btst #0,r0
         jr z,\~waitt
         nop
@@ -655,13 +656,14 @@ v_rippleloop: move lphase,r0
 ;*
 ;* IN_BUF:  0()=Source screen
 ;*          4()=Dest x width, in pixels
-;*         8()=Dest y width, in pixels
-;*        12()=X scale factor, as an 8:8 frac
-;*        16()=Y scale factor, as an 8:8 frac (faster than multiplying a 16:16)
-;*        20()=Angle of rotation, in brads
-;*        24()=Centre of rotation X, 16:16, on source image
-;*        28()=Centre of rotation Y, 16:16, on source image
-;*        32()=Destination offset, Y:X
+;*          8()=Dest y width, in pixels
+;*         12()=X scale factor, as an 8:8 frac
+;*         16()=Y scale factor, as an 8:8 frac (faster than multiplying a 16:16)
+;*         20()=Angle of rotation, in brads
+;*         24()=Centre of rotation X, 16:16, on source image
+;*         28()=Centre of rotation Y, 16:16, on source image
+;*         32()=Destination offset, Y:X
+;*         36()=Delta intensity
 ;*
 ; *******************************************************************
 scar:
@@ -689,107 +691,133 @@ scar:
         movei #A1_BASE,a1_n
         movei #A2_BASE,a2_n
     
-        movei #(in_buf+36),r1
-        load (r1),r0
-        movei #B_PATD,r1
-        cmpq #0,r0
-        jr nz,axa
-        nop
+        ; Check delta_i to see if we should use texture shading.
+        movei #(in_buf+36),r1      ; Get delta_i.
+        load (r1),r0               ; Store in r0.
+        movei #B_PATD,r1           ; Point r1 at B_PATD.
+        cmpq #0,r0                 ; Check delta_i..
+        jr nz,axa                  ; If it's not zero, skip.
+        nop                        ; Otherwise don't use SRCSHADE and ZBUFF when blitting.
         movei #(SRCEN|DSTA2|CLIP_A1|UPDA1F|UPDA1|UPDA2|LFU_A|LFU_AN),_cmd   ; blitter Go cmd
     
-axa:    store r0,(r1)
+        ; Store the passed delta intensity.
+axa:    store r0,(r1)              ; Point r1 at r0 (B_PATD).
+        movei #B_ZINC,r1           ; Point r1 at the Z Increment.
+        store r0,(r1)              ; Store delta_i as the Z increment.
+        movei #B_IINC,r1           ; Point r1 at the Intensity Increment.
+        store r0,(r1)              ; Store delta_i as the Intensity increment.
+        movei #B_I3,r1             ; Point r1 at the Blitter Intensity 3.
+        store r0,(r1)              ; Store delta_i as the Blitter Intensity 3.
+        addq #4,r1                 ; Point r1 at the Blitter Intensity 2.
+        store r0,(r1)              ; Store delta_i as the Blitter Intensity 2.
+        addq #4,r1                 ; Point r1 at the Blitter Intensity 1.
+        store r0,(r1)              ; Store delta_i as the Blitter Intensity 1.
+        addq #4,r1                 ; Point r1 at the Blitter Intensity 0.
+        store r0,(r1)              ; Store delta_i as the Blitter Intensity 0.
     
-        movei #B_ZINC,r1
-        store r0,(r1)
-        movei #B_IINC,r1
-        store r0,(r1)
-        movei #B_I3,r1
-        store r0,(r1)
-        addq #4,r1
-        store r0,(r1)
-        addq #4,r1
-        store r0,(r1)
-        addq #4,r1
-        store r0,(r1)
+        movei #$FFFF0000,hi_mask   ; For masking the high bits.
+        movei #$ffff,lo_mask       ; For masking the low bits.
+        movei #$ff,_byte           ; For masking the lower 8 bits.
+        movei #p_sines,_sinebase   ; Our sine table.
     
-        movei #$FFFF0000,hi_mask
-        movei #$ffff,lo_mask       ; always useful for blitter stuff!
-        movei #$ff,_byte
-        movei #p_sines,_sinebase
-        movei #gpu_screen,r20
-        load (r20),r0
-        subq #4,r20
-        store r0,(a2_n)            ; set dest screen base
+        ; Prepare A2_BASE
+        movei #gpu_screen,r20      ; Point r20 at gpu_screen
+        load (r20),r0              ; Store it in r0.
+        subq #4,r20                ; Move 4 bytes backwards in in_buf.
+        ; Write A2_BASE
+        store r0,(a2_n)            ; set gpu_screen as dest screen base
+    
+        ; Prepare A1_FLAGS
         load (r20),r0              ; source flags
-        subq #4,r20
-        movei #XADDINC,r21
-        or r0,r21
-        store r21,(a1_n+_flags)    ; agen 1 to incremental step
+        subq #4,r20                ; Move 4 bytes backwards in in_buf.
+        movei #XADDINC,r21         ; Point r21 at XADDINC
+        or r0,r21                  ; 'Or' with our source flags.
+        ; Write A1_FLAGS
+        store r21,(a1_n+_flags)    ; Store result as incremental step in A1_FLAGS
+    
+        ; Prepare A2_FLAGS
         load (r20),r0
         movei #(XADDPIX|YADD0),r21
         or r0,r21
+        ; Write A2_FLAGS
         store r21,(a2_n+_flags)
     
-        movei #in_buf,r0
+        ; Prepare A1_BASE
+        movei #in_buf,r0 ; Point r0 at in_buf
         load (r0),r20              ; Get source screen passed by caller.
         addq #4,r0                 ; Advance 4 bytes in in_buf.
+    
+        ; Write A1_BASE
         store r20,(a1_n)           ; Store source screenbase passed by caller in a1_n
+    
+        ; Prepare A1_CLIP
         load (r0),d_width          ; Store width passed by caller in d_width.
         addq #4,r0                 ; Advance 4 bytes in in_buf.
-        load (r0),d_height         ; Store width passed by caller in d_height.
+        load (r0),d_height         ; Store height passed by caller in d_height.
         addq #4,r0                 ; Advance 4 bytes in in_buf.
+        move d_height,r20          ; Store the height.
+        shlq #16,r20               ; Shift it the top 16 bits.
+        or d_width,r20             ; Put the width in the lower 16 bits.
     
-        move d_height,r20
-        shlq #16,r20
-        or d_width,r20
+        ; Write A1_CLIP
         store r20,(a1_n+_clip)     ; for DISO_A1
     
+        ; Common prep for A1_PIXEL (x2_n),A1_FPIXEL (y2_n), A1_INC (grad_int)
+        ; and A1_FINC (grad_frac).
+    
+        ; Get the scale factor.
         move d_width,temp1
         move d_height,temp2
+        ; Scale the width.
         load (r0),r20              ; get x-scale
         addq #4,r0                 ; Advance 4 bytes in in_buf.
-        mult r20,temp1             ; temp1 is now ?:8 scaled
+        mult r20,temp1             ; temp1 is now ?:8 scaled width
+        ; Scale the height.
         load (r0),r20
         addq #4,r0                 ; Advance 4 bytes in in_buf.
-        mult r20,temp2             ; is now ?:8 scaled
+        mult r20,temp2             ; is now ?:8 scaled height
     
-        load (r0),r20
-        addq #4,r0                 ; get angle in brads
+        load (r0),r20              ; get angle in brads
+        addq #4,r0                 ; Advance 4 bytes in in_buf.
     
-        and _byte,r20
-        add _sinebase,r20
-        loadb (r20),sin
-        sub _sinebase,r20
-        movei #$40,r21
-        add r21,r20
-        and _byte,r20
-        add _sinebase,r20
-        loadb (r20),cos            ; SIN and COS are positive values, 0-255
+        ; SIN and COS are positive values, 0-255
+        and _byte,r20              ; Clip the value to 8 bits.
+        add _sinebase,r20          ; Use the angle as an index into our sine table.
+        loadb (r20),sin            ; And store the result as our sin.
+        sub _sinebase,r20          ; Get our angle value back again.
+        movei #$40,r21             ; Store 64 in r21
+        add r21,r20                ; Add 64 to our brad angle.
+        and _byte,r20              ; Clip the value to 8 bits.
+        add _sinebase,r20          ; Use the angle as an index into our sine table.
+        loadb (r20),cos            ; Store the result as our cos.
     
-        movei #$80,r21
-        sub r21,sin
-        sub r21,cos                ; now they are signed +/-128
-        shlq #8,sin
-        shlq #8,cos                ; and now they are signed 16:16 values.
+        ; Turn the positive sin and cos values into signed values.
+        movei #$80,r21             ; Set the signed bit in r21.
+        sub r21,sin                ; Use it to turn sin into a signed byte.
+        sub r21,cos                ; Use it to turn cos into a signed byte.
+        shlq #8,sin                ; Shift left by 8 bits so have a signed 8:8 word.
+        shlq #8,cos                ; Shift left by 8 bits so have a signed 8:8 word.
     
-        shlq #8,temp1
-        shlq #8,temp2              ; these co-ordinates to 16:16 too
+        shlq #8,temp1              ; Shift scaled width left by 8 bits so have a signed 8:8 word.
+        shlq #8,temp2              ; Shift scaled height left by 8 bits so have a signed 8:8 word.
     
-        move temp1,x1_n
-        fmult x1_n,cos
-        move temp1,y1_n
-        fmult y1_n,sin             ; Translation of (x,0) in x1_n,y1_n
-        move temp2,x2_n
-        fmult x2_n,sin
-        neg x2_n
-        move temp2,y2_n
-        fmult y2_n,cos             ; Transformation of (0,y) in x2_n,y2_n
+        ; Translation of (x,0) in x1_n,y1_n
+        move temp1,x1_n            ; Store width in x1_n
+        fmult x1_n,cos             ; Multiply it by cos.
+        move temp1,y1_n            ; Store width in y1_n
+        fmult y1_n,sin             ; Multiply it by sin.
     
+        ; Transformation of (0,y) in x2_n,y2_n
+        move temp2,x2_n            ; Store height in x2_n.
+        fmult x2_n,sin             ; Multiply it by sin.
+        neg x2_n                   ; Make the height negative?
+        move temp2,y2_n            ; Store height in y2_n.
+        fmult y2_n,cos             ; Multiply it by cos.
     
-        move x1_n,grad_int
-        move grad_int,r21          ; save for creating step
+        ; Prepare A1_INC (grad_int) and A1_FINC (grad_frac)
+        move x1_n,grad_int         ; Store (width*sin) in grad_int
+        move grad_int,r21          ; save for creating A1_STEP
         sdiv d_width,grad_int      ; This now has the x-gradient along the horizontal scan
-    
     
         move grad_int,grad_frac
         shrq #16,grad_int          ; grad_int has int X inc in low word
@@ -809,6 +837,7 @@ axa:    store r0,(r1)
         moveta grad_int,grad_int
         moveta grad_frac,grad_frac   ; Move to alternates so I can re-use them
     
+        ; Prepare A1_STEP (grad_int) and A1_FSTEP (grad_frac)
         move x2_n,grad_int
         sdiv d_height,grad_int     ; This now has the x-gradient along the vertical scan
         sub r21,grad_int           ; must take into account the inner loop size
@@ -827,6 +856,7 @@ axa:    store r0,(r1)
         or temp1,grad_int
         or temp2,grad_frac         ; These now contain the Step.
     
+        ; Prepare A1_PIXEL (x2_n) and A1_FPIXEL (y2_n)
         load (r0),temp1            ; Source X centre point in 16:16 format
         addq #4,r0                 ; Advance 4 bytes in buffer.
         sharq #1,x1_n
@@ -840,8 +870,10 @@ axa:    store r0,(r1)
         sub x2_n,temp1
         sub y2_n,temp2
     
+        ; Stash A2_PIXEL
         load (r0),r21              ; The x and y regs are now free.  The last r0 load is the destination offset for the blit.
     
+        ; Prepare A1_PIXEL (x2_n) and A1_FPIXEL (y2_n) continued..
         move temp1,x2_n            ; x2_n will hold the integer parts of a1_n's pixel pointer.
         move temp1,y2_n            ; y2_n will hold the fractional parts of the pixel pointer.
         shrq #16,x2_n
@@ -855,32 +887,42 @@ axa:    store r0,(r1)
     
         waitblit                   ; it's BLiTTER TIME!!
     
+        ; Write A1_PIXEL and A1_FPIXEL
         store x2_n,(a1_n+_pixel)
         store y2_n,(a1_n+_fpixel)   ; set a1_n origin
     
+        ; Write A1_STEP and A1_FSTEP
         store grad_int,(a1_n+_step)
         store grad_frac,(a1_n+_fstep)   ; set the Step
     
+        ; Write A1_INC and A1_FINC
         movefa grad_int,grad_int
         movefa grad_frac,grad_frac
         store grad_int,(a1_n+_inc)
         store grad_frac,(a1_n+_finc)
     
+        ; Prepare A2_STEP
         move d_width,r0
         neg r0
         and lo_mask,r0
         bset #16,r0                ; Dest step: 1:-(x scan size)
+    
+        ; Write A2_STEP
         store r0,(a2_n+_step)
     
+        ; Write A2_PIXEL
         store r21,(a2_n+_pixel)    ; Pixel pointer passed from the last in_buf read
     
+        ; Write BLIT_COUNT
         shlq #16,d_height          ; Move Y size (ie Outer Loop Count) to the top
         or d_height,d_width        ; d_width is now the inner and outer loop scounters
         movei #B_COUNT,r0
         store d_width,(r0)         ; set B_COUNT
     
+        ; Run the blitter command with all the values we prepared above!
         store _cmd,(blit)          ; do it to it
     
+        ; Stop the GPU when done.
         movei #StopGPU,r0
         jump (r0)
         nop                        ; stop GPU
