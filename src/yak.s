@@ -66,35 +66,90 @@
 ;
 ; The structure for all members in the activeobjects list is broadly as follows:
 ;
-;  Bytes    Solid Objects                                    Vector Objects
 ;  -----    ---------------------------------------------------------------
-;  0-4      Index into draw routine in 'solids'.             Address of the prepared vector object.
-;  4-8      X 
-;  8-12     Y 
-;  12-16    Z 
-;  16-20    Position/lane on web.
-;  20-24    Velocity 
-;  24-28    Acceleration/Flipper Mode                        XY orientation 
-;  28-30    XZ Orientation  (Roll)                           XZ orientation  
-;  30-32    Y Rotation  (Pitch)
-;  32-34    Z Rotation  (Yaw)
-;  34-36    Draw Type (Index into draw routine in draw_vex)
-;  36-38    Start address of pixel data.                     Delta Z 
-;  38-40    Y                                                Colour change value
-;  40-42    Colour 
-;  42-44    Scale factor 
-;  44-46    0 = climb rail, 1 = cross rail, 2 = blowaway
-;  46-48    Size of Pixel Data/Number of pixels/Duration/Secondary Object Update Routine
+;  Table 1: The structure of an 'activobject' in Tempest 2000.
+;  Bytes    Solid Objects                                    
+;  -----    -------------------------------------------------
+;  0-3      Index into draw routine in 'solids'.             
+;  4-7      X 
+;  8-11     Y 
+;  12-15    Z 
+;  16-19    Position/lane on web.
+;  20-23    Velocity 
+;  24-27    Acceleration/Flipper Mode                        
+;  28-29    XZ Orientation  (Roll)                           
+;  30-31    Y Rotation  (Pitch)
+;  32-33    Z Rotation  (Yaw)
+;  34-35    Draw Type (Index into draw routine in draw_vex)
+;  36-39    Start address of pixel data.                     
+;  40-41    Colour 
+;  42-43    Scale factor 
+;  44-45    0 = climb rail, 1 = cross rail, 2 = blowaway
+;  46-49    Size of Pixel Data/Number of pixels/Duration/Secondary Object Update Routine
+;  50-51    Marked for deletion 
+;  52-53    0 = not an enemy, 1 = enemy, -1 = vulnerable
+;  54-55    Object Type  (Index into update routine in run_vex).
+;  56-59    Address of Previous Object 
+;  60-63    Address of Next Object 
+;
+;  -----    ---------------------------------------------------------------
+;  Table 1: The structure of an 'activobject' in Tempest 2000.
+;  Bytes    Solid Objects                                    
+;  -----    -------------------------------------------------
+;  0-3      Index into draw routine in 'solids'.             
+;  4-7      X 
+;  8-11     Y 
+;  12-15    Z 
+;  16-19    Position/lane on web.
+;  20-23    Velocity 
+;  24-27    Acceleration/Flipper Mode                        
+;  28-29    XZ Orientation  (Roll)                           
+;  30-31    Y Rotation  (Pitch)
+;  32-33    Z Rotation  (Yaw)
+;  34-35    Draw Type (Index into draw routine in draw_vex)
+;  36-39    Start address of pixel data.                     
+;  40-41    Colour 
+;  42-43    Scale factor 
+;  44-45    0 = climb rail, 1 = cross rail, 2 = blowaway
+;  46-47    Size of Pixel Data/Number of pixels/Duration/Secondary Object Update Routine
 ;           Claws: 
-;  48-50    Fire Timer / Sphere Type 
-;  50-52    Marked for deletion 
-;  52-54    0 = not an enemy, 1 = enemy, -1 = vulnerable
-;  54-56    Object Type  (Index into update routine in run_vex).
-;  56-60    Address of Previous Object 
-;  60-64    Address of Next Object 
+;  48-49    Fire Timer / Sphere Type 
+;  50-51    Marked for deletion 
+;  52-53    0 = not an enemy, 1 = enemy, -1 = vulnerable
+;  54-55    Object Type  (Index into update routine in run_vex).
+;  56-59    Address of Previous Object 
+;  60-63    Address of Next Object 
 ;  -----    ---------------------------------------------------------------
 ;  Table 1: The structure of an 'activobject' in Tempest 2000.
 ;
+;  Bytes    Vector Objects                                    Vector Objects
+;  -----    ---------------------------------------------------------------
+;  0-3      Address of the prepared vector object.
+;  4-7      X 
+;  8-11     Y 
+;  12-15    Z 
+;  16-19    Position/lane on web.
+;  20-23    Velocity 
+;  24-27    Acceleration/Flipper Mode                        XY orientation 
+;  28-29    XZ Orientation  (Roll)                           XZ orientation  
+;  30-31    Y Rotation  (Pitch)
+;  32-33    Z Rotation  (Yaw)
+;  34-35    Draw Type (Index into draw routine in draw_vex)
+;  36-39    Start address of pixel data.                     Delta Z 
+;  38-39    Y                                                Colour change value
+;  40-41    Colour 
+;  42-43    Scale factor 
+;  44-45    0 = climb rail, 1 = cross rail, 2 = blowaway
+;  46-47    Size of Pixel Data/Number of pixels/Duration/Secondary Object Update Routine
+;           Claws: 
+;  48-49    Fire Timer / Sphere Type 
+;  50-51    Marked for deletion 
+;  52-53    0 = not an enemy, 1 = enemy, -1 = vulnerable
+;  54-55    Object Type  (Index into update routine in run_vex).
+;  56-59    Address of Previous Object 
+;  60-63    Address of Next Object 
+;  -----    ---------------------------------------------------------------
+;  Table 1: The structure of an 'activobject' in Tempest 2000.
 ;
 ; Overview of How Objects Are Created, Updated and Drawn to the Screen
 ; -------------------------------------------------------------------- 
@@ -9874,22 +9929,24 @@ freeslot:
         bra insertobject           ; Add it to the activeobjects list.
         ; Returns.
     
-        ; Construct a solid polygon bullet instead of a vector based one.
-oaafire:move.l #$b6000a,d0
-        move.l #$070007,d1
-        tst 32(a0)
-        beq konk
-        move.l #$b60000,d0
-        move.l #$090009,d1
-konk:
-        move.l #$10000,d2
-        move.l #$10000,d3
+        ; Draw a solid polygon bullet instead of a vector based one. The bullet is taken
+        ; from the sprite sheet in 'beasty3.cry' (pic). This is an exception to the rule
+        ; for nearly all other objects, which are usually constructed polygons.
+oaafire:
+        move.l #$b6000a,d0         ; x/y for the default bullet in sprite sheet 'pic'.
+        move.l #$070007,d1         ; width/height for the default bullet in sprite sheet 'pic'.
+        tst 32(a0)                 ; What type of bullet are we using?
+        beq konk                   ; If default, skip to konk.
+        move.l #$b60000,d0         ; x/y for the non-default bullet in sprite sheet 'pic'.
+        move.l #$090009,d1         ; width/height for the non-default bullet in sprite sheet 'pic'.
+konk:   move.l #$10000,d2          ; Set the Velocity.
+        move.l #$10000,d3          ; Set the scale.
         move.l #-9,(a0)            ; Set index into solid polygon draw routine in 'solids': draw_pixex.
         move #5,34(a0)             ; Draw routine in draw_vex is 'draw_pixex'.
         move.l d3,42(a0)           ; initial pixel expansion
-        move.l d0,36(a0)
-        move.l d1,46(a0)
-        move.l d2,20(a0)
+        move.l d0,36(a0)           ; Set the X/Y position in the 'pic' sprite sheet.
+        move.l d1,46(a0)           ; Set the width/height in the 'pic' sprite sheet.
+        move.l d2,20(a0)           ; Set the velocity.
         tst laser_type             ; Is it a normal bullet or a laser?
         bne oaafire2               ; If laser, skip to oaafire2.
     
