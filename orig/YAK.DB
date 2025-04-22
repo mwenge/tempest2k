@@ -1,0 +1,10 @@
+#Created with FILEFIX version 5
+gag on
+read yak.txt 802000 ; read yak.dta 4000 ; getsym yak.sym
+gag off
+echo "	start	size	end"
+echo "text	802000	1e090	82008f"
+echo "data	4000	afa8	efa7"
+echo "bss	efa8	9d98	18d3f"
+echo "Symbols loaded"
+xpc 802000

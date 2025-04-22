@@ -1,0 +1,105 @@
+
+	Base equ $f00000
+
+		INCLUDE	"blit.inc"	; blitter defintions
+		INCLUDE	"jaguar.inc"	; Jaguar General definitions
+
+	in_buf	EQU (D_ENDRAM-128)	;Room tp pass params to DSP 
+
+
+
+
+starplane:
+;
+; draw a single plane of random field; inputs Nstars,Col,Xdisp,Ydisp,Rseed
+; Uses the pseudorandom sequence generator Thang out of Graphix Gems
+
+	nstars		REGEQU r4
+	starcol		REGEQU r5
+	xdisp		REGEQU r6
+	ydisp		REGEQU r7
+	xseed		REGEQU r8
+	xmask		REGEQU r9
+	linesize	REGEQU r10
+	andlim		REGEQU r11
+	himask		REGEQU r12
+	lomask		REGEQU r13
+	scrbase		REGEQU r14
+	maxx		REGEQU r15
+	maxy		REGEQU r16
+	px		REGEQU r17
+	py		REGEQU r18
+	nopixl		REGEQU r19
+	starloop	REGEQU r20
+	yseed 		REGEQU r21
+	ymask		REGEQU r22
+
+	MACRO ran			;Sequence generator out of Graphics Gems	
+	btst #0,@1
+	jr z,noxor@@
+ 	shrq #1,@1		;branch optimisation - the SHRQ is always done
+	xor @2,@1
+noxor@@: nop
+	ENDM
+
+	movei #in_buf,r0
+	load (r0),nstars
+	addq #4,r0
+	load (r0),starcol
+	addq #4,r0
+	load (r0),xdisp
+	addq #4,r0
+	load (r0),ydisp
+	addq #4,r0
+	load (r0),xseed		;get parameters
+	addq #4,r0
+	load (r0),yseed
+	addq #4,r0
+	load (r0),scrbase
+	movei #768,linesize	;size in bytes of a scanline
+	movei #$ff,lomask	;for chopping out bytes
+	movei #384,maxx
+	movei #240,maxy		;clipping boundaries
+	movei #no_pixl,nopixl	;loop address - faster than using MOVEI each time
+	movei #star_loop,starloop	;another loop address
+	movei #$110,xmask	;init constants
+	movei #$b8,ymask
+	movei #$1ff,andlim
+
+		
+star_loop: ran xseed,xmask
+	move xseed,px
+	ran yseed,ymask
+	move yseed,py		;"random" XY star position
+	add xdisp,px
+	add ydisp,py		;add XY offset passed in
+	and andlim,px		
+	and lomask,py		;wrap to 0-255
+	cmp maxx,px
+	jump pl,(nopixl)	;clip max X
+	cmp maxy,py		;no harm if this is done whatever
+	jump pl,(nopixl)
+	shlq #1,px		;x to point at words
+	mult linesize,py	;offset in lines to bytes
+	add px,py
+	add scrbase,py		;py now points at pixel
+	storew starcol,(py)	;plot the star
+no_pixl: subq #1,nstars
+	jump ne,(starloop)	;loop until nstars is 0
+	nop
+StopDSP: movei #D_CTRL,r1	;point at DSP flags
+	load (r1),r0
+	bclr #0,r0
+	store r0,(r1)		;stop the DSP
+stoploop: jr stoploop
+	nop
+
+
+
+
+	movei #stopgpu,r0
+	jump (r0)
+	nop
+
+
+

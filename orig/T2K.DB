@@ -1,0 +1,127 @@
+global mp
+global mstart
+global sp
+global sstart
+global sssize
+global prio
+
+procedure upd
+sl `mp `rwstart
+set mp `mp+4
+set mstart (`mstart+`rwsize)
+sl `mstart 0
+set mstart (`mstart+4)
+.
+
+procedure supd loop
+#set actual sample start
+sl `sp+@24 `rwstart
+#offset repeat start
+sl `sp+@32 (lpeek(`sp+@32) + `rwstart)
+set sp `sp+`sssize
+
+set sstart (`sstart+`rwsize)
+sl `sstart 0
+set sstart (`sstart+4)
+.
+
+procedure nulsupd
+sl `sp+@24 0
+set sp `sp+sssize
+.
+
+echo "Loading picture data..."
+gag on
+read beasty3.cry 820000
+read beasty4.cry 83f400
+read beasty5.cry 85e800
+read beasty6.cry 884000
+read beasty7.cry 898000
+read beasty8.cry 8b7400
+gag off
+echo "Loading in some toons..."
+set mp 8d6800
+set mstart 8d6900
+read e:\newjag\mod\tune13.mod `mstart
+upd
+read e:\newjag\mod\tune7.mod `mstart
+upd
+read e:\newjag\mod\tune1.mod `mstart
+upd
+read e:\newjag\mod\tune3.mod `mstart
+upd
+read e:\newjag\mod\rave4.mod `mstart
+upd
+read e:\newjag\mod\tune5.mod `mstart
+upd
+read e:\newjag\mod\tune12.mod `mstart
+upd
+echo "Loading in some samples.."
+set sp 9ac800
+set sstart 9acd00
+set sssize @40
+read smp.bin `sp
+read e:\newjag\numod\01 `sstart
+supd
+read e:\newjag\numod\02 `sstart
+supd
+read e:\newjag\numod\03 `sstart
+supd
+nulsupd
+nulsupd
+read e:\newjag\numod\06 `sstart
+supd
+read e:\newjag\numod\07 `sstart
+supd
+read e:\newjag\numod\08 `sstart
+supd
+read e:\newjag\numod\09 `sstart
+supd
+read e:\newjag\numod\10 `sstart
+supd
+read e:\newjag\numod\11 `sstart
+supd
+read e:\newjag\numod\12 `sstart
+supd
+read e:\newjag\numod\13 `sstart
+supd
+read e:\newjag\numod\14 `sstart
+supd
+read e:\newjag\numod\15 `sstart
+supd
+read e:\newjag\numod\16 `sstart
+supd
+read e:\newjag\numod\17 `sstart
+supd
+read e:\newjag\numod\18 `sstart
+supd
+read e:\newjag\numod\19 `sstart
+supd
+read e:\newjag\numod\20 `sstart
+supd
+read e:\newjag\numod\21 `sstart
+supd
+read e:\newjag\numod\22 `sstart
+supd
+read e:\newjag\numod\23 `sstart
+supd
+read e:\newjag\numod\24 `sstart
+supd
+read e:\newjag\numod\25 `sstart
+supd
+read e:\newjag\numod\26 `sstart
+supd
+read e:\newjag\numod\27 `sstart
+supd
+read e:\newjag\numod\28 `sstart
+supd
+read e:\newjag\numod\29 `sstart
+supd
+read e:\newjag\numod\30 `sstart
+supd
+read e:\newjag\numod\15 `sstart
+supd
+echo "Loading in that code stuff.."
+gag on
+load yak.db
+

@@ -1,0 +1,972 @@
+
+	Base equ $f00000
+
+		INCLUDE	"blit.inc"	; blitter defintions
+		INCLUDE	"jaguar.inc"	; Jaguar General definitions
+
+	gpu_mode EQU (G_RAM+$ffc)	; Number defines which routine the GPU will do
+	gpu_screen EQU (G_RAM+$ff8)	; The address of the screen the GPU will draw on
+	source_flags	EQU (G_RAM+$ff4)
+	dest_flags EQU (G_RAM+$ff0)	; Blitter flags 4 source+dest
+	backg	EQU (G_RAM+$fec)
+
+	p_sines EQU $30000		; 256-byte sine table of unsigned bytes
+	in_buf	EQU (G_RAM+$f60)	; General space for passing stuff to GPU
+	_sysflags EQU (G_RAM+$fd0)	;Thick vector flags etc
+	ORG $f03000
+	width EQU 384
+	mwidth EQU 768
+	height EQU 240
+	diag EQU $4000
+	ycent	EQU (G_RAM+$ef8)
+
+;***** EQUATES for Blitter offsets
+
+	_base EQU 0
+	_flags EQU 1
+	_clip EQU 2
+	_mask EQU 2
+	_pixel EQU 3 
+	_step EQU 4
+	_fstep EQU 5
+	_fpixel EQU 6
+	_inc EQU 7
+	_finc EQU 8
+
+	MACRO sdiv	;Divide, keeping sign of that which is divided, uses r27
+	move @2,r31
+	abs @2
+ 	div @1,@2
+	btst #31,r31	;Get sign bit of original thang
+	jr z,sd@@
+	nop
+	neg @2
+sd@@:	
+	ENDM
+	MACRO waitblit	; Wait for the Blitter to stop
+wai@@:	load (blit),r31
+	btst #0,r31
+	jr z,wai@@
+	nop
+	ENDM
+
+	MACRO fmult	;multiply 2 thangs, uses r2-r4, returns in first reg.
+	moveta @2,r31	;(preserves second Thang)
+ 	moveq #0,r27
+	move r27,r28
+	abs @1
+	addc r28,r27
+	abs @2
+	addc r28,r27
+	move @2,r28
+	mult @1,r28
+	move @1,r29
+	shrq #16,r28
+	shrq #16,r29
+	mult @2,r29
+	shrq #16,@2
+	add r29,r28
+	move @2,r29
+	mult @1,r29
+	shrq #16,@1
+	add r29,r28
+	mult @2,@1
+	shlq #16,@1
+	add r28,@1
+	btst #0,r27
+	jr z,fmp@@
+	movefa r31,@2
+	neg @1
+fmp@@:
+	ENDM
+
+	MACRO bank0
+	movei #G_FLAGS,r0
+	load (r0),r1
+	bclr #14,r1
+	store r1,(r0)			;Switch to Register Bank #0
+	nop
+	nop
+	nop
+	nop
+	nop
+bnk0@@:	movei #G_FLAGS,r0
+	load (r0),r1
+	btst #14,r1
+	jr nz,bnk0@@
+	nop
+	ENDM
+
+	MACRO bank1
+	movei #G_FLAGS,r0
+	load (r0),r1
+	bset #14,r1
+	store r1,(r0)			;Switch to Register Bank #1
+	nop
+	nop
+	nop
+	nop
+	nop
+bnk1@@:	movei #G_FLAGS,r0
+	load (r0),r1
+	btst #14,r1
+	jr z,bnk1@@
+	nop
+	ENDM
+
+
+	movei #gpu_mode,r0
+	load (r0),r1		;get gpu #
+	movei #poly,r2
+	movei #pretty_poly,r3
+	movei #crex,r4
+	movei #rex,r5
+	movei #polyo2d,r6
+	cmpq #1,r1
+	jump eq,(r2)		;mode 1 is do poly
+	nop
+	cmpq #2,r1
+	jump eq,(r3)		;mode 3 is do pretty poly
+	nop
+	cmpq #3,r1
+	jump eq,(r4)
+	nop
+	cmpq #4,r1
+	jump eq,(r5)
+	nop
+	cmpq #5,r1
+	jump eq,(r6)
+	nop
+
+
+;*	anything else falls thru here to the c.l.s 
+
+;*****
+;*
+;* POLY: Gouraud-shaded poly renderer. Only for triangular pollies.
+;*
+;* INPUTS: in_buf	+0 = Pointer to start of poly data structure in main RAM
+;*
+;* Poly data structure: <x1.w><y1.w><i1.w><x2.w><y2.w><i2.w><x3.w><y3.w><i3.w>
+;*
+;*****
+
+	x1		REGEQU r3
+	y1		REGEQU r4
+	x2		REGEQU r5
+	y2		REGEQU r6
+	x3		REGEQU r7
+	y3		REGEQU r8
+	i1		REGEQU r9
+	i2 		REGEQU r10
+	i3		REGEQU r11
+	xinc1		REGEQU r12
+	iinc1		REGEQU r15
+	xinc2		REGEQU r16
+	iinc2		REGEQU r17
+	count1		REGEQU r18
+	count2		REGEQU r19
+	loop1		REGEQU r20
+	loop2		REGEQU r21
+	count3		REGEQU r22
+	sum1		REGEQU r23
+	sum2		REGEQU r24
+	sum3		REGEQU r25
+	sum4		REGEQU r26
+
+	xstart 		REGEQU r27
+	istart		REGEQU r28
+	xsize		REGEQU r29
+	isize		REGEQU r30
+	cmd		REGEQU r2
+
+
+	blit		REGEQU r13
+	a1		REGEQU r14
+
+	MACRO swap
+	move @1,r31
+	move @2,@1
+	move r31,@2
+	ENDM
+
+;cls:	movei #A1_BASE,a1	;blitter Base
+;	movei #B_CMD,blit	;blitter flags/go
+;	xor r0,r0			;Blit the screen clear  (hard coded for 384x240, 16bit)
+;	store r0,(a1+_pixel)
+;	movei #backg,r1
+;	load (r1),r0
+;	movei #B_PATD,r1
+;	store r0,(r1)
+;	addq #4,r1
+;	store r0,(r1)
+;	movei #gpu_screen,r1
+;	load (r1),r0
+;	movei #dest_flags,r1
+;	store r0,(a1+_base)
+;	load (r1),r0
+;	store r0,(a1+_flags)
+;	movei #$0001fe80,r0		;1,-384
+;	store r0,(a1+_step)
+;	movei #B_COUNT,r0
+;	movei #$f00180,r1
+;	store r1,(r0)
+;	movei #(UPDA1|PATDSEL),r0
+;	store r0,(blit)
+;	waitblit
+;	movei #stopgpu,r0
+;	jump (r0)
+;	nop
+
+
+poly:
+StopGPU: movei #G_CTRL,r1	;point at GPU flags
+	load (r1),r0
+	bclr #0,r0
+	store r0,(r1)		;stop the GPU
+stoploop: jr stoploop
+	nop
+
+
+;*****
+;*
+;* PRETTY_POLY: Gouraud-shaded poly renderer. Only for triangular pollies.
+;*		This version does NOT use the Blitter; it interpolates colours as well as intensities.
+;*
+;* INPUTS: in_buf	+0 = Pointer to start of poly data structure in main RAM
+;*
+;* Poly data structure: <x1.w><y1.w><i1.w><col1.w><x2.w><y2.w><i2.w><col2.w><x3.w><y3.w><i3.w><col3.w>
+;*
+;*****
+
+;	x1		REGEQU r3
+;	y1		REGEQU r4
+;	x2		REGEQU r5
+;	y2		REGEQU r6
+;	x3		REGEQU r7
+;	y3		REGEQU r8
+;	i1		REGEQU r9
+;	i2 		REGEQU r10
+;	i3		REGEQU r11
+;	xinc1		REGEQU r12
+;	iinc1		REGEQU r15
+;	xinc2		REGEQU r16
+;	iinc2		REGEQU r17
+;	count1		REGEQU r18
+;	count2		REGEQU r19
+;	loop1		REGEQU r20
+;	loop2		REGEQU r21
+;	count3		REGEQU r22
+;	sum1		REGEQU r23
+;	sum2		REGEQU r24
+;	sum3		REGEQU r25
+;	sum4		REGEQU r26
+
+	c1		REGEQU r23
+	c2		REGEQU r24
+	c3 		REGEQU r25
+
+	sum5		REGEQU r5
+	sum6		REGEQU r6
+	sum7		REGEQU r7
+	sum8		REGEQU r8
+	cinc1		REGEQU r2
+	cinc2		REGEQU r13
+	cinc3		REGEQU r14
+	cinc4		REGEQU r3
+
+	base		REGEQU r27
+	ci1		REGEQU r28	
+	ci2		REGEQU r29	
+	ii		REGEQU r30	
+
+
+pretty_poly:	movei #in_buf,r20
+	load (r20),r0			;get pointer to poly data
+	loadw (r0),x1		;get all the bits of poly
+	addq #2,r0
+	loadw (r0),y1
+	addq #2,r0
+	loadw (r0),i1
+	addq #2,r0
+	loadw (r0),c1
+	addq #2,r0
+	loadw (r0),x2
+	addq #2,r0
+	loadw (r0),y2
+	addq #2,r0
+	loadw (r0),i2
+	addq #2,r0
+	loadw (r0),c2
+	addq #2,r0
+	loadw (r0),x3
+	addq #2,r0
+	loadw (r0),y3
+	addq #2,r0
+	loadw (r0),i3		;all poly details got
+	addq #2,r0
+	loadw (r0),c3
+	shlq #8,i1
+	shlq #8,i2
+	shlq #8,i3		;intensity values to 24-Bit
+
+	cmp y1,y2		;Get vertices in order: (x1,y1)=TOP (lowest y) ---> (x3,y3)=BOTTOM
+	jr pl,p_nswap1		;No nop after, as first bit of the macro only bashes r31
+	swap x1,x2
+	swap y1,y2
+	swap i1,i2
+	swap c1,c2
+p_nswap1: cmp y1,y3
+	jr pl,p_nswap2
+	swap x1,x3
+	swap y1,y3
+	swap i1,i3		;Now, (x1,y1) is definitely the top..
+	swap c1,c3
+p_nswap2: cmp y2,y3
+	jr pl,p_nswap3
+	swap x2,x3
+	swap y2,y3
+	swap i2,i3		;The points are now in top-to-bottom order,
+	swap c2,c3
+p_nswap3:
+	move y2,count1
+	move y3,count2
+	sub y1,count1
+	sub y2,count2
+	move y3,count3
+	addq #1,count1
+	sub y1,count3
+	addq #1,count2
+	addq #1,count3		;COUNT1=Y length of first span, count2=second span, y3=third span
+
+	move x3,xinc2
+	move x2,xinc1
+	sub x1,xinc2
+	sub x1,xinc1
+	move i3,iinc2
+	move i2,iinc1		;copy target values...
+	sub i1,iinc2
+	sub i1,iinc1
+	shlq #16,xinc2
+	shlq #16,xinc1		;pixel values to 16:16
+
+	sdiv count1,xinc1
+	sdiv count3,xinc2	;get the gradient increments for x...
+	sdiv count1,iinc1
+	sdiv count3,iinc2	;and the i-increments.
+
+	movei #p_loop1,loop1
+	movei #p_loop2,loop2	;initialise loop addresses
+
+	moveta x3,x3
+	moveta i3,i3
+	moveta x2,x2
+	moveta i2,i2		;Save these in alternates so they are free for use in the loop
+
+	move c1,sum5
+	move c1,sum6
+	move c1,sum7
+	move c1,sum8		;copy point 1 colour to all colour inc totals
+	movei #$f0000,r0	;mask
+	shlq #12,sum5
+	shlq #16,sum6
+	shlq #12,sum7
+	shlq #16,sum8
+	and r0,sum5
+	and r0,sum6
+	and r0,sum7
+	and r0,sum8		;split colour vectors and make 'em 16:16 fractions
+
+	move c2,cinc1
+	move c2,cinc2		;Get short side's colour values
+	shlq #12,cinc1
+	shlq #16,cinc2
+	and r0,cinc1
+	and r0,cinc2		;Split and fractionate the vectors
+
+	move x1,sum1		;Get rid of x1, as it is about to become CINC4
+
+	move c3,cinc3		;Now, PRECALCULATE the inc for the second short side
+	move c3,cinc4		;Get second short side's colour values
+	shlq #12,cinc3
+	shlq #16,cinc4
+	and r0,cinc3
+	and r0,cinc4		;Split and fractionate the vectors
+
+	sub cinc1,cinc3
+	sub cinc2,cinc4		;Vector from second point to top
+	sub sum5,cinc1
+	sub sum6,cinc2		;Make colour i-vectors
+	sdiv count1,cinc1
+	sdiv count1,cinc2	;Make the increment per scan line
+	sdiv count2,cinc3
+	sdiv count2,cinc4
+
+	moveta cinc3,cinc1
+	moveta cinc4,cinc2	;Store the second pair of i-vectors in alternates
+
+	move c3,cinc3
+	move c3,cinc4		;Get long side's colour values
+	shlq #12,cinc3
+	shlq #16,cinc4
+	and r0,cinc3
+	and r0,cinc4		;Split and fractionate the vectors
+	sub sum7,cinc3
+	sub sum8,cinc4		;Make colour i-vectors
+	sdiv count3,cinc3
+	sdiv count3,cinc4	;Make the increment per scan line
+
+	move i1,sum2
+	move sum1,sum3
+	move i1,sum4
+	shlq #16,sum1
+	shlq #16,sum3		;copy start parameters and convert to 16:16
+
+	movei #gpu_screen,r0
+	load (r0),base		;get screenbase
+	moveta base,base	;stash it so its register can be used
+
+	moveta y1,y1
+	movei #mwidth,r0
+	mult r0,y1		;turn Y into a scanline address
+
+p_loop1:
+
+;* Draw one scanline of Pretty Poly
+
+	moveta xinc1,xinc1
+	moveta sum1,sum1
+	moveta sum2,sum2
+	moveta sum3,sum3
+	moveta sum4,sum4	;Free up some registers for inside the loop
+
+	movefa base,base	;restore screenbase
+	moveq #2,xinc1		;assume pixel increment is positive
+	sub sum1,sum3
+	jr pl,notneggy
+	shrq #15,sum1		;sum1 is the start pixel *2 (word screen)
+	abs sum3
+	neg xinc1		;change sign of step if necessary
+notneggy: bclr #0,sum1
+ 	shrq #16,sum3		;sum3 is the loop size
+	add y1,sum1		;sum1 is the offset to the screen pixel
+	addq #1,sum3
+	add sum1,base		;base now points to the start pixel
+
+	move sum7,ci1
+	move sum8,ci2
+	move sum4,ii		;intensity-inc
+	sub sum5,ci1
+	sub sum6,ci2		;get delta colour vectors
+	sub sum2,ii		;delta-i along the line..
+	sdiv sum3,ci1
+	sdiv sum3,ci2		;divide by the loop size
+	sdiv sum3,ii		;all the increments are set...
+
+	moveta sum5,r20
+	moveta sum6,r21	;save current colour values
+
+	movei #p_loop3,sum1	;loop-address...
+	moveta sum8,r1
+	movei #$f000,sum8		;hi-mask...
+	movei #$f00,sum4		;lo-mask
+
+p_loop3: move sum5,r0
+	move sum6,r31		;current colour vectors
+	shrq #4,r0
+	shrq #8,r31
+	and sum8,r0
+	and sum4,r31
+	or r0,r31		;r31 now has recombined colour value
+
+	move sum2,r0
+	shrq #16,r0		;r0 now has i-value in low 8-bits
+	or r0,r31		;r31 has the final pixel value
+
+	storew r31,(base)	;plot the pixel
+	add ci1,sum5
+	add xinc1,base		;update everything
+	add ci2,sum6
+	subq #1,sum3		;sum3 is the loop-counter
+	jump ne,(sum1)		;jump back to the loop
+	add ii,sum2		;adding the ii as we go
+
+	movefa r1,sum8
+ 	movefa xinc1,xinc1
+	movefa r20,sum5
+	movefa r21,sum6
+	movefa sum1,sum1
+	movefa sum2,sum2
+	movefa sum3,sum3
+	movefa sum4,sum4	;Restore the stuff that was used
+
+;* Scanline draw complete
+
+	movefa y1,y1
+	addq #1,y1		;step to nxt scanline
+	movei #mwidth,r0
+	moveta y1,y1
+	add xinc1,sum1
+	mult r0,y1
+	add iinc1,sum2
+	add xinc2,sum3
+	add cinc1,sum5
+	add cinc2,sum6
+	add cinc3,sum7
+	add cinc4,sum8
+	subq #1,count1
+	jump ne,(loop1)
+	add iinc2,sum4		;move to next values
+
+	movefa x3,xinc1
+	movefa i3,iinc1		;new target point is x3/i3
+	movefa x2,r0
+	movefa i2,r1
+	sub r0,xinc1
+	sub r1,iinc1		;get differences
+	shlq #16,xinc1
+
+	sdiv count2,xinc1
+	sdiv count2,iinc1	;new increments
+
+	movefa cinc1,cinc1
+	movefa cinc2,cinc2	;get these which were precalculated
+
+p_loop2:
+
+;* Draw one scanline of Pretty Poly
+
+	moveta xinc1,xinc1
+	moveta sum1,sum1
+	moveta sum2,sum2
+	moveta sum3,sum3
+	moveta sum4,sum4	;Free up some registers for inside the loop
+
+	movefa base,base	;restore screenbase
+	moveq #2,xinc1		;assume pixel increment is positive
+	sub sum1,sum3
+	jr pl,n2otneggy
+	shrq #15,sum1		;sum1 is the start pixel *2 (word screen)
+	abs sum3
+	neg xinc1		;change sign of step if necessary
+n2otneggy: bclr #0,sum1
+ 	shrq #16,sum3		;sum3 is the loop size
+	add y1,sum1		;sum1 is the offset to the screen pixel
+	addq #1,sum3
+	add sum1,base		;base now points to the start pixel
+
+	move sum7,ci1
+	move sum8,ci2
+	move sum4,ii		;intensity-inc
+	sub sum5,ci1
+	sub sum6,ci2		;get delta colour vectors
+	sub sum2,ii		;delta-i along the line..
+	sdiv sum3,ci1
+	sdiv sum3,ci2		;divide by the loop size
+	sdiv sum3,ii		;all the increments are set...
+
+	moveta sum5,r20
+	moveta sum6,r21	;save current colour values
+
+	movei #p2_loop3,sum1	;loop-address...
+	moveta sum8,r1
+	movei #$f000,sum8		;hi-mask...
+	movei #$f00,sum4		;lo-mask
+
+p2_loop3: move sum5,r0
+	move sum6,r31		;current colour vectors
+	shrq #4,r0
+	shrq #8,r31
+	and sum8,r0
+	and sum4,r31
+	or r0,r31		;r31 now has recombined colour value
+
+	move sum2,r0
+	shrq #16,r0		;r0 now has i-value in low 8-bits
+	or r0,r31		;r31 has the final pixel value
+
+	storew r31,(base)	;plot the pixel
+	add ci1,sum5
+	add xinc1,base		;update everything
+	add ci2,sum6
+	subq #1,sum3		;sum3 is the loop-counter
+	jump ne,(sum1)		;jump back to the loop
+	add ii,sum2		;adding the ii as we go
+
+	movefa r1,sum8
+ 	movefa xinc1,xinc1
+	movefa r20,sum5
+	movefa r21,sum6
+	movefa sum1,sum1
+	movefa sum2,sum2
+	movefa sum3,sum3
+	movefa sum4,sum4	;Restore the stuff that was used
+
+;* Scanline draw complete
+
+	movefa y1,y1
+	addq #1,y1		;step to nxt scanline
+	movei #mwidth,r0
+	moveta y1,y1
+	add xinc1,sum1
+	mult r0,y1
+	add iinc1,sum2
+	add xinc2,sum3
+	add cinc1,sum5
+	add cinc2,sum6
+	add cinc3,sum7
+	add cinc4,sum8
+	subq #1,count2
+	jump ne,(loop2)
+	add iinc2,sum4		;move to next values
+
+	movei #StopGPU,r0
+	jump (r0)
+	nop
+
+
+;*****
+;*
+;* TILE16: Tile Fill of 16-bit screen
+;*
+;* Inputs: +4=a2 Window Mask (tile size)
+;* 	  +8=a2 Pixel Offset (to scroll the tile)
+;*	  +0=source screen
+;*****
+
+;	blit		REGEQU r13
+;	a1		REGEQU r14
+	a2		REGEQU r15
+	
+
+
+
+;*****
+;*
+;* REX: Robotron explosion generator. Takes an image from the source screen and expands it in X and Y, then
+;*	uses a1 to draw the resultant matrix of single pixels.
+;*
+;*	Provide: dest screen in gpu_screen, in_buf: 0=source image address
+;*	4=source image start pixel address, 8=x and y size of source, 12=X scale (16:16), 16=Y scale (16:16), 20=X shear (16:16), 24=Y shear,
+;*	28=Mode (0=Top edge, 1=Centered), 32=Dest X and Y 
+;*
+;*****
+
+
+;	blit		REGEQU r13
+;	a1		REGEQU r14
+;	a2		REGEQU r15
+
+	_bass		REGEQU r2	;Source base address
+	spixel		REGEQU r3	;Source pixel start
+	ssize		REGEQU r4	;Source rectangle size
+	scalex		REGEQU r5
+	scaley		REGEQU r6	;Scaling X and Y
+	shearx		REGEQU r7
+	sheary		REGEQU r8	;Shearing X and Y
+	mode		REGEQU r9	;Centering mode
+
+	xinc		REGEQU r10
+	yinc		REGEQU r11
+	xstep		REGEQU r12
+	ystep		REGEQU r16
+	_xstart		REGEQU r17
+	ystart		REGEQU r18
+	himask		REGEQU r19
+	lomask		REGEQU r20
+	dstx		REGEQU r21
+	axshear		REGEQU r22
+	ayshear		REGEQU r23
+
+	xx		REGEQU r24
+	yy		REGEQU r25
+	dsty		REGEQU r26
+	dstz		REGEQU r1
+
+crex:	movei #ycent,r0
+	load (r0),r28
+	addq #4,r0
+	load (r0),r27
+	shlq #16,r27
+	shlq #16,r28
+	movei #orex,r0
+	jump (r0)
+	nop
+	
+
+
+rex:	movei #$c00000,r27
+	movei #$780000,r28
+	movei #_sysflags,r0
+	load (r0),r1
+	btst #5,r1
+	jr z,orex
+	nop
+	movei #$8c0000,r28	
+
+orex:	movei #A1_BASE,a1
+	movei #A2_BASE,a2		;initialise the usual stuff
+	movei #B_CMD,blit
+;	movei #$ffffffff,r0
+	xor r0,r0
+	movei #B_PATD,r1
+	store r0,(r1)
+	addq #4,r1
+	store r0,(r1)
+
+	movei #in_buf,r0		;load the parameters into registers
+	load (r0),_bass
+	addq #4,r0
+	load (r0),spixel
+	addq #4,r0
+	load (r0),ssize
+	addq #4,r0
+	load (r0),scalex
+	addq #4,r0
+	load (r0),scaley
+	addq #4,r0
+	load (r0),shearx
+	addq #4,r0
+	load (r0),sheary
+	addq #4,r0
+	load (r0),mode
+	addq #4,r0
+	load (r0),dstx
+	addq #4,r0
+	load (r0),dsty
+	addq #4,r0
+	load (r0),dstz
+
+	movei #$ffff0000,himask
+	movei #$ffff,lomask
+
+
+;	movei #$c00000,r27
+;	movei #$780000,r28
+	shrq #14,dstz		;perspective/scale initial stuff
+	sdiv dstz,dstx
+	sdiv dstz,dsty
+	shlq #9,dstx
+	shlq #9,dsty
+	add r27,dstx
+	add r28,dsty
+
+	sdiv dstz,scalex
+	sdiv dstz,scaley	;scale the scales
+	shlq #9,scalex
+	shlq #9,scaley
+
+	move scalex,_xstart
+	move ssize,r0
+	move scaley,ystart
+	move ssize,r1
+	shlq #16,r0		;got X size
+	and himask,r1		;and Y size as 16:16
+	fmult _xstart,r0
+	fmult ystart,r1		;got (width*scalex) and (height*scaley)
+
+
+	move shearx,axshear
+	move sheary,ayshear
+	fmult axshear,r1	;height*xshear
+	fmult ayshear,r0	;width*yshear
+
+	move _xstart,xx		;Calculation for CENTERED explosion
+	move ystart,yy
+	add axshear,xx
+	add ayshear,yy
+	sharq #1,xx
+	sharq #1,yy		;XX and YY are vector to start pixel for dest blit
+
+	move dstx,r0
+	move dsty,r1
+	sub xx,r0
+	sub yy,r1		;r0 has x pixel+frac, r1 has y
+
+;	move _xstart,xstep
+;	move ayshear,ystep
+;	neg xstep
+;	neg ystep
+;	add shearx,xstep	;x step is -(width*scale)-shearx
+;	add scaley,ystep	;y step is -(width*yshear)+scaley
+
+
+
+;*** HACK to prevent a1 clipping bug.	Brute force but who gives a shit.
+
+	movei #pasthack,r30
+	cmpq #0,r0		;check for bug condition (LH sprite edge off the screen)
+	nop
+	nop
+	jump pl,(r30)
+	nop
+	nop
+shrnk:
+	subq #1,ssize		;shrink until pixel's on screen
+	addq #1,spixel
+	sub scalex,_xstart
+	add scalex,r0
+	nop	
+	nop
+	jr mi,shrnk
+	nop
+	nop
+	movei #stopgpu,r28
+	move ssize,r27
+	shlq #16,r27
+	nop
+	jump mi,(r28)
+	nop
+	and himask,r27
+	nop
+	jump eq,(r28)
+	nop
+
+
+
+
+pasthack: move r0,xx
+	move r0,yy
+	shrq #16,xx
+	and lomask,yy		;X integer parts to xx and fractional to yy
+	move r1,r0
+	shlq #16,r1
+	and himask,r0
+	or r1,yy
+	or r0,xx		;XX and YY now have a1_pixel and a1_pixelf values
+
+	move _xstart,xstep
+	move ayshear,ystep
+	neg xstep
+	neg ystep
+	add shearx,xstep	;x step is -(width*scale)-shearx
+	add scaley,ystep	;y step is -(width*yshear)+scaley
+
+	move xstep,r0
+	move xstep,r1
+	shrq #16,r0
+	and lomask,r1		;x components set up
+
+	move ystep,xstep
+	shlq #16,ystep
+	and himask,xstep
+	or ystep,r1
+	or xstep,r0		;r0/r1 have a1_step and a1_fstep
+
+	move scalex,xinc
+	move scalex,yinc
+	shrq #16,xinc
+	and lomask,yinc
+	move sheary,scalex
+	shlq #16,sheary
+	and himask,scalex
+	or sheary,yinc
+	or scalex,xinc		;xinc/yinc have a1_inc and a1_finc
+	
+	waitblit
+;	movei #$18007f,xx
+
+	store xx,(a1+_pixel)
+	store yy,(a1+_fpixel)
+	store r0,(a1+_step)
+	store r1,(a1+_fstep)
+	store xinc,(a1+_inc)
+	store yinc,(a1+_finc)
+	movei #gpu_screen,r0
+	movei #(PITCH1|PIXEL16|WID384|XADDINC),r1
+	load (r0),r26
+	store r1,(a1+_flags)
+	movei #$1180180,r1
+	store r26,(a1+_base)	;a1 is now set up...
+	store r1,(a1+_clip)
+
+
+	store _bass,(a2+_base)
+	store spixel,(a2+_pixel)
+	move ssize,r0
+	and lomask,r0		;get width
+	neg r0
+	and lomask,r0
+	bset #16,r0		;step is (-xsize,1)
+	movei #(PITCH1|PIXEL16|WID320|XADDPIX),r1
+	store r0,(a2+_step)
+	store r1,(a2+_flags)
+
+	movei #B_COUNT,r0
+	store ssize,(r0)	;count is destination size
+
+	movei #(SRCEN|CLIP_A1|UPDA1F|UPDA1|UPDA2|LFU_A|LFU_AN|DCOMPEN),r0
+;	movei #(PATDSEL|CLIP_A1|UPDA1F|UPDA1),r0
+	store r0,(blit)		;draw the sprite
+
+	movei #stopgpu,r0
+	jump (r0)
+	nop			;all done	
+
+
+;*****
+;*
+;* POLYO2D:  Draw 2D object made of polygons, positioned in Tempest 3D space
+;*
+;* Inputs: IN_BUF+0=Pointer to poly object data structure
+;* 	   +4=X +8=Y +12=Z, Tempest world co-ordinates
+;*	   +16=X centre; +20=Y centre, as 16:16 fractions; +24=XY Rotation Angle
+;*
+;*****
+	
+;	x1		REGEQU r3		all these already defined for the poly renderer
+;	y1		REGEQU r4
+;	x2		REGEQU r5
+;	y2		REGEQU r6
+;	x3		REGEQU r7
+;	y3		REGEQU r8
+;	i1		REGEQU r9
+;	i2 		REGEQU r10
+;	i3		REGEQU r11
+;	xinc1		REGEQU r12
+;	iinc1		REGEQU r15
+;	xinc2		REGEQU r16
+;	iinc2		REGEQU r17
+;	count1		REGEQU r18
+;	count2		REGEQU r19
+;	loop1		REGEQU r20
+;	loop2		REGEQU r21
+;	count3		REGEQU r22
+;	sum1		REGEQU r23
+;	sum2		REGEQU r24
+;	sum3		REGEQU r25
+;	sum4		REGEQU r26
+
+;	xstart 		REGEQU r27
+;	istart		REGEQU r28
+;	xsize		REGEQU r29
+;	isize		REGEQU r30
+;	cmd		REGEQU r2
+
+
+;	blit		REGEQU r13
+;	a1		REGEQU r14
+
+;*	Definitions for use in the alternate-register bank. Alternate r0 and ISTART are used in the polyrenderer.
+
+	sinebase	REGEQU r23
+	polypointer	REGEQU r24
+	xxx		REGEQU r25
+	yyy 		REGEQU r26
+	zzz		REGEQU r12
+	xcen		REGEQU r13
+	ycen		REGEQU r14
+	faces		REGEQU r15
+	sin		REGEQU r16
+	cos		REGEQU r17
+	byte		REGEQU r18
+	vertices	REGEQU r19
+	poly_loop	REGEQU r20
+	colour		REGEQU r21
+	vertex		REGEQU r22
+
+polyo2d:
+
+
+
+

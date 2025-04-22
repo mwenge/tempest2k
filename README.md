@@ -84,3 +84,8 @@ wine ./utils/t2k.exe t2k.rom
 ### Reading the source code.
 
 The place to start is in [yak.s](src/yak.s).
+
+### Reading the original, uncommented source code.
+Take a look in the [orig] folder (orig/).
+
+The place to start is in [yak.s](src/yak.s).
